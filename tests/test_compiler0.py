@@ -56,6 +56,7 @@ class Compiler0Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 5)
 
 
+
 class SemanticValidationTests(unittest.TestCase):
     def assert_compile_error(self, source, text):
         from compiler0.etl0 import SemanticError
