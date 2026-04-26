@@ -323,6 +323,15 @@ def validate(program: Program) -> None:
             raise SemanticError(f"{fn.loc.format()}: duplicate function {fn.name!r}")
         functions[fn.name] = fn
 
+    if "main" not in functions:
+        raise SemanticError("program must define function 'main'")
+
+    main_fn = functions["main"]
+    if main_fn.params:
+        raise SemanticError(f"{main_fn.loc.format()}: function 'main' must not take parameters")
+    if main_fn.return_type != "i32":
+        raise SemanticError(f"{main_fn.loc.format()}: function 'main' must return i32")
+
     for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}", fn.loc)
         if not fn.body:
