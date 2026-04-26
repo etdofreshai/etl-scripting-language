@@ -34,7 +34,8 @@ def slug(value: str) -> str:
 
 
 def git_head(full: bool = False) -> str:
-    cp = run(["git", "rev-parse", "HEAD" if full else "--short", "HEAD"] if full else ["git", "rev-parse", "--short", "HEAD"])
+    cmd = ["git", "rev-parse", "HEAD"] if full else ["git", "rev-parse", "--short", "HEAD"]
+    cp = run(cmd)
     return cp.stdout.strip() if cp.returncode == 0 else "unknown"
 
 
