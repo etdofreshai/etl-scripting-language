@@ -141,6 +141,38 @@ fn main() i32 {
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
+    def test_compile_and_run_zero_arg_helper_call(self):
+        c_source = compile_source("""fn forty_two() i32 {
+  ret 42
+}
+
+fn main() i32 {
+  ret forty_two()
+}
+""")
+        self.assertIn("int32_t forty_two(void);", c_source)
+        self.assertIn("return forty_two();", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 42)
+
+    def test_compile_and_run_call_inside_binary_expression(self):
+        c_source = compile_source("""fn one() i32 { ret 1 }
+fn main() i32 { ret one() + 4 }
+""")
+        self.assertIn("return (one() + 4);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
+
     def test_forward_function_call_compiles_cleanly(self):
         c_source = compile_source("""fn main() i32 {
   ret add(2, 3)
