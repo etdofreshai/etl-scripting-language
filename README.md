@@ -1,0 +1,20 @@
+# ETL Scripting Language
+
+ETL is a minimal LLM-oriented scripting/systems language designed to bootstrap into a self-hosting compiler.
+
+Early goals:
+
+- tiny, regular syntax
+- explicit types
+- easy parsing and AST generation
+- compiler errors optimized for AI repair loops
+- first backend: C for fast bootstrap and portability
+- future backends: WASM, native/ASM, mobile build pipelines
+
+Bootstrap path:
+
+1. Write compiler-0 in a practical host language.
+2. Compile ETL v0 programs to C.
+3. Rewrite the compiler in ETL.
+4. Use compiler-0 to build compiler-1.
+5. Use compiler-1+ to build future ETL compilers.

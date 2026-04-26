@@ -1,0 +1,13 @@
+logs/
+state/*-model-state.json
+state/*-review-state.json
+state/*supervisor.pid
+state/*git-askpass.sh
+state/STOP_*
+__pycache__/
+.pytest_cache/
+target/
+build/
+dist/
+*.o
+*.exe
