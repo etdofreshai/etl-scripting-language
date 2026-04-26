@@ -452,10 +452,13 @@ def compile_source(src: str) -> str:
     return emit_c(program)
 
 
-def compile_file(input_path: Path, output_path: Path) -> None:
+def compile_file(input_path: Path, output_path: Path | None) -> str | None:
     c_source = compile_source(input_path.read_text())
+    if output_path is None:
+        return c_source
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(c_source)
+    return None
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -464,7 +467,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     compile_parser = subcommands.add_parser("compile", help="compile ETL source to C")
     compile_parser.add_argument("input", type=Path, help="input .etl source path")
-    compile_parser.add_argument("-o", "--output", type=Path, required=True, help="output .c path")
+    compile_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=True,
+        help="output .c path, or '-' to write generated C to stdout",
+    )
     return parser
 
 
@@ -472,7 +481,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     try:
         if args.command == "compile":
-            compile_file(args.input, args.output)
+            output_path = None if args.output == "-" else Path(args.output)
+            c_source = compile_file(args.input, output_path)
+            if c_source is not None:
+                print(c_source, end="")
             return 0
         raise AssertionError(args.command)
     except ETLError as exc:
