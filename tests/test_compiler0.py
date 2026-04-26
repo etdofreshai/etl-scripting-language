@@ -31,6 +31,18 @@ class Compiler0Tests(unittest.TestCase):
         self.assertNotIn("SLASH", kinds)
         self.assertEqual(kinds[-1], "EOF")
 
+    def test_lex_recognizes_all_draft_keywords(self):
+        kinds = [t.kind for t in lex("fn let if else while ret type use")]
+        self.assertEqual(kinds, ["FN", "LET", "IF", "ELSE", "WHILE", "RET", "TYPE", "USE", "EOF"])
+
+    def test_rejects_keyword_function_name(self):
+        with self.assertRaisesRegex(ParseError, "expected IDENT, got IF at 1:4"):
+            parse("fn if() i32 { ret 0 }")
+
+    def test_rejects_unimplemented_if_statement_as_keyword(self):
+        with self.assertRaisesRegex(ParseError, "expected statement at 1:17"):
+            parse("fn main() i32 { if 1 { ret 1 } ret 0 }")
+
     def test_compile_sample_with_comments(self):
         c_source = compile_source("""// file comment
 fn main() i32 {
