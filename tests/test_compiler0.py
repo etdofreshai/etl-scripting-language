@@ -355,6 +355,14 @@ fn main() i32 { ret add(1) }
             self.assertEqual(main(["compile", "-", "-o", "-"]), 1)
         self.assertIn("etl0: error: <stdin>: 1:1: function 'main' must return i32", stderr.getvalue())
 
+    def test_cli_missing_input_reports_input_label(self):
+        missing_path = Path("/tmp/etl0-definitely-missing-input.etl")
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertEqual(main(["compile", str(missing_path), "-o", "-"]), 1)
+        self.assertIn(f"etl0: error: {missing_path}:", stderr.getvalue())
+        self.assertIn("No such file", stderr.getvalue())
+
     def test_cli_failure_preserves_existing_output(self):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad.etl"
