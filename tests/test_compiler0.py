@@ -154,6 +154,13 @@ fn main() i32 {
     def test_semantic_error_reports_local_type_location(self):
         self.assert_compile_error("fn main() i32 {\n  let x u32 = 1\n  ret x\n}", "2:3: unsupported type 'u32'")
 
+    def test_rejects_integer_literals_outside_i32_range(self):
+        self.assert_compile_error("fn main() i32 {\n  ret 2147483648\n}", "2:7: integer literal 2147483648 is outside supported i32 range")
+
+    def test_accepts_max_i32_literal(self):
+        c_source = compile_source("fn main() i32 { ret 2147483647 }")
+        self.assertIn("return 2147483647;", c_source)
+
 
 if __name__ == "__main__":
     unittest.main()
