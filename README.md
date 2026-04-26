@@ -27,7 +27,7 @@ It currently supports the tiny v0 subset needed for the bootstrap smoke:
 - `fn` definitions with explicit parameter and return types
 - `let` locals
 - `ret`
-- integer literals, names, calls, and `+`
+- integer literals, names, calls, parenthesized expressions, and `+`
 - C emission for `i32`
 
 Compile an ETL file to C with:

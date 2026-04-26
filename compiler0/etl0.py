@@ -231,6 +231,11 @@ class Parser:
         tok = self.peek()
         if tok.kind == "INT":
             return IntLit(int(self.take("INT").text), SourceLoc.from_token(tok))
+        if tok.kind == "LPAREN":
+            self.take("LPAREN")
+            expr = self.parse_expr()
+            self.take("RPAREN")
+            return expr
         if tok.kind == "IDENT":
             ident_tok = self.take("IDENT")
             name = ident_tok.text
