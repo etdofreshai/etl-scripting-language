@@ -16,6 +16,7 @@ SINGLE = {
     "-": "MINUS",
     "*": "STAR",
     "/": "SLASH",
+    "%": "PERCENT",
     "=": "EQUAL",
 }
 
@@ -247,7 +248,7 @@ class Parser:
             op_tok = self.peek()
             self.take(op_tok.kind)
             expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
-        if self.peek().kind in {"STAR", "SLASH"}:
+        if self.peek().kind in {"STAR", "SLASH", "PERCENT"}:
             tok = self.peek()
             raise ParseError(f"operator {tok.text!r} is not supported in ETL v0 at {tok.line}:{tok.col}")
         return expr

@@ -12,6 +12,7 @@ class V0BoundaryTests(unittest.TestCase):
         cases = [
             ("*", r"operator '\*' is not supported in ETL v0 at 1:23"),
             ("/", r"operator '/' is not supported in ETL v0 at 1:23"),
+            ("%", r"operator '%' is not supported in ETL v0 at 1:23"),
         ]
         for operator, diagnostic in cases:
             with self.subTest(operator=operator):
