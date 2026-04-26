@@ -140,6 +140,20 @@ fn main() i32 { ret add(1) }
             self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
             self.assertFalse(c_path.exists())
 
+    def test_semantic_error_reports_unknown_name_location(self):
+        self.assert_compile_error("fn main() i32 {\n  ret nope\n}", "2:7: unknown name")
+
+    def test_semantic_error_reports_call_location(self):
+        self.assert_compile_error("""
+fn add(a i32, b i32) i32 { ret a + b }
+fn main() i32 {
+  ret add(1)
+}
+""", "4:7: function 'add' expects 2 args")
+
+    def test_semantic_error_reports_local_type_location(self):
+        self.assert_compile_error("fn main() i32 {\n  let x u32 = 1\n  ret x\n}", "2:3: unsupported type 'u32'")
+
 
 if __name__ == "__main__":
     unittest.main()

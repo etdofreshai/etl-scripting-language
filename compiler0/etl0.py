@@ -17,6 +17,19 @@ class Token:
     col: int
 
 
+@dataclass(frozen=True)
+class SourceLoc:
+    line: int
+    col: int
+
+    @classmethod
+    def from_token(cls, token: Token) -> "SourceLoc":
+        return cls(token.line, token.col)
+
+    def format(self) -> str:
+        return f"{self.line}:{self.col}"
+
+
 class ETLError(Exception):
     pass
 
@@ -44,12 +57,14 @@ class Function:
     params: list["Param"]
     return_type: str
     body: list["Stmt"]
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
 class Param:
     name: str
     typ: str
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
@@ -57,11 +72,13 @@ class Let:
     name: str
     typ: str
     expr: "Expr"
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
 class Ret:
     expr: "Expr"
+    loc: SourceLoc
 
 
 Stmt = Let | Ret
@@ -70,17 +87,20 @@ Stmt = Let | Ret
 @dataclass(frozen=True)
 class IntLit:
     value: int
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
 class Name:
     value: str
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
 class Call:
     name: str
     args: list["Expr"]
+    loc: SourceLoc
 
 
 @dataclass(frozen=True)
@@ -88,6 +108,7 @@ class Binary:
     op: str
     left: "Expr"
     right: "Expr"
+    loc: SourceLoc
 
 
 Expr = IntLit | Name | Call | Binary
@@ -164,15 +185,16 @@ class Parser:
         return Program(funcs)
 
     def parse_function(self) -> Function:
-        self.take("FN")
+        fn_tok = self.take("FN")
         name = self.take("IDENT").text
         self.take("LPAREN")
         params: list[Param] = []
         if self.peek().kind != "RPAREN":
             while True:
-                pname = self.take("IDENT").text
+                param_tok = self.take("IDENT")
+                pname = param_tok.text
                 ptype = self.take("IDENT").text
-                params.append(Param(pname, ptype))
+                params.append(Param(pname, ptype, SourceLoc.from_token(param_tok)))
                 if self.peek().kind != "COMMA":
                     break
                 self.take("COMMA")
@@ -183,34 +205,35 @@ class Parser:
         while self.peek().kind != "RBRACE":
             body.append(self.parse_stmt())
         self.take("RBRACE")
-        return Function(name, params, return_type, body)
+        return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
 
     def parse_stmt(self) -> Stmt:
         if self.peek().kind == "LET":
-            self.take("LET")
+            let_tok = self.take("LET")
             name = self.take("IDENT").text
             typ = self.take("IDENT").text
             self.take("EQUAL")
-            return Let(name, typ, self.parse_expr())
+            return Let(name, typ, self.parse_expr(), SourceLoc.from_token(let_tok))
         if self.peek().kind == "RET":
-            self.take("RET")
-            return Ret(self.parse_expr())
+            ret_tok = self.take("RET")
+            return Ret(self.parse_expr(), SourceLoc.from_token(ret_tok))
         tok = self.peek()
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
     def parse_expr(self) -> Expr:
         expr = self.parse_primary()
         while self.peek().kind == "PLUS":
-            op = self.take("PLUS").text
-            expr = Binary(op, expr, self.parse_primary())
+            op_tok = self.take("PLUS")
+            expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
         return expr
 
     def parse_primary(self) -> Expr:
         tok = self.peek()
         if tok.kind == "INT":
-            return IntLit(int(self.take("INT").text))
+            return IntLit(int(self.take("INT").text), SourceLoc.from_token(tok))
         if tok.kind == "IDENT":
-            name = self.take("IDENT").text
+            ident_tok = self.take("IDENT")
+            name = ident_tok.text
             if self.peek().kind == "LPAREN":
                 self.take("LPAREN")
                 args: list[Expr] = []
@@ -221,8 +244,8 @@ class Parser:
                             break
                         self.take("COMMA")
                 self.take("RPAREN")
-                return Call(name, args)
-            return Name(name)
+                return Call(name, args, SourceLoc.from_token(ident_tok))
+            return Name(name, SourceLoc.from_token(ident_tok))
         raise ParseError(f"expected expression at {tok.line}:{tok.col}")
 
 
@@ -237,24 +260,24 @@ def validate(program: Program) -> None:
     functions: dict[str, Function] = {}
     for fn in program.functions:
         if fn.name in functions:
-            raise SemanticError(f"duplicate function {fn.name!r}")
+            raise SemanticError(f"{fn.loc.format()}: duplicate function {fn.name!r}")
         functions[fn.name] = fn
 
     for fn in program.functions:
-        validate_type(fn.return_type, f"return type for {fn.name}")
+        validate_type(fn.return_type, f"return type for {fn.name}", fn.loc)
         if not fn.body or not isinstance(fn.body[-1], Ret):
-            raise SemanticError(f"function {fn.name!r} must end with ret")
+            raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
         names: set[str] = set()
         for param in fn.params:
-            validate_type(param.typ, f"parameter {param.name} in {fn.name}")
+            validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc)
             if param.name in names:
-                raise SemanticError(f"duplicate local name {param.name!r} in {fn.name}")
+                raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
             names.add(param.name)
         for stmt in fn.body:
             if isinstance(stmt, Let):
-                validate_type(stmt.typ, f"local {stmt.name} in {fn.name}")
+                validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
                 if stmt.name in names:
-                    raise SemanticError(f"duplicate local name {stmt.name!r} in {fn.name}")
+                    raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
                 validate_expr(stmt.expr, functions, names, fn.name)
                 names.add(stmt.name)
             elif isinstance(stmt, Ret):
@@ -263,9 +286,9 @@ def validate(program: Program) -> None:
                 raise TypeError(stmt)
 
 
-def validate_type(typ: str, where: str) -> None:
+def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
     if typ not in SUPPORTED_TYPES:
-        raise SemanticError(f"unsupported type {typ!r} in {where}")
+        raise SemanticError(f"{loc.format()}: unsupported type {typ!r} in {where}")
 
 
 def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
@@ -273,7 +296,7 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], c
         return
     if isinstance(expr, Name):
         if expr.value not in names:
-            raise SemanticError(f"unknown name {expr.value!r} in {current_fn}")
+            raise SemanticError(f"{expr.loc.format()}: unknown name {expr.value!r} in {current_fn}")
         return
     if isinstance(expr, Binary):
         validate_expr(expr.left, functions, names, current_fn)
@@ -281,11 +304,11 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], c
         return
     if isinstance(expr, Call):
         if expr.name not in functions:
-            raise SemanticError(f"unknown function {expr.name!r} in {current_fn}")
+            raise SemanticError(f"{expr.loc.format()}: unknown function {expr.name!r} in {current_fn}")
         expected = len(functions[expr.name].params)
         if len(expr.args) != expected:
             raise SemanticError(
-                f"function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
+                f"{expr.loc.format()}: function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
             )
         for arg in expr.args:
             validate_expr(arg, functions, names, current_fn)
