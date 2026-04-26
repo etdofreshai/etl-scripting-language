@@ -14,6 +14,7 @@ SINGLE = {
     ",": "COMMA",
     "+": "PLUS",
     "-": "MINUS",
+    "*": "STAR",
     "=": "EQUAL",
 }
 
@@ -237,6 +238,9 @@ class Parser:
             op_tok = self.peek()
             self.take(op_tok.kind)
             expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
+        if self.peek().kind == "STAR":
+            tok = self.peek()
+            raise ParseError(f"operator '*' is not supported in ETL v0 at {tok.line}:{tok.col}")
         return expr
 
     def parse_primary(self) -> Expr:

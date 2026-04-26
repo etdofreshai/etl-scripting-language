@@ -28,6 +28,7 @@ It currently supports the tiny v0 subset needed for the bootstrap smoke:
 - `let` locals
 - `ret`
 - integer literals (including negative literals), names, calls, parenthesized expressions, `+`, and `-`
+- explicit v0 diagnostics for operators that are intentionally not implemented yet, such as `*`
 - C emission for `i32`
 
 Compile an ETL file to C with:
