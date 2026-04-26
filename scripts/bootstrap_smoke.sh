@@ -9,7 +9,7 @@ c_path="$tmpdir/add_main.c"
 exe_path="$tmpdir/add_main"
 
 python3 -m compiler0.etl0 compile "$repo_root/examples/add_main.etl" -o "$c_path"
-cc "$c_path" -o "$exe_path"
+cc -Wall -Werror "$c_path" -o "$exe_path"
 
 set +e
 "$exe_path"
