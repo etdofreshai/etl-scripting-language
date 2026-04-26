@@ -374,6 +374,18 @@ fn main() i32 {
             "2:3: local name '_Tmp' is reserved by the C backend",
         )
 
+    def test_rejects_backend_typedef_function_name(self):
+        self.assert_compile_error(
+            "fn int32_t() i32 { ret 0 }\nfn main() i32 { ret 0 }",
+            "1:1: function name 'int32_t' is reserved by the C backend",
+        )
+
+    def test_rejects_backend_typedef_local_name(self):
+        self.assert_compile_error(
+            "fn main() i32 {\n  let uint64_t i32 = 1\n  ret uint64_t\n}",
+            "2:3: local name 'uint64_t' is reserved by the C backend",
+        )
+
     def test_accepts_nonreserved_underscore_name(self):
         c_source = compile_source("fn main() i32 {\n  let _tmp i32 = 1\n  ret _tmp\n}")
         self.assertIn("int32_t _tmp = 1;", c_source)

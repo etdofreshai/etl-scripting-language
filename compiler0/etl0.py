@@ -278,6 +278,8 @@ def parse(src: str) -> Program:
 
 SUPPORTED_TYPES = {"i32"}
 C_RESERVED_IDENTIFIERS = {
+    # C keywords and backend-provided typedef names share the ordinary
+    # identifier namespace with ETL function/local names in emitted C.
     "auto",
     "break",
     "case",
@@ -312,6 +314,16 @@ C_RESERVED_IDENTIFIERS = {
     "void",
     "volatile",
     "while",
+    "int8_t",
+    "int16_t",
+    "int32_t",
+    "int64_t",
+    "uint8_t",
+    "uint16_t",
+    "uint32_t",
+    "uint64_t",
+    "intptr_t",
+    "uintptr_t",
 }
 I32_MIN = -(2**31)
 I32_MAX = 2**31 - 1
