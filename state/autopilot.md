@@ -47,3 +47,31 @@ Next likely move:
 - Add the smallest semantic validation pass for duplicate functions, unsupported types, and call arity before growing syntax.
 
 Blockers: none.
+
+## Cycle 2026-04-25 22:20 CDT
+
+Action taken:
+
+- Added the first semantic validation pass to compiler-0 before C emission.
+- Validation now rejects duplicate function names, unsupported types, duplicate local/parameter names, unknown names/functions, and call arity mismatches.
+- Added unittest coverage for duplicate functions, unsupported return types, call arity mismatch, and unknown names.
+- Updated README and this state file with the new validation boundary.
+
+Verification:
+
+```bash
+make test
+```
+
+Result:
+
+```text
+Ran 7 tests
+OK
+```
+
+Next likely move:
+
+- Add a minimal CLI entrypoint for compiler-0 (`etl0 compile input.etl -o out.c`) and verify the example through the CLI path.
+
+Blockers: none.

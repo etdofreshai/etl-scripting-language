@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 KEYWORDS = {"fn", "let", "ret"}
 SINGLE = {"(": "LPAREN", ")": "RPAREN", "{": "LBRACE", "}": "RBRACE", ",": "COMMA", "+": "PLUS", "=": "EQUAL"}
@@ -24,6 +23,10 @@ class LexerError(ETLError):
 
 
 class ParseError(ETLError):
+    pass
+
+
+class SemanticError(ETLError):
     pass
 
 
@@ -219,10 +222,69 @@ def parse(src: str) -> Program:
     return Parser(lex(src)).parse_program()
 
 
+SUPPORTED_TYPES = {"i32"}
+
+
+def validate(program: Program) -> None:
+    functions: dict[str, Function] = {}
+    for fn in program.functions:
+        if fn.name in functions:
+            raise SemanticError(f"duplicate function {fn.name!r}")
+        functions[fn.name] = fn
+        validate_type(fn.return_type, f"return type for {fn.name}")
+        names: set[str] = set()
+        for param in fn.params:
+            validate_type(param.typ, f"parameter {param.name} in {fn.name}")
+            if param.name in names:
+                raise SemanticError(f"duplicate local name {param.name!r} in {fn.name}")
+            names.add(param.name)
+        for stmt in fn.body:
+            if isinstance(stmt, Let):
+                validate_type(stmt.typ, f"local {stmt.name} in {fn.name}")
+                if stmt.name in names:
+                    raise SemanticError(f"duplicate local name {stmt.name!r} in {fn.name}")
+                validate_expr(stmt.expr, functions, names, fn.name)
+                names.add(stmt.name)
+            elif isinstance(stmt, Ret):
+                validate_expr(stmt.expr, functions, names, fn.name)
+            else:
+                raise TypeError(stmt)
+
+
+def validate_type(typ: str, where: str) -> None:
+    if typ not in SUPPORTED_TYPES:
+        raise SemanticError(f"unsupported type {typ!r} in {where}")
+
+
+def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
+    if isinstance(expr, IntLit):
+        return
+    if isinstance(expr, Name):
+        if expr.value not in names:
+            raise SemanticError(f"unknown name {expr.value!r} in {current_fn}")
+        return
+    if isinstance(expr, Binary):
+        validate_expr(expr.left, functions, names, current_fn)
+        validate_expr(expr.right, functions, names, current_fn)
+        return
+    if isinstance(expr, Call):
+        if expr.name not in functions:
+            raise SemanticError(f"unknown function {expr.name!r} in {current_fn}")
+        expected = len(functions[expr.name].params)
+        if len(expr.args) != expected:
+            raise SemanticError(
+                f"function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
+            )
+        for arg in expr.args:
+            validate_expr(arg, functions, names, current_fn)
+        return
+    raise TypeError(expr)
+
+
 def c_type(t: str) -> str:
     if t == "i32":
         return "int32_t"
-    raise ETLError(f"unsupported type {t!r}")
+    raise SemanticError(f"unsupported type {t!r}")
 
 
 def emit_expr(expr: Expr) -> str:
@@ -255,4 +317,6 @@ def emit_c(program: Program) -> str:
 
 
 def compile_source(src: str) -> str:
-    return emit_c(parse(src))
+    program = parse(src)
+    validate(program)
+    return emit_c(program)

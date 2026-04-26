@@ -35,3 +35,13 @@ Run verification with:
 ```bash
 make test
 ```
+
+## semantic checks
+
+Compiler-0 now validates the tiny v0 subset before C emission:
+
+- duplicate function names are rejected
+- only supported v0 types are accepted (`i32` for now)
+- duplicate local/parameter names are rejected
+- unknown names and unknown calls are rejected
+- function call arity is checked

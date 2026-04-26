@@ -46,3 +46,27 @@ class Compiler0Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class SemanticValidationTests(unittest.TestCase):
+    def assert_compile_error(self, source, text):
+        from compiler0.etl0 import SemanticError
+        with self.assertRaisesRegex(SemanticError, text):
+            compile_source(source)
+
+    def test_rejects_duplicate_functions(self):
+        self.assert_compile_error("""
+fn main() i32 { ret 0 }
+fn main() i32 { ret 1 }
+""", "duplicate function")
+
+    def test_rejects_unsupported_type(self):
+        self.assert_compile_error("fn main() u32 { ret 0 }", "unsupported type")
+
+    def test_rejects_call_arity(self):
+        self.assert_compile_error("""
+fn add(a i32, b i32) i32 { ret a + b }
+fn main() i32 { ret add(1) }
+""", "expects 2 args")
+
+    def test_rejects_unknown_name(self):
+        self.assert_compile_error("fn main() i32 { ret nope }", "unknown name")
