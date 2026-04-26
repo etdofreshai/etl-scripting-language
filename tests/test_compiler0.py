@@ -132,6 +132,17 @@ fn add(a i32, b i32) i32 {
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
+    def test_python_module_entrypoint_compiles_sample(self):
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "sample.etl"
+            c_path = Path(td) / "out.c"
+            input_path.write_text(SAMPLE)
+            subprocess.run(
+                ["python3", "-m", "compiler0", "compile", str(input_path), "-o", str(c_path)],
+                check=True,
+            )
+            self.assertIn("int32_t main(void)", c_path.read_text())
+
     def test_cli_creates_output_parent_directories(self):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "sample.etl"
