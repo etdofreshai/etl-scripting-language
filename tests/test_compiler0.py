@@ -47,6 +47,23 @@ fn main() i32 {
         self.assertIsInstance(program.functions[1].body[0], Let)
         self.assertIsInstance(program.functions[1].body[0].expr, Call)
 
+    def test_parse_parenthesized_expression(self):
+        program = parse("fn main() i32 { ret (1 + 2) + 3 }")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertIsInstance(expr.left, Binary)
+
+    def test_compile_and_run_parenthesized_expression(self):
+        c_source = compile_source("fn main() i32 { ret (1 + 2) + 3 }")
+        self.assertIn("return ((1 + 2) + 3);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 6)
+
     def test_lexer_error_reports_line_and_column(self):
         with self.assertRaisesRegex(LexerError, "unexpected character '@' at 2:3"):
             lex("fn main() i32 {\n  @\n}")
