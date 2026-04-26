@@ -109,6 +109,11 @@ def lex(src: str) -> list[Token]:
             line += 1
             col = 1
             continue
+        if ch == "/" and i + 1 < len(src) and src[i + 1] == "/":
+            while i < len(src) and src[i] != "\n":
+                i += 1
+                col += 1
+            continue
         if ch in SINGLE:
             tokens.append(Token(SINGLE[ch], ch, line, col))
             i += 1

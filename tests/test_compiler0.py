@@ -23,6 +23,22 @@ class Compiler0Tests(unittest.TestCase):
         self.assertEqual(kinds[-1], "EOF")
         self.assertIn("RET", kinds)
 
+    def test_lex_skips_line_comments(self):
+        kinds = [t.kind for t in lex("// comment before code\nfn main() i32 { ret 0 } // trailing comment\n")]
+        self.assertEqual(kinds[:4], ["FN", "IDENT", "LPAREN", "RPAREN"])
+        self.assertNotIn("SLASH", kinds)
+        self.assertEqual(kinds[-1], "EOF")
+
+    def test_compile_sample_with_comments(self):
+        c_source = compile_source("""// file comment
+fn main() i32 {
+  // body comment
+  ret 0 // trailing comment
+}
+""")
+        self.assertIn("int32_t main(void)", c_source)
+        self.assertIn("return 0;", c_source)
+
     def test_parse_sample(self):
         program = parse(SAMPLE)
         self.assertEqual([f.name for f in program.functions], ["add", "main"])
