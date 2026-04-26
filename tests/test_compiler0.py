@@ -49,13 +49,30 @@ fn main() i32 {
 
     def test_compile_and_run_sample(self):
         c_source = compile_source(SAMPLE)
-        self.assertIn("int32_t add(int32_t a, int32_t b)", c_source)
-        self.assertIn("int32_t main(void)", c_source)
+        self.assertIn("int32_t add(int32_t a, int32_t b);", c_source)
+        self.assertIn("int32_t main(void);", c_source)
         with tempfile.TemporaryDirectory() as td:
             c_path = Path(td) / "out.c"
             exe_path = Path(td) / "out"
             c_path.write_text(c_source)
-            subprocess.run(["cc", str(c_path), "-o", str(exe_path)], check=True)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
+
+    def test_forward_function_call_compiles_cleanly(self):
+        c_source = compile_source("""fn main() i32 {
+  ret add(2, 3)
+}
+
+fn add(a i32, b i32) i32 {
+  ret a + b
+}
+""")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
