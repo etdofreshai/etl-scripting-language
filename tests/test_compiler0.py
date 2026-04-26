@@ -91,6 +91,10 @@ fn main() i32 {
         with self.assertRaisesRegex(ParseError, "expected RPAREN, got IDENT at 1:15"):
             parse("fn main(a i32 b i32) i32 { ret a }")
 
+    def test_parse_error_reports_unterminated_function(self):
+        with self.assertRaisesRegex(ParseError, "unterminated function 'main'; expected RBRACE before EOF at 2:8"):
+            parse("fn main() i32 {\n  ret 0")
+
     def test_compile_and_run_sample(self):
         c_source = compile_source(SAMPLE)
         self.assertIn("int32_t add(int32_t a, int32_t b);", c_source)

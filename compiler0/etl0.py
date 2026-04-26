@@ -212,6 +212,8 @@ class Parser:
         self.take("LBRACE")
         body: list[Stmt] = []
         while self.peek().kind != "RBRACE":
+            if self.peek().kind == "EOF":
+                raise ParseError(f"unterminated function {name!r}; expected RBRACE before EOF at {self.peek().line}:{self.peek().col}")
             body.append(self.parse_stmt())
         self.take("RBRACE")
         return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
