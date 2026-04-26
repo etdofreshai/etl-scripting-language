@@ -30,6 +30,12 @@ It currently supports the tiny v0 subset needed for the bootstrap smoke:
 - integer literals, names, calls, and `+`
 - C emission for `i32`
 
+Compile an ETL file to C with:
+
+```bash
+python3 -m compiler0.etl0 compile examples/add_main.etl -o /tmp/add_main.c
+```
+
 Run verification with:
 
 ```bash

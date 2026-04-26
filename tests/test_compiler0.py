@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compiler0.etl0 import Binary, Call, Let, Ret, compile_source, lex, parse
+from compiler0.etl0 import Binary, Call, Let, Ret, compile_source, lex, main, parse
 
 SAMPLE = """fn add(a i32, b i32) i32 {
   ret a + b
@@ -43,9 +43,18 @@ class Compiler0Tests(unittest.TestCase):
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
+    def test_cli_compile_and_run_sample(self):
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "sample.etl"
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            input_path.write_text(SAMPLE)
+            self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 0)
+            self.assertIn("int32_t main(void)", c_path.read_text())
+            subprocess.run(["cc", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
 
-if __name__ == "__main__":
-    unittest.main()
 
 class SemanticValidationTests(unittest.TestCase):
     def assert_compile_error(self, source, text):
@@ -70,3 +79,15 @@ fn main() i32 { ret add(1) }
 
     def test_rejects_unknown_name(self):
         self.assert_compile_error("fn main() i32 { ret nope }", "unknown name")
+
+    def test_cli_returns_error_for_bad_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "bad.etl"
+            c_path = Path(td) / "out.c"
+            input_path.write_text("fn main() u32 { ret 0 }")
+            self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
+            self.assertFalse(c_path.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
