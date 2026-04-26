@@ -528,9 +528,14 @@ def main(argv: list[str] | None = None) -> int:
             source_label = "<stdin>" if args.input == "-" else args.input
             try:
                 if args.input == "-":
-                    c_source = compile_text(sys.stdin.read(), output_path)
+                    source_text = sys.stdin.read()
                 else:
-                    c_source = compile_file(Path(args.input), output_path)
+                    source_text = Path(args.input).read_text()
+            except OSError as exc:
+                print(f"etl0: error: {source_label}: {exc}", file=sys.stderr)
+                return 1
+            try:
+                c_source = compile_text(source_text, output_path)
             except ETLError as exc:
                 print(f"etl0: error: {source_label}: {exc}", file=sys.stderr)
                 return 1
