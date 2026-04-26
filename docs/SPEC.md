@@ -33,6 +33,7 @@ fn main() i32 {
 ## v0 feature set
 
 - integers: `i32`, `u32`, maybe `i64`, `u64`
+- arithmetic expressions initially support left-associative `+` and `-`; negative integer literals use a leading `-`
 - bytes and booleans
 - functions
 - local variables

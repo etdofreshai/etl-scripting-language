@@ -64,6 +64,21 @@ fn main() i32 {
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 6)
 
+    def test_compile_and_run_subtraction_and_negative_literal(self):
+        c_source = compile_source("fn main() i32 { ret 10 - 3 + -2 }")
+        self.assertIn("return ((10 - 3) + -2);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
+
+    def test_rejects_unary_minus_before_non_integer(self):
+        with self.assertRaisesRegex(ParseError, "expected integer literal after unary '-' at 1:21"):
+            parse("fn main() i32 { ret -x }")
+
     def test_lexer_error_reports_line_and_column(self):
         with self.assertRaisesRegex(LexerError, "unexpected character '@' at 2:3"):
             lex("fn main() i32 {\n  @\n}")
@@ -177,6 +192,10 @@ fn main() i32 {
     def test_accepts_max_i32_literal(self):
         c_source = compile_source("fn main() i32 { ret 2147483647 }")
         self.assertIn("return 2147483647;", c_source)
+
+    def test_accepts_min_i32_literal(self):
+        c_source = compile_source("fn main() i32 { ret -2147483648 }")
+        self.assertIn("return -2147483648;", c_source)
 
 
 if __name__ == "__main__":
