@@ -330,11 +330,11 @@ fn main() i32 {
 
     def test_accepts_min_i32_literal(self):
         c_source = compile_source("fn main() i32 { ret -2147483648 }")
-        self.assertIn("return -2147483648;", c_source)
+        self.assertIn("return (-2147483647 - 1);", c_source)
 
     def test_compile_and_run_min_i32_literal(self):
         c_source = compile_source("fn main() i32 { let x i32 = -2147483648 ret x + 2147483647 }")
-        self.assertIn("int32_t x = -2147483648;", c_source)
+        self.assertIn("int32_t x = (-2147483647 - 1);", c_source)
         with tempfile.TemporaryDirectory() as td:
             c_path = Path(td) / "out.c"
             exe_path = Path(td) / "out"

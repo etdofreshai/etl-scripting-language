@@ -70,3 +70,4 @@ Compiler-0 now validates the tiny v0 subset before C emission:
 - unknown names and unknown calls are rejected
 - function call arity is checked
 - integer literals must fit the supported `i32` range
+- the minimum `i32` literal is emitted with a portable C expression instead of relying on an out-of-range positive token
