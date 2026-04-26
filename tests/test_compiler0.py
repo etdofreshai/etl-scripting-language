@@ -108,6 +108,10 @@ fn main() i32 {
         with self.assertRaisesRegex(ParseError, "expected integer literal after unary '-' at 1:21"):
             parse("fn main() i32 { ret -x }")
 
+    def test_rejects_multiplication_with_targeted_v0_diagnostic(self):
+        with self.assertRaisesRegex(ParseError, r"operator '\*' is not supported in ETL v0 at 1:23"):
+            parse("fn main() i32 { ret 2 * 3 }")
+
     def test_lexer_error_reports_line_and_column(self):
         with self.assertRaisesRegex(LexerError, "unexpected character '@' at 2:3"):
             lex("fn main() i32 {\n  @\n}")
