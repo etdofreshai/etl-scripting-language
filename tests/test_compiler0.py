@@ -158,6 +158,28 @@ fn add(a i32, b i32) i32 {
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
+    def test_compile_and_run_nested_call_arguments_and_left_associative_subtraction(self):
+        c_source = compile_source("""fn dec(x i32) i32 {
+  ret x - 1
+}
+
+fn sub(a i32, b i32) i32 {
+  ret a - b
+}
+
+fn main() i32 {
+  ret sub(dec(10), dec(3)) - 1
+}
+""")
+        self.assertIn("return (sub(dec(10), dec(3)) - 1);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 6)
+
     def test_cli_compile_and_run_sample(self):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "sample.etl"
