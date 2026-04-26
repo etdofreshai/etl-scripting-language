@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compiler0.etl0 import Binary, Call, Let, Ret, compile_source, lex, main, parse
+from compiler0.etl0 import Binary, Call, Let, LexerError, ParseError, Ret, compile_source, lex, main, parse
 
 SAMPLE = """fn add(a i32, b i32) i32 {
   ret a + b
@@ -46,6 +46,18 @@ fn main() i32 {
         self.assertIsInstance(program.functions[0].body[0].expr, Binary)
         self.assertIsInstance(program.functions[1].body[0], Let)
         self.assertIsInstance(program.functions[1].body[0].expr, Call)
+
+    def test_lexer_error_reports_line_and_column(self):
+        with self.assertRaisesRegex(LexerError, "unexpected character '@' at 2:3"):
+            lex("fn main() i32 {\n  @\n}")
+
+    def test_parse_error_reports_line_and_column(self):
+        with self.assertRaisesRegex(ParseError, "expected statement at 2:3"):
+            parse("fn main() i32 {\n  123\n}")
+
+    def test_parse_error_reports_expected_token(self):
+        with self.assertRaisesRegex(ParseError, "expected RPAREN, got IDENT at 1:15"):
+            parse("fn main(a i32 b i32) i32 { ret a }")
 
     def test_compile_and_run_sample(self):
         c_source = compile_source(SAMPLE)
