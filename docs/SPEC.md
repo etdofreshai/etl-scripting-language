@@ -14,20 +14,28 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if else while ret type use
+fn let if else while ret type use end
 ```
+
+## Block syntax decision
+
+ETL source uses terminating keywords, not braces, for human- and LLM-readable structure.
+
+- Function bodies terminate with `end`.
+- Future nested blocks also terminate with `end` or a paired keyword form such as `else ... end`.
+- Braces are not ETL source block syntax. They may still appear in emitted C or compiler implementation languages.
 
 ## Example syntax
 
 ```etl
-fn add(a i32, b i32) i32 {
+fn add(a i32, b i32) i32
   ret a + b
-}
+end
 
-fn main() i32 {
+fn main() i32
   let x i32 = add(2, 3)
   ret x
-}
+end
 ```
 
 ## v0 feature set

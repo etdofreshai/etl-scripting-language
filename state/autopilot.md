@@ -8,12 +8,14 @@ Create the initial ETL repository structure, pin down ETL v0, and build compiler
 
 Start with a C backend. Treat WASM, ASM, and mobile as later targets after the v0 compiler pipeline exists.
 
+ETL source syntax should use terminating keywords instead of braces. Function bodies should be written as `fn ...` followed by statements and closed with `end`. Future autopilot waves should migrate compiler-0, examples, tests, and docs away from `{ ... }` ETL source blocks.
+
 ## Next best steps
 
-1. Choose compiler-0 implementation language.
-2. Add lexer/parser tests for the sample `add/main` program.
-3. Implement the smallest parser/codegen path that emits C.
-4. Add a smoke test that compiles and runs emitted C.
+1. Migrate compiler-0 syntax from brace-delimited functions to `end`-terminated functions.
+2. Update examples and tests to use `end`.
+3. Preserve C backend output; braces remain fine in emitted C.
+4. Add/adjust parser diagnostics for missing `end`.
 
 ## Blockers
 
@@ -75,3 +77,17 @@ Next likely move:
 - Add a minimal CLI entrypoint for compiler-0 (`etl0 compile input.etl -o out.c`) and verify the example through the CLI path.
 
 Blockers: none.
+
+## Syntax steering 2026-04-26 00:01 CDT
+
+ET requested ETL source blocks use terminating keywords instead of braces.
+
+Decision:
+
+- ETL functions should be written as `fn ...` followed by statements and closed with `end`.
+- Braces are not ETL source block syntax.
+- Braces remain acceptable in emitted C and host compiler implementation code.
+
+Immediate next autopilot task:
+
+- Migrate compiler-0 lexer/parser/examples/tests from `{ ... }` function bodies to `end`-terminated function bodies while keeping existing C output and smoke tests passing.
