@@ -321,8 +321,18 @@ fn main() i32 { ret add(1) }
             input_path = Path(td) / "bad.etl"
             c_path = Path(td) / "out.c"
             input_path.write_text("fn main() u32 { ret 0 }")
-            self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
+            self.assertIn(f"etl0: error: {input_path}: 1:1: function 'main' must return i32", stderr.getvalue())
             self.assertFalse(c_path.exists())
+
+    def test_cli_stdin_error_reports_stdin_label(self):
+        stdin = io.StringIO("fn main() u32 { ret 0 }")
+        stderr = io.StringIO()
+        with patch.object(sys, "stdin", stdin), contextlib.redirect_stderr(stderr):
+            self.assertEqual(main(["compile", "-", "-o", "-"]), 1)
+        self.assertIn("etl0: error: <stdin>: 1:1: function 'main' must return i32", stderr.getvalue())
 
     def test_cli_failure_preserves_existing_output(self):
         with tempfile.TemporaryDirectory() as td:
@@ -330,7 +340,9 @@ fn main() i32 { ret add(1) }
             c_path = Path(td) / "out.c"
             input_path.write_text("fn main() u32 { ret 0 }")
             c_path.write_text("previous generated C")
-            self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
             self.assertEqual(c_path.read_text(), "previous generated C")
 
     def test_semantic_error_reports_unknown_name_location(self):

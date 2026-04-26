@@ -500,10 +500,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "compile":
             output_path = None if args.output == "-" else Path(args.output)
-            if args.input == "-":
-                c_source = compile_text(sys.stdin.read(), output_path)
-            else:
-                c_source = compile_file(Path(args.input), output_path)
+            source_label = "<stdin>" if args.input == "-" else args.input
+            try:
+                if args.input == "-":
+                    c_source = compile_text(sys.stdin.read(), output_path)
+                else:
+                    c_source = compile_file(Path(args.input), output_path)
+            except ETLError as exc:
+                print(f"etl0: error: {source_label}: {exc}", file=sys.stderr)
+                return 1
             if c_source is not None:
                 print(c_source, end="")
             return 0
