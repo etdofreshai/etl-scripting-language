@@ -146,8 +146,17 @@ fn main() i32 { ret 0 }
 fn main() i32 { ret 1 }
 """, "duplicate function")
 
-    def test_rejects_unsupported_type(self):
-        self.assert_compile_error("fn main() u32 { ret 0 }", "unsupported type")
+    def test_rejects_main_returning_non_i32(self):
+        self.assert_compile_error("fn main() u32 { ret 0 }", "function 'main' must return i32")
+
+    def test_rejects_missing_main(self):
+        self.assert_compile_error("fn helper() i32 { ret 0 }", "program must define function 'main'")
+
+    def test_rejects_main_with_parameters(self):
+        self.assert_compile_error("fn main(argc i32) i32 { ret argc }", "function 'main' must not take parameters")
+
+    def test_non_main_unsupported_return_type_still_reports_type(self):
+        self.assert_compile_error("fn helper() u32 { ret 0 }\nfn main() i32 { ret 0 }", "unsupported type")
 
     def test_rejects_call_arity(self):
         self.assert_compile_error("""
@@ -199,7 +208,10 @@ fn main() i32 {
         self.assert_compile_error("fn int() i32 { ret 0 }", "1:1: function name 'int' is reserved by the C backend")
 
     def test_rejects_c_reserved_parameter_name(self):
-        self.assert_compile_error("fn main(void i32) i32 { ret void }", "1:9: parameter name 'void' is reserved by the C backend")
+        self.assert_compile_error(
+            "fn helper(void i32) i32 { ret void }\nfn main() i32 { ret 0 }",
+            "1:11: parameter name 'void' is reserved by the C backend",
+        )
 
     def test_rejects_c_reserved_local_name(self):
         self.assert_compile_error("fn main() i32 {\n  let return i32 = 1\n  ret return\n}", "2:3: local name 'return' is reserved by the C backend")
