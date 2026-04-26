@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compiler0.etl0 import Binary, Call, Let, Ret, compile_source, lex, parse
+from compiler0.etl0 import Binary, Call, Let, Ret, compile_source, lex, main, parse
 
 SAMPLE = """fn add(a i32, b i32) i32 {
   ret a + b
@@ -39,6 +39,18 @@ class Compiler0Tests(unittest.TestCase):
             c_path = Path(td) / "out.c"
             exe_path = Path(td) / "out"
             c_path.write_text(c_source)
+            subprocess.run(["cc", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
+
+    def test_cli_compile_and_run_sample(self):
+        with tempfile.TemporaryDirectory() as td:
+            etl_path = Path(td) / "main.etl"
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            etl_path.write_text(SAMPLE)
+            self.assertEqual(main(["compile", str(etl_path), "-o", str(c_path)]), 0)
+            self.assertIn("int32_t main(void)", c_path.read_text())
             subprocess.run(["cc", str(c_path), "-o", str(exe_path)], check=True)
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)

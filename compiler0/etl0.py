@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 KEYWORDS = {"fn", "let", "ret"}
 SINGLE = {"(": "LPAREN", ")": "RPAREN", "{": "LBRACE", "}": "RBRACE", ",": "COMMA", "+": "PLUS", "=": "EQUAL"}
@@ -320,3 +323,33 @@ def compile_source(src: str) -> str:
     program = parse(src)
     validate(program)
     return emit_c(program)
+
+
+def compile_file(input_path: Path, output_path: Path) -> None:
+    output_path.write_text(compile_source(input_path.read_text()))
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="etl0", description="ETL compiler-0")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    compile_parser = subcommands.add_parser("compile", help="compile ETL source to C")
+    compile_parser.add_argument("input", type=Path, help="input .etl source path")
+    compile_parser.add_argument("-o", "--output", type=Path, required=True, help="output .c path")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_arg_parser().parse_args(argv)
+    try:
+        if args.command == "compile":
+            compile_file(args.input, args.output)
+            return 0
+        raise AssertionError(args.command)
+    except ETLError as exc:
+        print(f"etl0: error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
