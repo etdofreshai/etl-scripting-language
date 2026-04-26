@@ -273,6 +273,22 @@ fn main() i32 {
     def test_rejects_c_reserved_local_name(self):
         self.assert_compile_error("fn main() i32 {\n  let return i32 = 1\n  ret return\n}", "2:3: local name 'return' is reserved by the C backend")
 
+    def test_rejects_c_reserved_double_underscore_name(self):
+        self.assert_compile_error(
+            "fn __helper() i32 { ret 0 }\nfn main() i32 { ret 0 }",
+            "1:1: function name '__helper' is reserved by the C backend",
+        )
+
+    def test_rejects_c_reserved_underscore_uppercase_name(self):
+        self.assert_compile_error(
+            "fn main() i32 {\n  let _Tmp i32 = 1\n  ret _Tmp\n}",
+            "2:3: local name '_Tmp' is reserved by the C backend",
+        )
+
+    def test_accepts_nonreserved_underscore_name(self):
+        c_source = compile_source("fn main() i32 {\n  let _tmp i32 = 1\n  ret _tmp\n}")
+        self.assertIn("int32_t _tmp = 1;", c_source)
+
     def test_accepts_max_i32_literal(self):
         c_source = compile_source("fn main() i32 { ret 2147483647 }")
         self.assertIn("return 2147483647;", c_source)
