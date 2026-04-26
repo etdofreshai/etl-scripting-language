@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "ret"}
+KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
