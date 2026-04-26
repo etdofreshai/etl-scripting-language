@@ -416,6 +416,8 @@ def c_type(t: str) -> str:
 
 def emit_expr(expr: Expr) -> str:
     if isinstance(expr, IntLit):
+        if expr.value == I32_MIN:
+            return "(-2147483647 - 1)"
         return str(expr.value)
     if isinstance(expr, Name):
         return expr.value
