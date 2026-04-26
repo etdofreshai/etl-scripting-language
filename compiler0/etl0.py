@@ -288,7 +288,7 @@ def validate(program: Program) -> None:
 
     for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}", fn.loc)
-        if not fn.body or not isinstance(fn.body[-1], Ret):
+        if not fn.body:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
         names: set[str] = set()
         for param in fn.params:
@@ -296,7 +296,10 @@ def validate(program: Program) -> None:
             if param.name in names:
                 raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
             names.add(param.name)
+        saw_ret = False
         for stmt in fn.body:
+            if saw_ret:
+                raise SemanticError(f"{stmt.loc.format()}: unreachable statement after ret in {fn.name}")
             if isinstance(stmt, Let):
                 validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
                 if stmt.name in names:
@@ -305,8 +308,11 @@ def validate(program: Program) -> None:
                 names.add(stmt.name)
             elif isinstance(stmt, Ret):
                 validate_expr(stmt.expr, functions, names, fn.name)
+                saw_ret = True
             else:
                 raise TypeError(stmt)
+        if not saw_ret:
+            raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
 
 
 def validate_type(typ: str, where: str, loc: SourceLoc) -> None:

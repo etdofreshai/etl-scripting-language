@@ -164,6 +164,12 @@ fn main() i32 { ret add(1) }
     def test_rejects_empty_function_body(self):
         self.assert_compile_error("fn main() i32 { }", "must end with ret")
 
+    def test_rejects_let_after_return(self):
+        self.assert_compile_error("fn main() i32 {\n  ret 0\n  let x i32 = 1\n}", "3:3: unreachable statement after ret")
+
+    def test_rejects_second_return(self):
+        self.assert_compile_error("fn main() i32 {\n  ret 0\n  ret 1\n}", "3:3: unreachable statement after ret")
+
     def test_cli_returns_error_for_bad_source(self):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad.etl"
