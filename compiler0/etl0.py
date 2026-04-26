@@ -342,6 +342,10 @@ def validate(program: Program) -> None:
         for param in fn.params:
             validate_identifier(param.name, "parameter", param.loc)
             validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc)
+            if param.name in functions:
+                raise SemanticError(
+                    f"{param.loc.format()}: parameter name {param.name!r} conflicts with function name in {fn.name}"
+                )
             if param.name in names:
                 raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
             names.add(param.name)
@@ -352,6 +356,10 @@ def validate(program: Program) -> None:
             if isinstance(stmt, Let):
                 validate_identifier(stmt.name, "local", stmt.loc)
                 validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
+                if stmt.name in functions:
+                    raise SemanticError(
+                        f"{stmt.loc.format()}: local name {stmt.name!r} conflicts with function name in {fn.name}"
+                    )
                 if stmt.name in names:
                     raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
                 validate_expr(stmt.expr, functions, names, fn.name)
