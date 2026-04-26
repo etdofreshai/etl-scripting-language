@@ -195,6 +195,15 @@ fn main() i32 {
     def test_rejects_integer_literals_outside_i32_range(self):
         self.assert_compile_error("fn main() i32 {\n  ret 2147483648\n}", "2:7: integer literal 2147483648 is outside supported i32 range")
 
+    def test_rejects_c_reserved_function_name(self):
+        self.assert_compile_error("fn int() i32 { ret 0 }", "1:1: function name 'int' is reserved by the C backend")
+
+    def test_rejects_c_reserved_parameter_name(self):
+        self.assert_compile_error("fn main(void i32) i32 { ret void }", "1:9: parameter name 'void' is reserved by the C backend")
+
+    def test_rejects_c_reserved_local_name(self):
+        self.assert_compile_error("fn main() i32 {\n  let return i32 = 1\n  ret return\n}", "2:3: local name 'return' is reserved by the C backend")
+
     def test_accepts_max_i32_literal(self):
         c_source = compile_source("fn main() i32 { ret 2147483647 }")
         self.assertIn("return 2147483647;", c_source)

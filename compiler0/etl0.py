@@ -275,6 +275,42 @@ def parse(src: str) -> Program:
 
 
 SUPPORTED_TYPES = {"i32"}
+C_RESERVED_IDENTIFIERS = {
+    "auto",
+    "break",
+    "case",
+    "char",
+    "const",
+    "continue",
+    "default",
+    "do",
+    "double",
+    "else",
+    "enum",
+    "extern",
+    "float",
+    "for",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "register",
+    "restrict",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "struct",
+    "switch",
+    "typedef",
+    "union",
+    "unsigned",
+    "void",
+    "volatile",
+    "while",
+}
 I32_MIN = -(2**31)
 I32_MAX = 2**31 - 1
 
@@ -282,6 +318,7 @@ I32_MAX = 2**31 - 1
 def validate(program: Program) -> None:
     functions: dict[str, Function] = {}
     for fn in program.functions:
+        validate_identifier(fn.name, "function", fn.loc)
         if fn.name in functions:
             raise SemanticError(f"{fn.loc.format()}: duplicate function {fn.name!r}")
         functions[fn.name] = fn
@@ -292,6 +329,7 @@ def validate(program: Program) -> None:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
         names: set[str] = set()
         for param in fn.params:
+            validate_identifier(param.name, "parameter", param.loc)
             validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc)
             if param.name in names:
                 raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
@@ -301,6 +339,7 @@ def validate(program: Program) -> None:
             if saw_ret:
                 raise SemanticError(f"{stmt.loc.format()}: unreachable statement after ret in {fn.name}")
             if isinstance(stmt, Let):
+                validate_identifier(stmt.name, "local", stmt.loc)
                 validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
                 if stmt.name in names:
                     raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
@@ -318,6 +357,11 @@ def validate(program: Program) -> None:
 def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
     if typ not in SUPPORTED_TYPES:
         raise SemanticError(f"{loc.format()}: unsupported type {typ!r} in {where}")
+
+
+def validate_identifier(name: str, where: str, loc: SourceLoc) -> None:
+    if name in C_RESERVED_IDENTIFIERS:
+        raise SemanticError(f"{loc.format()}: {where} name {name!r} is reserved by the C backend")
 
 
 def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
