@@ -442,7 +442,9 @@ def compile_source(src: str) -> str:
 
 
 def compile_file(input_path: Path, output_path: Path) -> None:
-    output_path.write_text(compile_source(input_path.read_text()))
+    c_source = compile_source(input_path.read_text())
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(c_source)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
