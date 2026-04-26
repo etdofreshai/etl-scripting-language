@@ -37,6 +37,14 @@ class Compiler0Tests(unittest.TestCase):
         kinds = [t.kind for t in lex("fn let if else while ret type use")]
         self.assertEqual(kinds, ["FN", "LET", "IF", "ELSE", "WHILE", "RET", "TYPE", "USE", "EOF"])
 
+    def test_lex_rejects_non_ascii_identifier_start_for_c_backend(self):
+        with self.assertRaisesRegex(LexerError, "unexpected character 'é' at 1:4"):
+            lex("fn émain() i32 { ret 0 }")
+
+    def test_lex_rejects_non_ascii_identifier_continue_for_c_backend(self):
+        with self.assertRaisesRegex(LexerError, "unexpected character 'é' at 1:8"):
+            lex("fn cafeé() i32 { ret 0 }")
+
     def test_rejects_keyword_function_name(self):
         with self.assertRaisesRegex(ParseError, "expected IDENT, got IF at 1:4"):
             parse("fn if() i32 { ret 0 }")

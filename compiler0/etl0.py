@@ -157,10 +157,10 @@ def lex(src: str) -> list[Token]:
                 col += 1
             tokens.append(Token("INT", src[start:i], line, start_col))
             continue
-        if ch.isalpha() or ch == "_":
+        if is_ident_start(ch):
             start = i
             start_col = col
-            while i < len(src) and (src[i].isalnum() or src[i] == "_"):
+            while i < len(src) and is_ident_continue(src[i]):
                 i += 1
                 col += 1
             text = src[start:i]
@@ -170,6 +170,14 @@ def lex(src: str) -> list[Token]:
         raise LexerError(f"unexpected character {ch!r} at {line}:{col}")
     tokens.append(Token("EOF", "", line, col))
     return tokens
+
+
+def is_ident_start(ch: str) -> bool:
+    return ch == "_" or "A" <= ch <= "Z" or "a" <= ch <= "z"
+
+
+def is_ident_continue(ch: str) -> bool:
+    return is_ident_start(ch) or "0" <= ch <= "9"
 
 
 class Parser:
