@@ -6,6 +6,7 @@ test:
 smoke:
 	scripts/bootstrap_smoke.sh
 	scripts/stdout_smoke.sh
+	scripts/stdin_smoke.sh
 
 check: test smoke
 

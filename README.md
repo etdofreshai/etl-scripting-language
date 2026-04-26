@@ -36,13 +36,19 @@ Compile an ETL file to C with:
 python3 -m compiler0.etl0 compile examples/add_main.etl -o /tmp/add_main.c
 ```
 
+Use `-` for stdin and/or stdout when piping compiler-0:
+
+```bash
+cat examples/add_main.etl | python3 -m compiler0 compile - -o -
+```
+
 Run parser/compiler tests with:
 
 ```bash
 make test
 ```
 
-Run the bootstrap smoke paths (ETL example -> C file -> native executable, plus stdout piped directly into `cc`) with:
+Run the bootstrap smoke paths (ETL example -> C file -> native executable, stdout piped directly into `cc`, and stdin input) with:
 
 ```bash
 make smoke
