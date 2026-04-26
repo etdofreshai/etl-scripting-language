@@ -6,7 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 KEYWORDS = {"fn", "let", "ret"}
-SINGLE = {"(": "LPAREN", ")": "RPAREN", "{": "LBRACE", "}": "RBRACE", ",": "COMMA", "+": "PLUS", "=": "EQUAL"}
+SINGLE = {
+    "(": "LPAREN",
+    ")": "RPAREN",
+    "{": "LBRACE",
+    "}": "RBRACE",
+    ",": "COMMA",
+    "+": "PLUS",
+    "-": "MINUS",
+    "=": "EQUAL",
+}
 
 
 @dataclass(frozen=True)
@@ -222,13 +231,20 @@ class Parser:
 
     def parse_expr(self) -> Expr:
         expr = self.parse_primary()
-        while self.peek().kind == "PLUS":
-            op_tok = self.take("PLUS")
+        while self.peek().kind in {"PLUS", "MINUS"}:
+            op_tok = self.peek()
+            self.take(op_tok.kind)
             expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
         return expr
 
     def parse_primary(self) -> Expr:
         tok = self.peek()
+        if tok.kind == "MINUS":
+            minus_tok = self.take("MINUS")
+            int_tok = self.peek()
+            if int_tok.kind != "INT":
+                raise ParseError(f"expected integer literal after unary '-' at {minus_tok.line}:{minus_tok.col}")
+            return IntLit(-int(self.take("INT").text), SourceLoc.from_token(minus_tok))
         if tok.kind == "INT":
             return IntLit(int(self.take("INT").text), SourceLoc.from_token(tok))
         if tok.kind == "LPAREN":
