@@ -141,9 +141,13 @@ fn main() i32 {
         with self.assertRaisesRegex(ParseError, "expected statement at 2:3"):
             parse("fn main() i32 {\n  123\n}")
 
-    def test_parse_error_reports_expected_token(self):
-        with self.assertRaisesRegex(ParseError, "expected RPAREN, got IDENT at 1:15"):
+    def test_parse_error_reports_missing_parameter_comma(self):
+        with self.assertRaisesRegex(ParseError, "expected COMMA or RPAREN after parameter, got IDENT at 1:15"):
             parse("fn main(a i32 b i32) i32 { ret a }")
+
+    def test_parse_error_reports_missing_call_argument_comma(self):
+        with self.assertRaisesRegex(ParseError, "expected COMMA or RPAREN after argument, got INT at 2:27"):
+            parse("fn add(a i32, b i32) i32 { ret a }\nfn main() i32 { ret add(1 2) }")
 
     def test_parse_error_reports_unterminated_function(self):
         with self.assertRaisesRegex(ParseError, "unterminated function 'main'; expected RBRACE before EOF at 2:8"):

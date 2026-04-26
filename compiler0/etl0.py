@@ -215,9 +215,13 @@ class Parser:
                 pname = param_tok.text
                 ptype = self.take("IDENT").text
                 params.append(Param(pname, ptype, SourceLoc.from_token(param_tok)))
-                if self.peek().kind != "COMMA":
-                    break
-                self.take("COMMA")
+                if self.peek().kind == "COMMA":
+                    self.take("COMMA")
+                    continue
+                if self.peek().kind != "RPAREN":
+                    tok = self.peek()
+                    raise ParseError(f"expected COMMA or RPAREN after parameter, got {tok.kind} at {tok.line}:{tok.col}")
+                break
         self.take("RPAREN")
         return_type = self.take("IDENT").text
         self.take("LBRACE")
@@ -277,9 +281,13 @@ class Parser:
                 if self.peek().kind != "RPAREN":
                     while True:
                         args.append(self.parse_expr())
-                        if self.peek().kind != "COMMA":
-                            break
-                        self.take("COMMA")
+                        if self.peek().kind == "COMMA":
+                            self.take("COMMA")
+                            continue
+                        if self.peek().kind != "RPAREN":
+                            tok = self.peek()
+                            raise ParseError(f"expected COMMA or RPAREN after argument, got {tok.kind} at {tok.line}:{tok.col}")
+                        break
                 self.take("RPAREN")
                 return Call(name, args, SourceLoc.from_token(ident_tok))
             return Name(name, SourceLoc.from_token(ident_tok))
