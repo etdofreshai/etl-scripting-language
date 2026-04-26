@@ -42,6 +42,8 @@ Use `-` for stdin and/or stdout when piping compiler-0:
 cat examples/add_main.etl | python3 -m compiler0 compile - -o -
 ```
 
+CLI diagnostics include the input path, or `<stdin>` for piped input, before the compiler source location.
+
 Run parser/compiler tests with:
 
 ```bash
