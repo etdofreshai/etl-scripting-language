@@ -36,7 +36,7 @@ Compile an ETL file to C with:
 python3 -m compiler0.etl0 compile examples/add_main.etl -o /tmp/add_main.c
 ```
 
-Run verification with:
+Run parser/compiler tests with:
 
 ```bash
 make test
@@ -46,6 +46,12 @@ Run the bootstrap smoke path (ETL example -> C -> native executable) with:
 
 ```bash
 make smoke
+```
+
+Run both gates with:
+
+```bash
+make check
 ```
 
 ## semantic checks
