@@ -1,3 +1,5 @@
+import contextlib
+import io
 import subprocess
 import tempfile
 import unittest
@@ -154,6 +156,18 @@ fn add(a i32, b i32) i32 {
             input_path.write_text(SAMPLE)
             self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 0)
             self.assertIn("int32_t main(void)", c_path.read_text())
+
+    def test_cli_writes_to_stdout_with_dash_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "sample.etl"
+            input_path.write_text(SAMPLE)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                self.assertEqual(main(["compile", str(input_path), "-o", "-"]), 0)
+            c_source = stdout.getvalue()
+            self.assertIn("#include <stdint.h>", c_source)
+            self.assertIn("int32_t main(void)", c_source)
+            self.assertIn("return x;", c_source)
 
 
 class SemanticValidationTests(unittest.TestCase):
