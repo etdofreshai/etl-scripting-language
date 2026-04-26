@@ -314,6 +314,17 @@ fn main() i32 {
         c_source = compile_source("fn main() i32 { ret -2147483648 }")
         self.assertIn("return -2147483648;", c_source)
 
+    def test_compile_and_run_min_i32_literal(self):
+        c_source = compile_source("fn main() i32 { let x i32 = -2147483648 ret x + 2147483647 }")
+        self.assertIn("int32_t x = -2147483648;", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 255)
+
 
 if __name__ == "__main__":
     unittest.main()
