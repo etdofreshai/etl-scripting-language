@@ -1,9 +1,11 @@
 import contextlib
 import io
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from compiler0.etl0 import Binary, Call, Let, LexerError, ParseError, Ret, compile_source, lex, main, parse
 
@@ -180,6 +182,21 @@ fn add(a i32, b i32) i32 {
             self.assertIn("#include <stdint.h>", c_source)
             self.assertIn("int32_t main(void)", c_source)
             self.assertIn("return x;", c_source)
+
+    def test_cli_reads_from_stdin_with_dash_input(self):
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            stdin = io.StringIO(SAMPLE)
+            with patch.object(sys, "stdin", stdin):
+                self.assertEqual(main(["compile", "-", "-o", str(c_path)]), 0)
+            self.assertIn("int32_t main(void)", c_path.read_text())
+
+    def test_cli_reads_from_stdin_and_writes_to_stdout(self):
+        stdin = io.StringIO("fn main() i32 { ret 0 }")
+        stdout = io.StringIO()
+        with patch.object(sys, "stdin", stdin), contextlib.redirect_stdout(stdout):
+            self.assertEqual(main(["compile", "-", "-o", "-"]), 0)
+        self.assertIn("return 0;", stdout.getvalue())
 
 
 class SemanticValidationTests(unittest.TestCase):

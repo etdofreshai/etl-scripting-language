@@ -452,8 +452,8 @@ def compile_source(src: str) -> str:
     return emit_c(program)
 
 
-def compile_file(input_path: Path, output_path: Path | None) -> str | None:
-    c_source = compile_source(input_path.read_text())
+def compile_text(src: str, output_path: Path | None) -> str | None:
+    c_source = compile_source(src)
     if output_path is None:
         return c_source
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -461,12 +461,16 @@ def compile_file(input_path: Path, output_path: Path | None) -> str | None:
     return None
 
 
+def compile_file(input_path: Path, output_path: Path | None) -> str | None:
+    return compile_text(input_path.read_text(), output_path)
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="etl0", description="ETL compiler-0")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     compile_parser = subcommands.add_parser("compile", help="compile ETL source to C")
-    compile_parser.add_argument("input", type=Path, help="input .etl source path")
+    compile_parser.add_argument("input", type=str, help="input .etl source path, or '-' to read from stdin")
     compile_parser.add_argument(
         "-o",
         "--output",
@@ -482,7 +486,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "compile":
             output_path = None if args.output == "-" else Path(args.output)
-            c_source = compile_file(args.input, output_path)
+            if args.input == "-":
+                c_source = compile_text(sys.stdin.read(), output_path)
+            else:
+                c_source = compile_file(Path(args.input), output_path)
             if c_source is not None:
                 print(c_source, end="")
             return 0
