@@ -51,7 +51,7 @@ Run parser/compiler tests with:
 make test
 ```
 
-Run the bootstrap smoke paths (ETL example -> C file -> native executable, stdout piped directly into `cc`, and stdin input) with:
+Run the bootstrap smoke paths (ETL example -> golden C fixture check -> native executable, stdout piped directly into `cc`, and stdin input) with:
 
 ```bash
 make smoke
