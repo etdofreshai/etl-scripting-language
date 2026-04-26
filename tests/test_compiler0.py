@@ -120,6 +120,15 @@ fn main() i32 {
         with self.assertRaisesRegex(ParseError, r"operator '\*' is not supported in ETL v0 at 1:23"):
             parse("fn main() i32 { ret 2 * 3 }")
 
+    def test_rejects_division_with_targeted_v0_diagnostic(self):
+        with self.assertRaisesRegex(ParseError, "operator '/' is not supported in ETL v0 at 1:23"):
+            parse("fn main() i32 { ret 6 / 3 }")
+
+    def test_lexer_distinguishes_division_from_line_comments(self):
+        kinds = [t.kind for t in lex("fn main() i32 { ret 6 / 3 } // comment")]
+        self.assertIn("SLASH", kinds)
+        self.assertEqual(kinds[-1], "EOF")
+
     def test_lexer_error_reports_line_and_column(self):
         with self.assertRaisesRegex(LexerError, "unexpected character '@' at 2:3"):
             lex("fn main() i32 {\n  @\n}")
