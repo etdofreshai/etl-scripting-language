@@ -242,6 +242,8 @@ def validate(program: Program) -> None:
 
     for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}")
+        if not fn.body or not isinstance(fn.body[-1], Ret):
+            raise SemanticError(f"function {fn.name!r} must end with ret")
         names: set[str] = set()
         for param in fn.params:
             validate_type(param.typ, f"parameter {param.name} in {fn.name}")

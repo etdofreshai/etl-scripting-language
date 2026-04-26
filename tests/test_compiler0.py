@@ -114,6 +114,12 @@ fn main() i32 { ret add(1) }
     def test_rejects_unknown_name(self):
         self.assert_compile_error("fn main() i32 { ret nope }", "unknown name")
 
+    def test_rejects_missing_return(self):
+        self.assert_compile_error("fn main() i32 { let x i32 = 1 }", "must end with ret")
+
+    def test_rejects_empty_function_body(self):
+        self.assert_compile_error("fn main() i32 { }", "must end with ret")
+
     def test_cli_returns_error_for_bad_source(self):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad.etl"
