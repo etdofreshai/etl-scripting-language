@@ -209,6 +209,15 @@ fn main() i32 { ret add(1) }
             self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
             self.assertFalse(c_path.exists())
 
+    def test_cli_failure_preserves_existing_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "bad.etl"
+            c_path = Path(td) / "out.c"
+            input_path.write_text("fn main() u32 { ret 0 }")
+            c_path.write_text("previous generated C")
+            self.assertEqual(main(["compile", str(input_path), "-o", str(c_path)]), 1)
+            self.assertEqual(c_path.read_text(), "previous generated C")
+
     def test_semantic_error_reports_unknown_name_location(self):
         self.assert_compile_error("fn main() i32 {\n  ret nope\n}", "2:7: unknown name")
 
