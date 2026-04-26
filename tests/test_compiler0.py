@@ -378,6 +378,18 @@ fn main() i32 {
         c_source = compile_source("fn main() i32 {\n  let _tmp i32 = 1\n  ret _tmp\n}")
         self.assertIn("int32_t _tmp = 1;", c_source)
 
+    def test_rejects_parameter_name_that_conflicts_with_function_name(self):
+        self.assert_compile_error(
+            "fn helper(helper i32) i32 { ret helper }\nfn main() i32 { ret helper(1) }",
+            "1:11: parameter name 'helper' conflicts with function name in helper",
+        )
+
+    def test_rejects_local_name_that_conflicts_with_function_name(self):
+        self.assert_compile_error(
+            "fn helper() i32 { ret 1 }\nfn main() i32 {\n  let helper i32 = 1\n  ret helper\n}",
+            "3:3: local name 'helper' conflicts with function name in main",
+        )
+
     def test_accepts_max_i32_literal(self):
         c_source = compile_source("fn main() i32 { ret 2147483647 }")
         self.assertIn("return 2147483647;", c_source)
