@@ -18,3 +18,20 @@ Bootstrap path:
 3. Rewrite the compiler in ETL.
 4. Use compiler-0 to build compiler-1.
 5. Use compiler-1+ to build future ETL compilers.
+
+## compiler-0
+
+The first compiler is a small Python implementation under `compiler0/`.
+It currently supports the tiny v0 subset needed for the bootstrap smoke:
+
+- `fn` definitions with explicit parameter and return types
+- `let` locals
+- `ret`
+- integer literals, names, calls, and `+`
+- C emission for `i32`
+
+Run verification with:
+
+```bash
+make test
+```

@@ -11,3 +11,5 @@ build/
 dist/
 *.o
 *.exe
+
+state/*launch.pid
