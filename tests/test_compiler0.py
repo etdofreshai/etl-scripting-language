@@ -80,6 +80,19 @@ fn main() i32 {
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 6)
 
+    def test_compile_and_run_compact_multiple_let_statements(self):
+        c_source = compile_source("fn main() i32 { let x i32 = 2 let y i32 = 3 ret x + y }")
+        self.assertIn("int32_t x = 2;", c_source)
+        self.assertIn("int32_t y = 3;", c_source)
+        self.assertIn("return (x + y);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 5)
+
     def test_compile_and_run_subtraction_and_negative_literal(self):
         c_source = compile_source("fn main() i32 { ret 10 - 3 + -2 }")
         self.assertIn("return ((10 - 3) + -2);", c_source)
