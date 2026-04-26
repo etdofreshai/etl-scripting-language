@@ -239,6 +239,8 @@ def validate(program: Program) -> None:
         if fn.name in functions:
             raise SemanticError(f"duplicate function {fn.name!r}")
         functions[fn.name] = fn
+
+    for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}")
         names: set[str] = set()
         for param in fn.params:
@@ -307,11 +309,18 @@ def emit_expr(expr: Expr) -> str:
     raise TypeError(expr)
 
 
+def c_signature(fn: Function) -> str:
+    params = ", ".join(f"{c_type(p.typ)} {p.name}" for p in fn.params) or "void"
+    return f"{c_type(fn.return_type)} {fn.name}({params})"
+
+
 def emit_c(program: Program) -> str:
     lines = ["#include <stdint.h>", ""]
     for fn in program.functions:
-        params = ", ".join(f"{c_type(p.typ)} {p.name}" for p in fn.params) or "void"
-        lines.append(f"{c_type(fn.return_type)} {fn.name}({params}) {{")
+        lines.append(f"{c_signature(fn)};")
+    lines.append("")
+    for fn in program.functions:
+        lines.append(f"{c_signature(fn)} {{")
         for stmt in fn.body:
             if isinstance(stmt, Let):
                 lines.append(f"  {c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
