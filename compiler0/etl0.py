@@ -371,8 +371,12 @@ def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
 
 
 def validate_identifier(name: str, where: str, loc: SourceLoc) -> None:
-    if name in C_RESERVED_IDENTIFIERS:
+    if name in C_RESERVED_IDENTIFIERS or is_c_reserved_underscore_identifier(name):
         raise SemanticError(f"{loc.format()}: {where} name {name!r} is reserved by the C backend")
+
+
+def is_c_reserved_underscore_identifier(name: str) -> bool:
+    return name.startswith("__") or (len(name) > 1 and name[0] == "_" and name[1].isupper())
 
 
 def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
