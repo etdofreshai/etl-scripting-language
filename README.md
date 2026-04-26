@@ -42,6 +42,12 @@ Run verification with:
 make test
 ```
 
+Run the bootstrap smoke path (ETL example -> C -> native executable) with:
+
+```bash
+make smoke
+```
+
 ## semantic checks
 
 Compiler-0 now validates the tiny v0 subset before C emission:
