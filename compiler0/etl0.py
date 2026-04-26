@@ -254,6 +254,8 @@ def parse(src: str) -> Program:
 
 
 SUPPORTED_TYPES = {"i32"}
+I32_MIN = -(2**31)
+I32_MAX = 2**31 - 1
 
 
 def validate(program: Program) -> None:
@@ -293,6 +295,10 @@ def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
 
 def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
     if isinstance(expr, IntLit):
+        if not (I32_MIN <= expr.value <= I32_MAX):
+            raise SemanticError(
+                f"{expr.loc.format()}: integer literal {expr.value} is outside supported i32 range in {current_fn}"
+            )
         return
     if isinstance(expr, Name):
         if expr.value not in names:
