@@ -700,9 +700,10 @@ end
         with self.assertRaisesRegex(SemanticError, "cannot assign whole array"):
             compile_source("fn main() i32\n  let buf i32[4]\n  buf = 1\n  ret 0\nend")
 
-    def test_type_rejects_array_parameter(self):
-        with self.assertRaisesRegex(SemanticError, "parameter 'buf' cannot have array type"):
-            compile_source("fn id(buf i32[4]) i32\n  ret 0\nend\nfn main() i32\n  ret id(0)\nend")
+    def test_type_allows_array_parameter(self):
+        c_source = compile_source("fn first(buf i32[4]) i32\n  ret buf[0]\nend\nfn main() i32\n  let xs i32[4]\n  xs[0] = 7\n  ret first(xs)\nend")
+        self.assertIn("int32_t first(int32_t *buf)", c_source)
+        self.assertIn("return first(xs);", c_source)
 
     def test_type_rejects_array_return(self):
         with self.assertRaisesRegex(SemanticError, "cannot return array type"):
@@ -937,7 +938,7 @@ end
             with self.subTest(operator=operator):
                 with self.assertRaisesRegex(
                     SemanticError,
-                    re.escape(f"1:1: operator {operator!r} requires i32 operands, got 'u32' and 'i32'"),
+                    re.escape(f"1:1: operator {operator!r} requires integer operands, got 'u32' and 'i32'"),
                 ):
                     validate_expr(expr, {}, {}, {"left": "u32"}, "main")
 
@@ -1029,25 +1030,25 @@ end
     def test_rejects_lt_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let x bool = true\n  let p bool = x < 1\n  ret 0\nend",
-            "operator '<' requires i32 or i8 operands.*'bool' and 'i32'",
+            "operator '<' requires integer operands.*'bool' and 'i32'",
         )
 
     def test_rejects_gt_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let x bool = true\n  let p bool = 1 > x\n  ret 0\nend",
-            "operator '>' requires i32 or i8 operands.*'i32' and 'bool'",
+            "operator '>' requires integer operands.*'i32' and 'bool'",
         )
 
     def test_rejects_lte_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let p bool = true <= false\n  ret 0\nend",
-            "operator '<=' requires i32 or i8 operands.*'bool' and 'bool'",
+            "operator '<=' requires integer operands.*'bool' and 'bool'",
         )
 
     def test_rejects_gte_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let p bool = true >= false\n  ret 0\nend",
-            "operator '>=' requires i32 or i8 operands.*'bool' and 'bool'",
+            "operator '>=' requires integer operands.*'bool' and 'bool'",
         )
 
     def test_accepts_bool_eq_bool(self):
@@ -1061,7 +1062,7 @@ end
     def test_rejects_additive_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let x bool = true\n  let y i32 = x + 1\n  ret y\nend",
-            "operator '\\+' requires i32 operands",
+            "operator '\\+' requires integer operands",
         )
 
     # --- Phase 1c: logical operators and unary minus tests ---
@@ -1489,17 +1490,17 @@ class I8PrimitiveTests(unittest.TestCase):
         c_source = compile_source('fn main() i32\n  let buf i8[4]\n  ret 0\nend')
         self.assertIn("int8_t buf[4] = {0};", c_source)
 
-    def test_i8_arithmetic_addition_is_deferred(self):
-        self.assert_compile_error(
-            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i8[1]\n  c[0] = a[0] + b[0]\n  ret 0\nend',
-            "arithmetic operator '\\+' on i8 is deferred in v0",
+    def test_i8_arithmetic_addition_promotes_to_i32(self):
+        c_source = compile_source(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i32 = a[0] + b[0]\n  ret c\nend'
         )
+        self.assertIn("int32_t c = (a[0] + b[0]);", c_source)
 
-    def test_i8_arithmetic_multiplication_is_deferred(self):
-        self.assert_compile_error(
-            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i8[1]\n  c[0] = a[0] * b[0]\n  ret 0\nend',
-            "arithmetic operator '\\*' on i8 is deferred in v0",
+    def test_i8_arithmetic_multiplication_promotes_to_i32(self):
+        c_source = compile_source(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i32 = a[0] * b[0]\n  ret c\nend'
         )
+        self.assertIn("int32_t c = (a[0] * b[0]);", c_source)
 
     def test_i8_equality_produces_bool(self):
         c_source = compile_source(
@@ -1519,11 +1520,11 @@ class I8PrimitiveTests(unittest.TestCase):
         )
         self.assertIn("bool p = (a[0] < b[0]);", c_source)
 
-    def test_i8_mixed_with_i32_comparison_is_rejected(self):
-        self.assert_compile_error(
+    def test_i8_mixed_with_i32_comparison_produces_bool(self):
+        c_source = compile_source(
             'fn main() i32\n  let a i8[1]\n  let p bool = a[0] < 1\n  ret 0\nend',
-            "operator '<' requires i32 or i8 operands of matching type, got 'i8' and 'i32'",
         )
+        self.assertIn("bool p = (a[0] < 1);", c_source)
 
     def test_i8_struct_field_emits_int8_t(self):
         c_source = compile_source('type B struct\n  flag i8\nend\nfn main() i32\n  let b B\n  ret 0\nend')

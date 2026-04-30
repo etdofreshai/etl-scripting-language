@@ -1,0 +1,39 @@
+fn main() i32
+  let source i8[256] = "fn main() i32 ret 42 end"
+  let tokens Token[128]
+  let n i32 = lex(source, 24, tokens, 128)
+  if n != 9
+    ret 1
+  end
+  if tokens[0].kind != TK_FN()
+    ret 2
+  end
+  if tokens[1].kind != TK_IDENT()
+    ret 3
+  end
+  if tokens[2].kind != TK_LPAREN()
+    ret 4
+  end
+  if tokens[3].kind != TK_RPAREN()
+    ret 5
+  end
+  if tokens[4].kind != TK_IDENT()
+    ret 6
+  end
+  if tokens[5].kind != TK_RET()
+    ret 7
+  end
+  if tokens[6].kind != TK_INT()
+    ret 8
+  end
+  if tokens[6].int_value != 42
+    ret 10
+  end
+  if tokens[7].kind != TK_END()
+    ret 11
+  end
+  if tokens[8].kind != TK_EOF()
+    ret 12
+  end
+  ret n
+end

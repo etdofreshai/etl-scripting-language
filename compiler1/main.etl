@@ -1,6 +1,52 @@
 extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
 extern fn etl_write_file(path i8[64], buf i8[64], len i32) i32
 
+type Token struct
+  kind i32
+  start i32
+  len i32
+  int_value i32
+end
+
+fn TK_EOF() i32 ret 0 end
+fn TK_FN() i32 ret 1 end
+fn TK_LET() i32 ret 2 end
+fn TK_IF() i32 ret 3 end
+fn TK_ELIF() i32 ret 4 end
+fn TK_ELSE() i32 ret 5 end
+fn TK_WHILE() i32 ret 6 end
+fn TK_RET() i32 ret 7 end
+fn TK_TYPE() i32 ret 8 end
+fn TK_STRUCT() i32 ret 9 end
+fn TK_END() i32 ret 10 end
+fn TK_TRUE() i32 ret 11 end
+fn TK_FALSE() i32 ret 12 end
+fn TK_AND() i32 ret 13 end
+fn TK_OR() i32 ret 14 end
+fn TK_NOT() i32 ret 15 end
+fn TK_EXTERN() i32 ret 16 end
+fn TK_IDENT() i32 ret 17 end
+fn TK_INT() i32 ret 18 end
+fn TK_STRING() i32 ret 19 end
+fn TK_LPAREN() i32 ret 20 end
+fn TK_RPAREN() i32 ret 21 end
+fn TK_COMMA() i32 ret 22 end
+fn TK_LBRACKET() i32 ret 23 end
+fn TK_RBRACKET() i32 ret 24 end
+fn TK_DOT() i32 ret 25 end
+fn TK_EQUAL() i32 ret 26 end
+fn TK_PLUS() i32 ret 27 end
+fn TK_MINUS() i32 ret 28 end
+fn TK_STAR() i32 ret 29 end
+fn TK_SLASH() i32 ret 30 end
+fn TK_PERCENT() i32 ret 31 end
+fn TK_EQEQ() i32 ret 32 end
+fn TK_NEQ() i32 ret 33 end
+fn TK_LT() i32 ret 34 end
+fn TK_LTE() i32 ret 35 end
+fn TK_GT() i32 ret 36 end
+fn TK_GTE() i32 ret 37 end
+
 fn main() i32
   let path i8[64] = "/dev/stdin"
   let buf i8[64]
