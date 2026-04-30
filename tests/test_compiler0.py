@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from compiler0.etl0 import (
+    Assign,
     Binary,
     BoolLit,
     Call,
@@ -22,6 +23,7 @@ from compiler0.etl0 import (
     SemanticError,
     SourceLoc,
     Unary,
+    While,
     compile_source,
     lex,
     main,
@@ -54,8 +56,8 @@ class Compiler0Tests(unittest.TestCase):
         self.assertEqual(kinds[-1], "EOF")
 
     def test_lex_recognizes_all_draft_keywords(self):
-        kinds = [t.kind for t in lex("fn let if else while ret type use end")]
-        self.assertEqual(kinds, ["FN", "LET", "IF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "EOF"])
+        kinds = [t.kind for t in lex("fn let if elif else while ret type use end")]
+        self.assertEqual(kinds, ["FN", "LET", "IF", "ELIF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "EOF"])
 
     def test_lex_rejects_non_ascii_identifier_start_for_c_backend(self):
         with self.assertRaisesRegex(LexerError, "unexpected character 'é' at 1:4"):
@@ -562,6 +564,55 @@ end
         c_source = compile_source("fn main() i32\n  if 2 > 1\n    ret 7\n  else\n    ret 3\n  end\nend")
         self.assertIn("if ((2 > 1)) {\n    return 7;\n  } else {\n    return 3;\n  }", c_source)
 
+    # --- Phase 2b: elif, while, and assignment parser/emitter tests ---
+
+    def test_parse_if_with_one_elif(self):
+        program = parse("fn main() i32\n  if false\n    ret 1\n  elif true\n    ret 2\n  else\n    ret 3\n  end\nend")
+        stmt = program.functions[0].body[0]
+        self.assertIsInstance(stmt, If)
+        self.assertEqual(len(stmt.elifs), 1)
+        self.assertIsInstance(stmt.elifs[0].cond, BoolLit)
+
+    def test_parse_if_with_two_elifs(self):
+        program = parse("fn main() i32\n  if false\n    ret 1\n  elif false\n    ret 2\n  elif true\n    ret 3\n  else\n    ret 4\n  end\nend")
+        self.assertEqual(len(program.functions[0].body[0].elifs), 2)
+
+    def test_parse_if_with_three_elifs(self):
+        program = parse("fn main() i32\n  if false\n    ret 1\n  elif false\n    ret 2\n  elif false\n    ret 3\n  elif true\n    ret 4\n  else\n    ret 5\n  end\nend")
+        self.assertEqual(len(program.functions[0].body[0].elifs), 3)
+
+    def test_parse_elif_after_else_is_error(self):
+        with self.assertRaisesRegex(ParseError, "expected statement at 6:3"):
+            parse("fn main() i32\n  if true\n    ret 1\n  else\n    ret 2\n  elif false\n    ret 3\n  end\nend")
+
+    def test_parse_while_with_end(self):
+        program = parse("fn main() i32\n  let i i32 = 0\n  while i < 3\n    i = i + 1\n  end\n  ret i\nend")
+        stmt = program.functions[0].body[1]
+        self.assertIsInstance(stmt, While)
+        self.assertIsInstance(stmt.body[0], Assign)
+
+    def test_parse_while_missing_end_reports_clean_error(self):
+        with self.assertRaisesRegex(ParseError, "expected 'end' before EOF in while statement"):
+            parse("fn main() i32\n  while true\n    ret 1\n")
+
+    def test_parse_assignment_to_local(self):
+        program = parse("fn main() i32\n  let x i32 = 1\n  x = x + 1\n  ret x\nend")
+        stmt = program.functions[0].body[1]
+        self.assertIsInstance(stmt, Assign)
+        self.assertEqual(stmt.name, "x")
+
+    def test_emit_if_elif_elif_else(self):
+        c_source = compile_source("fn main() i32\n  if false\n    ret 1\n  elif 1 < 0\n    ret 2\n  elif true\n    ret 3\n  else\n    ret 4\n  end\nend")
+        self.assertIn("if (false) {\n    return 1;\n  } else if ((1 < 0)) {\n    return 2;\n  } else if (true) {\n    return 3;\n  } else {\n    return 4;\n  }", c_source)
+
+    def test_emit_while_body(self):
+        c_source = compile_source("fn main() i32\n  let i i32 = 0\n  while i < 3\n    i = i + 1\n  end\n  ret i\nend")
+        self.assertIn("while ((i < 3)) {\n    i = (i + 1);\n  }", c_source)
+
+    def test_emit_assignment(self):
+        c_source = compile_source("fn bump(x i32) i32\n  x = x + 1\n  ret x\nend\nfn main() i32\n  ret bump(4)\nend")
+        self.assertIn("x = (x + 1);", c_source)
+
 
 class SemanticValidationTests(unittest.TestCase):
     def assert_compile_error(self, source, text):
@@ -1040,6 +1091,64 @@ end
 end
 """,
             "function 'main' must end with ret",
+        )
+
+    # --- Phase 2b: elif, while, and assignment semantic tests ---
+
+    def test_rejects_elif_non_bool_condition(self):
+        self.assert_compile_error(
+            "fn main() i32\n  if true\n    ret 1\n  elif 1\n    ret 2\n  else\n    ret 3\n  end\nend",
+            "elif condition expected bool, got 'i32'",
+        )
+
+    def test_accepts_while_bool_condition(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 0\n  while x < 1\n    x = x + 1\n  end\n  ret x\nend")
+        self.assertIn("while ((x < 1))", c_source)
+
+    def test_rejects_while_non_bool_condition(self):
+        self.assert_compile_error(
+            "fn main() i32\n  while 1\n    ret 1\n  end\n  ret 0\nend",
+            "while condition expected bool, got 'i32'",
+        )
+
+    def test_accepts_assignment_to_declared_local(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 1\n  x = 2\n  ret x\nend")
+        self.assertIn("x = 2;", c_source)
+
+    def test_accepts_assignment_to_parameter(self):
+        c_source = compile_source("fn bump(x i32) i32\n  x = x + 1\n  ret x\nend\nfn main() i32\n  ret bump(1)\nend")
+        self.assertIn("x = (x + 1);", c_source)
+
+    def test_rejects_assignment_to_undeclared_local(self):
+        self.assert_compile_error(
+            "fn main() i32\n  x = 1\n  ret x\nend",
+            "assignment to undeclared local 'x'",
+        )
+
+    def test_rejects_assignment_type_mismatch(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  x = true\n  ret x\nend",
+            "assignment to 'x' expected 'i32', got 'bool'",
+        )
+
+    def test_if_elif_else_all_branches_return_passes(self):
+        c_source = compile_source("fn main() i32\n  if false\n    ret 1\n  elif true\n    ret 2\n  else\n    ret 3\n  end\nend")
+        self.assertIn("else if (true)", c_source)
+
+    def test_if_elif_without_else_fails_return_check(self):
+        self.assert_compile_error(
+            "fn main() i32\n  if false\n    ret 1\n  elif true\n    ret 2\n  end\nend",
+            "must end with ret",
+        )
+
+    def test_if_elif_without_else_passes_with_trailing_return(self):
+        c_source = compile_source("fn main() i32\n  if false\n    ret 1\n  elif true\n    ret 2\n  end\n  ret 3\nend")
+        self.assertIn("return 3;", c_source)
+
+    def test_while_never_satisfies_return_check(self):
+        self.assert_compile_error(
+            "fn main() i32\n  while true\n    ret 1\n  end\nend",
+            "must end with ret",
         )
 
 

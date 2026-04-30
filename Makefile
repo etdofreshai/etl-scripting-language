@@ -12,6 +12,8 @@ smoke:
 	scripts/error_smoke.sh
 	scripts/logical_smoke.sh
 	scripts/if_smoke.sh
+	scripts/while_smoke.sh
+	scripts/fib_smoke.sh
 
 check: test smoke
 

@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not"}
+KEYWORDS = {"fn", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -100,14 +100,36 @@ class Ret:
 
 
 @dataclass(frozen=True)
+class Assign:
+    name: str
+    expr: "Expr"
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
+class ElifBranch:
+    cond: "Expr"
+    body: list["Stmt"]
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
 class If:
     cond: "Expr"
     then_body: list["Stmt"]
+    elifs: list[ElifBranch]
     else_body: list["Stmt"] | None
     loc: SourceLoc
 
 
-Stmt = Let | Ret | If
+@dataclass(frozen=True)
+class While:
+    cond: "Expr"
+    body: list["Stmt"]
+    loc: SourceLoc
+
+
+Stmt = Let | Ret | Assign | If | While
 
 
 @dataclass(frozen=True)
@@ -292,13 +314,29 @@ class Parser:
         if self.peek().kind == "IF":
             if_tok = self.take("IF")
             cond = self.parse_expr()
-            then_body = self.parse_block({"ELSE", "END"}, "if statement")
+            then_body = self.parse_block({"ELIF", "ELSE", "END"}, "if statement")
+            elifs: list[ElifBranch] = []
+            while self.peek().kind == "ELIF":
+                elif_tok = self.take("ELIF")
+                elif_cond = self.parse_expr()
+                elif_body = self.parse_block({"ELIF", "ELSE", "END"}, "elif block")
+                elifs.append(ElifBranch(elif_cond, elif_body, SourceLoc.from_token(elif_tok)))
             else_body = None
             if self.peek().kind == "ELSE":
                 self.take("ELSE")
                 else_body = self.parse_block({"END"}, "else block")
             self.take("END")
-            return If(cond, then_body, else_body, SourceLoc.from_token(if_tok))
+            return If(cond, then_body, elifs, else_body, SourceLoc.from_token(if_tok))
+        if self.peek().kind == "WHILE":
+            while_tok = self.take("WHILE")
+            cond = self.parse_expr()
+            body = self.parse_block({"END"}, "while statement")
+            self.take("END")
+            return While(cond, body, SourceLoc.from_token(while_tok))
+        if self.peek().kind == "IDENT" and self.tokens[self.pos + 1].kind == "EQUAL":
+            name_tok = self.take("IDENT")
+            self.take("EQUAL")
+            return Assign(name_tok.text, self.parse_expr(), SourceLoc.from_token(name_tok))
         tok = self.peek()
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
@@ -513,11 +551,28 @@ def validate_stmts(
                 )
             if stmt.name in names:
                 raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
-            validate_expr(stmt.expr, functions, names, fn.name)
+            expr_type = validate_expr(stmt.expr, functions, names, fn.name)
+            if expr_type != stmt.typ:
+                raise SemanticError(
+                    f"{stmt.loc.format()}: let {stmt.name!r} expected {stmt.typ!r}, got {expr_type!r} in {fn.name}"
+                )
             names[stmt.name] = stmt.typ
         elif isinstance(stmt, Ret):
-            validate_expr(stmt.expr, functions, names, fn.name)
+            expr_type = validate_expr(stmt.expr, functions, names, fn.name)
+            if expr_type != fn.return_type:
+                raise SemanticError(
+                    f"{stmt.loc.format()}: return expected {fn.return_type!r}, got {expr_type!r} in {fn.name}"
+                )
             saw_return = True
+        elif isinstance(stmt, Assign):
+            if stmt.name not in names:
+                raise SemanticError(f"{stmt.loc.format()}: assignment to undeclared local {stmt.name!r} in {fn.name}")
+            expr_type = validate_expr(stmt.expr, functions, names, fn.name)
+            expected_type = names[stmt.name]
+            if expr_type != expected_type:
+                raise SemanticError(
+                    f"{stmt.loc.format()}: assignment to {stmt.name!r} expected {expected_type!r}, got {expr_type!r} in {fn.name}"
+                )
         elif isinstance(stmt, If):
             cond_type = validate_expr(stmt.cond, functions, names, fn.name)
             if cond_type != "bool":
@@ -525,10 +580,25 @@ def validate_stmts(
                     f"{stmt.cond.loc.format()}: if condition expected bool, got {cond_type!r} in {fn.name}"
                 )
             then_returns = validate_stmts(stmt.then_body, functions, names.copy(), fn)
+            elif_returns = []
+            for branch in stmt.elifs:
+                elif_cond_type = validate_expr(branch.cond, functions, names, fn.name)
+                if elif_cond_type != "bool":
+                    raise SemanticError(
+                        f"{branch.cond.loc.format()}: elif condition expected bool, got {elif_cond_type!r} in {fn.name}"
+                    )
+                elif_returns.append(validate_stmts(branch.body, functions, names.copy(), fn))
             else_returns = False
             if stmt.else_body is not None:
                 else_returns = validate_stmts(stmt.else_body, functions, names.copy(), fn)
-            saw_return = then_returns and else_returns
+            saw_return = then_returns and all(elif_returns) and else_returns
+        elif isinstance(stmt, While):
+            cond_type = validate_expr(stmt.cond, functions, names, fn.name)
+            if cond_type != "bool":
+                raise SemanticError(
+                    f"{stmt.cond.loc.format()}: while condition expected bool, got {cond_type!r} in {fn.name}"
+                )
+            validate_stmts(stmt.body, functions, names.copy(), fn)
         else:
             raise TypeError(stmt)
     return saw_return
@@ -541,7 +611,11 @@ def body_returns(stmts: list[Stmt]) -> bool:
     if isinstance(last, Ret):
         return True
     if isinstance(last, If) and last.else_body is not None:
-        return body_returns(last.then_body) and body_returns(last.else_body)
+        return (
+            body_returns(last.then_body)
+            and all(body_returns(branch.body) for branch in last.elifs)
+            and body_returns(last.else_body)
+        )
     return False
 
 
@@ -670,17 +744,26 @@ def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
         lines.append(f"{pad}{c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
     elif isinstance(stmt, Ret):
         lines.append(f"{pad}return {emit_expr(stmt.expr)};")
+    elif isinstance(stmt, Assign):
+        lines.append(f"{pad}{stmt.name} = {emit_expr(stmt.expr)};")
     elif isinstance(stmt, If):
         lines.append(f"{pad}if ({emit_expr(stmt.cond)}) {{")
         for child in stmt.then_body:
             emit_stmt(child, lines, indent + 2)
-        if stmt.else_body is None:
-            lines.append(f"{pad}}}")
-        else:
+        for branch in stmt.elifs:
+            lines.append(f"{pad}}} else if ({emit_expr(branch.cond)}) {{")
+            for child in branch.body:
+                emit_stmt(child, lines, indent + 2)
+        if stmt.else_body is not None:
             lines.append(f"{pad}}} else {{")
             for child in stmt.else_body:
                 emit_stmt(child, lines, indent + 2)
-            lines.append(f"{pad}}}")
+        lines.append(f"{pad}}}")
+    elif isinstance(stmt, While):
+        lines.append(f"{pad}while ({emit_expr(stmt.cond)}) {{")
+        for child in stmt.body:
+            emit_stmt(child, lines, indent + 2)
+        lines.append(f"{pad}}}")
     else:
         raise TypeError(stmt)
 

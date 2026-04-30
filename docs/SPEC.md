@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if else while ret type use end true false and or not
+fn let if elif else while ret type use end true false and or not
 ```
 
 ## Block syntax decision
@@ -22,7 +22,7 @@ fn let if else while ret type use end true false and or not
 ETL source uses terminating keywords, not braces, for human- and LLM-readable structure.
 
 - Function bodies terminate with `end`.
-- Future nested blocks also terminate with `end` or a paired keyword form such as `else ... end`.
+- Nested statement blocks terminate with `end` or a paired keyword form such as `elif ... else ... end`.
 - Braces are not ETL source block syntax. They may still appear in emitted C or compiler implementation languages.
 
 ## Example syntax
@@ -46,19 +46,40 @@ end
 - comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
 - logical operators `and`, `or`, `not` as keywords; all operands and results are `bool`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
 - unary minus `-` on `i32` expressions (names, calls, parenthesized expressions); negative integer literals continue to parse as literal values (distinct from unary minus on an expression)
-- `if` / `else` statements use keyword-terminated blocks. The `else` block is optional:
+- `if` / `elif` / `else` statements use keyword-terminated blocks. `elif` clauses and the `else` block are optional:
 
 ```etl
 if a > b
   ret a
+elif a == b
+  ret 0
 else
   ret b
 end
 ```
 
-`if` conditions must have type `bool`; there is no implicit truthiness from `i32` or other types.
+`if` and `elif` conditions must have type `bool`; there is no implicit truthiness from `i32` or other types.
 
-For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `else` where both branches end in `ret`. Full reachability analysis is intentionally out of scope for v0.
+- `while` statements use a bool condition and an `end`-terminated body:
+
+```etl
+while i < 10
+  i = i + 1
+end
+```
+
+`while` conditions must have type `bool`; there is no implicit truthiness. `break` and `continue` are explicitly not supported in v0.
+
+- Assignment to an existing local uses `name = expr`. The name must already be declared in the current function by `let` or as a parameter, and the expression type must match the existing local type. Parameters are assignable because parameters are locals inside the function body.
+
+```etl
+fn inc(x i32) i32
+  x = x + 1
+  ret x
+end
+```
+
+For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 
 ## Operator precedence (lowest to highest)
 
@@ -81,7 +102,8 @@ For now, non-void functions use a simple final-return rule: the last statement m
 - bytes
 - functions
 - local variables
-- `if` / `else`
+- assignment to locals and parameters
+- `if` / `elif` / `else`
 - `while`
 - `ret`
 - arrays/slices later if needed for compiler-1

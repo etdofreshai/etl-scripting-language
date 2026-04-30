@@ -10,7 +10,6 @@ class V0BoundaryTests(unittest.TestCase):
 
     def test_reserved_but_unimplemented_statement_keywords_stay_rejected(self):
         cases = [
-            ("while 1\n    ret 1\n  end\n  ret 0", "expected statement at 2:3"),
             ("type Thing", "expected statement at 2:3"),
             ("use thing", "expected statement at 2:3"),
         ]
