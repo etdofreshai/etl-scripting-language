@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof"}
+KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -83,6 +83,7 @@ TypeRef = str | ArrayType
 @dataclass(frozen=True)
 class Program:
     structs: list["StructDecl"]
+    externs: list["ExternFunction"]
     functions: list["Function"]
 
 
@@ -106,6 +107,14 @@ class Function:
     params: list["Param"]
     return_type: TypeRef
     body: list["Stmt"]
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
+class ExternFunction:
+    name: str
+    params: list["Param"]
+    return_type: TypeRef | None
     loc: SourceLoc
 
 
@@ -153,6 +162,12 @@ class ExprAssign:
 
 
 @dataclass(frozen=True)
+class ExprStmt:
+    expr: "Expr"
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
 class ElifBranch:
     cond: "Expr"
     body: list["Stmt"]
@@ -175,7 +190,7 @@ class While:
     loc: SourceLoc
 
 
-Stmt = Let | Ret | Assign | IndexAssign | ExprAssign | If | While
+Stmt = Let | Ret | Assign | IndexAssign | ExprAssign | ExprStmt | If | While
 
 
 @dataclass(frozen=True)
@@ -380,13 +395,16 @@ class Parser:
 
     def parse_program(self) -> Program:
         structs = []
+        externs = []
         funcs = []
         while self.peek().kind != "EOF":
             if self.peek().kind == "TYPE":
                 structs.append(self.parse_struct_decl())
+            elif self.peek().kind == "EXTERN":
+                externs.append(self.parse_extern_function())
             else:
                 funcs.append(self.parse_function())
-        return Program(structs, funcs)
+        return Program(structs, externs, funcs)
 
     def parse_struct_decl(self) -> StructDecl:
         type_tok = self.take("TYPE")
@@ -406,6 +424,23 @@ class Parser:
     def parse_function(self) -> Function:
         fn_tok = self.take("FN")
         name = self.take("IDENT").text
+        params = self.parse_params()
+        return_type = self.parse_type()
+        body = self.parse_block({"END"}, f"function {name!r}")
+        self.take("END")
+        return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
+
+    def parse_extern_function(self) -> ExternFunction:
+        extern_tok = self.take("EXTERN")
+        self.take("FN")
+        name = self.take("IDENT").text
+        params = self.parse_params()
+        return_type = None
+        if self.peek().kind == "IDENT":
+            return_type = self.parse_type()
+        return ExternFunction(name, params, return_type, SourceLoc.from_token(extern_tok))
+
+    def parse_params(self) -> list[Param]:
         self.take("LPAREN")
         params: list[Param] = []
         if self.peek().kind != "RPAREN":
@@ -422,10 +457,7 @@ class Parser:
                     raise ParseError(f"expected COMMA or RPAREN after parameter, got {tok.kind} at {tok.line}:{tok.col}")
                 break
         self.take("RPAREN")
-        return_type = self.parse_type()
-        body = self.parse_block({"END"}, f"function {name!r}")
-        self.take("END")
-        return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
+        return params
 
     def parse_type(self) -> TypeRef:
         type_tok = self.take("IDENT")
@@ -506,6 +538,8 @@ class Parser:
                 if isinstance(target, Index) and isinstance(target.array, Name):
                     return IndexAssign(target.array.value, target.index, expr, loc)
                 return ExprAssign(target, expr, loc)
+            if isinstance(target, Call):
+                return ExprStmt(target, target.loc)
             self.pos = start
         tok = self.peek()
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
@@ -719,7 +753,13 @@ def validate(program: Program) -> None:
             field_names.add(field.name)
         structs[struct.name] = struct
 
-    functions: dict[str, Function] = {}
+    functions: dict[str, Function | ExternFunction] = {}
+    for extern in program.externs:
+        validate_identifier(extern.name, "function", extern.loc)
+        if extern.name in functions:
+            raise SemanticError(f"{extern.loc.format()}: duplicate function {extern.name!r}")
+        functions[extern.name] = extern
+
     for fn in program.functions:
         validate_identifier(fn.name, "function", fn.loc)
         if fn.name in functions:
@@ -730,10 +770,21 @@ def validate(program: Program) -> None:
         raise SemanticError("program must define function 'main'")
 
     main_fn = functions["main"]
+    if isinstance(main_fn, ExternFunction):
+        raise SemanticError(f"{main_fn.loc.format()}: function 'main' must be defined, not extern")
     if main_fn.params:
         raise SemanticError(f"{main_fn.loc.format()}: function 'main' must not take parameters")
     if not same_type(main_fn.return_type, "i32"):
         raise SemanticError(f"{main_fn.loc.format()}: function 'main' must return i32")
+
+    for extern in program.externs:
+        if extern.return_type is not None:
+            validate_type(extern.return_type, f"return type for {extern.name}", extern.loc, structs)
+            if is_array_type(extern.return_type):
+                raise SemanticError(f"{extern.loc.format()}: extern function {extern.name!r} cannot return array type {format_type(extern.return_type)!r} in v0")
+            if is_struct_type(extern.return_type, structs):
+                raise SemanticError(f"{extern.loc.format()}: extern function {extern.name!r} cannot return struct type {format_type(extern.return_type)!r} in v0")
+        validate_params(extern, functions, structs)
 
     for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}", fn.loc, structs)
@@ -743,29 +794,39 @@ def validate(program: Program) -> None:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} cannot return struct type {format_type(fn.return_type)!r} in v0")
         if not fn.body:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
-        names: dict[str, TypeRef] = {}
-        for param in fn.params:
-            validate_identifier(param.name, "parameter", param.loc)
-            validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc, structs)
-            if is_array_type(param.typ):
-                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have array type {format_type(param.typ)!r} in v0")
-            if is_struct_type(param.typ, structs):
-                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have struct type {format_type(param.typ)!r} in v0")
-            if param.name in functions:
-                raise SemanticError(
-                    f"{param.loc.format()}: parameter name {param.name!r} conflicts with function name in {fn.name}"
-                )
-            if param.name in names:
-                raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
-            names[param.name] = param.typ
+        names = validate_params(fn, functions, structs)
         validate_stmts(fn.body, functions, structs, names, fn)
         if not body_returns(fn.body):
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
 
 
+def validate_params(
+    fn: Function | ExternFunction,
+    functions: dict[str, Function | ExternFunction],
+    structs: dict[str, StructDecl],
+) -> dict[str, TypeRef]:
+    names: dict[str, TypeRef] = {}
+    for param in fn.params:
+        validate_identifier(param.name, "parameter", param.loc)
+        validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc, structs)
+        if isinstance(fn, Function):
+            if is_array_type(param.typ):
+                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have array type {format_type(param.typ)!r} in v0")
+            if is_struct_type(param.typ, structs):
+                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have struct type {format_type(param.typ)!r} in v0")
+        if param.name in functions:
+            raise SemanticError(
+                f"{param.loc.format()}: parameter name {param.name!r} conflicts with function name in {fn.name}"
+            )
+        if param.name in names:
+            raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
+        names[param.name] = param.typ
+    return names
+
+
 def validate_stmts(
     stmts: list[Stmt],
-    functions: dict[str, Function],
+    functions: dict[str, Function | ExternFunction],
     structs: dict[str, StructDecl],
     names: dict[str, TypeRef],
     fn: Function,
@@ -805,6 +866,8 @@ def validate_stmts(
                 if stmt.expr is None:
                     raise SemanticError(f"{stmt.loc.format()}: scalar local {stmt.name!r} requires an initializer in {fn.name}")
                 expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+                if expr_type is None:
+                    raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot initialize local {stmt.name!r} in {fn.name}")
                 if not same_type(expr_type, stmt.typ):
                     raise SemanticError(
                         f"{stmt.loc.format()}: let {stmt.name!r} expected {format_type(stmt.typ)!r}, got {format_type(expr_type)!r} in {fn.name}"
@@ -812,6 +875,8 @@ def validate_stmts(
             names[stmt.name] = stmt.typ
         elif isinstance(stmt, Ret):
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+            if expr_type is None:
+                raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be returned in {fn.name}")
             if not same_type(expr_type, fn.return_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: return expected {format_type(fn.return_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
@@ -821,6 +886,8 @@ def validate_stmts(
             if stmt.name not in names:
                 raise SemanticError(f"{stmt.loc.format()}: assignment to undeclared local {stmt.name!r} in {fn.name}")
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+            if expr_type is None:
+                raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be assigned in {fn.name}")
             expected_type = names[stmt.name]
             if is_array_type(expected_type):
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole array {stmt.name!r} in v0")
@@ -842,6 +909,8 @@ def validate_stmts(
                     f"{stmt.index.loc.format()}: array index expected 'i32', got {format_type(index_type)!r} in {fn.name}"
                 )
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+            if expr_type is None:
+                raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be assigned in {fn.name}")
             if is_struct_type(array_type.element_type, structs):
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole struct array element {stmt.array!r} in v0")
             if not same_type(expr_type, array_type.element_type):
@@ -855,10 +924,16 @@ def validate_stmts(
             if is_struct_type(expected_type, structs):
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole struct field in v0")
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+            if expr_type is None:
+                raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be assigned in {fn.name}")
             if not same_type(expr_type, expected_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: assignment expected {format_type(expected_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
+        elif isinstance(stmt, ExprStmt):
+            expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
+            if expr_type is not None:
+                raise SemanticError(f"{stmt.loc.format()}: expression statement in {fn.name} must call a void extern function")
         elif isinstance(stmt, If):
             cond_type = validate_expr(stmt.cond, functions, structs, names, fn.name)
             if cond_type != "bool":
@@ -948,7 +1023,9 @@ def same_type(left: TypeRef, right: TypeRef) -> bool:
     return isinstance(left, str) and isinstance(right, str) and left == right
 
 
-def format_type(typ: TypeRef) -> str:
+def format_type(typ: TypeRef | None) -> str:
+    if typ is None:
+        return "void"
     if isinstance(typ, ArrayType):
         return typ.format()
     return typ
@@ -963,7 +1040,7 @@ def is_c_reserved_underscore_identifier(name: str) -> bool:
     return name.startswith("__") or (len(name) > 1 and name[0] == "_" and name[1].isupper())
 
 
-def validate_expr(expr: Expr, functions: dict[str, Function], structs: dict[str, StructDecl], names: dict[str, TypeRef], current_fn: str) -> TypeRef:
+def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], structs: dict[str, StructDecl], names: dict[str, TypeRef], current_fn: str) -> TypeRef | None:
     if isinstance(expr, IntLit):
         if not (I32_MIN <= expr.value <= I32_MAX):
             raise SemanticError(
@@ -1059,22 +1136,27 @@ def validate_expr(expr: Expr, functions: dict[str, Function], structs: dict[str,
     if isinstance(expr, Call):
         if expr.name not in functions:
             raise SemanticError(f"{expr.loc.format()}: unknown function {expr.name!r} in {current_fn}")
-        expected = len(functions[expr.name].params)
+        callee = functions[expr.name]
+        expected = len(callee.params)
         if len(expr.args) != expected:
             raise SemanticError(
                 f"{expr.loc.format()}: function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
             )
-        for arg, param in zip(expr.args, functions[expr.name].params):
+        for arg, param in zip(expr.args, callee.params):
             arg_type = validate_expr(arg, functions, structs, names, current_fn)
+            if arg_type is None:
+                raise SemanticError(f"{arg.loc.format()}: void function call cannot be used as argument in {current_fn}")
             if not same_type(arg_type, param.typ):
                 raise SemanticError(
                     f"{arg.loc.format()}: function {expr.name!r} argument {param.name!r} expected {format_type(param.typ)!r}, got {format_type(arg_type)!r} in {current_fn}"
                 )
-        return functions[expr.name].return_type
+        if isinstance(callee, ExternFunction):
+            return callee.return_type
+        return callee.return_type
     raise TypeError(expr)
 
 
-def validate_lvalue(expr: Expr, functions: dict[str, Function], structs: dict[str, StructDecl], names: dict[str, TypeRef], current_fn: str) -> TypeRef:
+def validate_lvalue(expr: Expr, functions: dict[str, Function | ExternFunction], structs: dict[str, StructDecl], names: dict[str, TypeRef], current_fn: str) -> TypeRef:
     if isinstance(expr, FieldAccess):
         return validate_expr(expr, functions, structs, names, current_fn)
     if isinstance(expr, Index):
@@ -1103,6 +1185,12 @@ def c_sizeof_type(t: TypeRef) -> str:
 def c_decl_type(t: TypeRef) -> str:
     if isinstance(t, ArrayType):
         return c_type(t.element_type)
+    return c_type(t)
+
+
+def c_param_type(t: TypeRef) -> str:
+    if isinstance(t, ArrayType):
+        return f"{c_type(t.element_type)} *"
     return c_type(t)
 
 
@@ -1159,9 +1247,10 @@ def emit_expr(expr: Expr) -> str:
     raise TypeError(expr)
 
 
-def c_signature(fn: Function) -> str:
-    params = ", ".join(f"{c_type(p.typ)} {p.name}" for p in fn.params) or "void"
-    return f"{c_type(fn.return_type)} {fn.name}({params})"
+def c_signature(fn: Function | ExternFunction) -> str:
+    params = ", ".join(f"{c_param_type(p.typ)}{p.name}" if isinstance(p.typ, ArrayType) else f"{c_param_type(p.typ)} {p.name}" for p in fn.params) or "void"
+    return_type = "void" if isinstance(fn, ExternFunction) and fn.return_type is None else c_type(fn.return_type)
+    return f"{return_type} {fn.name}({params})"
 
 
 def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
@@ -1186,6 +1275,8 @@ def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
         lines.append(f"{pad}{stmt.array}[{emit_expr(stmt.index)}] = {emit_expr(stmt.expr)};")
     elif isinstance(stmt, ExprAssign):
         lines.append(f"{pad}{emit_expr(stmt.target)} = {emit_expr(stmt.expr)};")
+    elif isinstance(stmt, ExprStmt):
+        lines.append(f"{pad}{emit_expr(stmt.expr)};")
     elif isinstance(stmt, If):
         lines.append(f"{pad}if ({emit_expr(stmt.cond)}) {{")
         for child in stmt.then_body:
@@ -1209,7 +1300,10 @@ def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
 
 
 def emit_c(program: Program) -> str:
-    lines = ["#include <stdbool.h>", "#include <stdint.h>", ""]
+    lines = ["#include <stdbool.h>", "#include <stdint.h>"]
+    if program.externs:
+        lines.append('#include "etl_runtime.h"')
+    lines.append("")
     for struct in program.structs:
         lines.append("typedef struct {")
         for field in struct.fields:
@@ -1218,6 +1312,10 @@ def emit_c(program: Program) -> str:
             else:
                 lines.append(f"  {c_type(field.typ)} {field.name};")
         lines.append(f"}} {struct.name};")
+        lines.append("")
+    for fn in program.externs:
+        lines.append(f"{c_signature(fn)};")
+    if program.externs:
         lines.append("")
     for fn in program.functions:
         lines.append(f"{c_signature(fn)};")

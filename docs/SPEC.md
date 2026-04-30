@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if elif else while ret type use end true false and or not sizeof
+fn extern let if elif else while ret type use end true false and or not sizeof
 ```
 
 ## Block syntax decision
@@ -35,6 +35,18 @@ end
 fn main() i32
   let x i32 = add(2, 3)
   ret x
+end
+```
+
+Top-level declarations are function definitions, external function declarations, and type declarations:
+
+```etl
+extern fn etl_print_i32(value i32)
+extern fn etl_read_i32() i32
+
+type Point struct
+  x i32
+  y i32
 end
 ```
 
@@ -175,6 +187,44 @@ let q i32 = sizeof(i32[10])    // 40 with natural alignment
 ```
 
 `sizeof` of an unknown type is a clean diagnostic. The expression form `sizeof(expr)` is **not** supported in v0 — only `sizeof(type)` — and is rejected at parse time.
+
+### `extern fn` declarations (Phase 4a)
+
+ETL can declare C functions supplied by the runtime or host program:
+
+```etl
+extern fn etl_print_i32(value i32)
+extern fn etl_exit(code i32)
+extern fn etl_read_i32() i32
+```
+
+`extern fn NAME(PARAMS) [RET_TYPE]` is a top-level declaration. It has no ETL body and is not terminated by `end`. Omitting the return type declares a `void` C function. External names share the same function namespace as ETL-defined functions, so duplicate extern/user function names are rejected.
+
+Parameters may use any v0 type usable in `let`: primitives (`i32`, `bool`, `i8`), previously declared structs, and fixed-size arrays. The C backend emits fixed-size array parameters as pointers to the element type. Return types are restricted to primitives in v0; struct and array returns are rejected.
+
+Calls to extern functions type-check like calls to user functions. A void extern call can be used as a statement:
+
+```etl
+extern fn etl_print_i32(value i32)
+
+fn main() i32
+  etl_print_i32(42)
+  ret 0
+end
+```
+
+When a program contains any `extern fn`, the C backend emits `#include "etl_runtime.h"` after the standard includes. Extern prototypes are emitted after struct typedefs and before user function prototypes/definitions.
+
+The initial C runtime lives in `runtime/etl_runtime.h` and `runtime/etl_runtime.c`:
+
+```c
+void etl_print_i32(int32_t value);
+void etl_print_bool(bool value);
+void etl_print_str(const int8_t *s);
+void etl_print_str_n(const int8_t *s, int32_t n);
+void etl_exit(int32_t code);
+int32_t etl_read_i32(void);
+```
 
 For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 

@@ -1,3 +1,5 @@
+ETL_RUNTIME = runtime/etl_runtime.c
+
 .PHONY: test smoke check autopilot-help
 
 test:
@@ -18,6 +20,7 @@ smoke:
 	scripts/struct_smoke.sh
 	scripts/string_smoke.sh
 	scripts/sizeof_smoke.sh
+	scripts/extern_smoke.sh
 
 check: test smoke
 

@@ -15,6 +15,8 @@ from compiler0.etl0 import (
     BoolLit,
     Call,
     ExprAssign,
+    ExprStmt,
+    ExternFunction,
     FieldAccess,
     If,
     Index,
@@ -63,8 +65,8 @@ class Compiler0Tests(unittest.TestCase):
         self.assertEqual(kinds[-1], "EOF")
 
     def test_lex_recognizes_all_draft_keywords(self):
-        kinds = [t.kind for t in lex("fn let if elif else while ret type use end")]
-        self.assertEqual(kinds, ["FN", "LET", "IF", "ELIF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "EOF"])
+        kinds = [t.kind for t in lex("fn extern let if elif else while ret type use end")]
+        self.assertEqual(kinds, ["FN", "EXTERN", "LET", "IF", "ELIF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "EOF"])
 
     def test_lex_rejects_non_ascii_identifier_start_for_c_backend(self):
         with self.assertRaisesRegex(LexerError, "unexpected character 'é' at 1:4"):
@@ -95,6 +97,23 @@ end
         self.assertIsInstance(program.functions[0].body[0].expr, Binary)
         self.assertIsInstance(program.functions[1].body[0], Let)
         self.assertIsInstance(program.functions[1].body[0].expr, Call)
+
+    def test_parse_extern_fn_with_return_type(self):
+        program = parse("extern fn etl_read_i32() i32\nfn main() i32\n  ret etl_read_i32()\nend")
+        self.assertEqual(len(program.externs), 1)
+        self.assertIsInstance(program.externs[0], ExternFunction)
+        self.assertEqual(program.externs[0].name, "etl_read_i32")
+        self.assertEqual(program.externs[0].return_type, "i32")
+
+    def test_parse_extern_fn_void_no_params(self):
+        program = parse("extern fn tick()\nfn main() i32\n  tick()\n  ret 0\nend")
+        self.assertIsNone(program.externs[0].return_type)
+        self.assertEqual(program.externs[0].params, [])
+        self.assertIsInstance(program.functions[0].body[0], ExprStmt)
+
+    def test_parse_rejects_extern_body(self):
+        with self.assertRaisesRegex(ParseError, "expected FN, got RET"):
+            parse("extern fn bad() i32\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
 
     def test_parse_parenthesized_expression(self):
         program = parse("fn main() i32\n  ret (1 + 2) + 3\nend")
@@ -1607,6 +1626,62 @@ class SizeOfTests(unittest.TestCase):
             subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 8)
+
+    # --- Phase 4a: extern functions ---
+
+    def test_type_allows_extern_call_with_return(self):
+        c_source = compile_source("extern fn etl_read_i32() i32\nfn main() i32\n  ret etl_read_i32()\nend")
+        self.assertIn("int32_t etl_read_i32(void);", c_source)
+
+    def test_type_allows_void_extern_call_statement(self):
+        c_source = compile_source("extern fn etl_print_i32(value i32)\nfn main() i32\n  etl_print_i32(42)\n  ret 0\nend")
+        self.assertIn("void etl_print_i32(int32_t value);", c_source)
+        self.assertIn("etl_print_i32(42);", c_source)
+
+    def test_type_rejects_unknown_extern_call_like_unknown_function(self):
+        with self.assertRaisesRegex(SemanticError, "unknown function 'missing'"):
+            compile_source("fn main() i32\n  ret missing()\nend")
+
+    def test_type_rejects_extern_name_duplicate_with_user_function(self):
+        with self.assertRaisesRegex(SemanticError, "duplicate function 'dup'"):
+            compile_source("extern fn dup()\nfn dup() i32\n  ret 0\nend\nfn main() i32\n  ret dup()\nend")
+
+    def test_type_rejects_extern_struct_return(self):
+        with self.assertRaisesRegex(SemanticError, "extern function 'bad' cannot return struct type 'Pt'"):
+            compile_source("type Pt struct\n  x i32\nend\nextern fn bad() Pt\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_extern_array_return(self):
+        with self.assertRaisesRegex(SemanticError, "extern function 'bad' cannot return array type 'i32\\[4\\]'"):
+            compile_source("extern fn bad() i32[4]\nfn main() i32\n  ret 0\nend")
+
+    def test_emit_runtime_include_only_when_extern_present(self):
+        plain = compile_source("fn main() i32\n  ret 0\nend")
+        with_extern = compile_source("extern fn etl_print_i32(value i32)\nfn main() i32\n  etl_print_i32(1)\n  ret 0\nend")
+        self.assertNotIn('#include "etl_runtime.h"', plain)
+        self.assertIn('#include "etl_runtime.h"', with_extern)
+
+    def test_emit_extern_prototype_after_struct_typedef(self):
+        c_source = compile_source("type Pt struct\n  x i32\nend\nextern fn sink(p Pt)\nfn main() i32\n  ret 0\nend")
+        self.assertLess(c_source.index("} Pt;"), c_source.index("void sink(Pt p);"))
+        self.assertLess(c_source.index("void sink(Pt p);"), c_source.index("int32_t main(void);"))
+
+    def test_emit_extern_array_param_decays_to_pointer(self):
+        c_source = compile_source("extern fn bytes(buf i8[4])\nfn main() i32\n  ret 0\nend")
+        self.assertIn("void bytes(int8_t *buf);", c_source)
+
+    def test_compile_and_run_extern_print_i32(self):
+        c_source = compile_source("extern fn etl_print_i32(value i32)\nfn main() i32\n  etl_print_i32(42)\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(
+                ["cc", "-Wall", "-Werror", str(c_path), "runtime/etl_runtime.c", "-I", "runtime", "-o", str(exe_path)],
+                check=True,
+            )
+            proc = subprocess.run([str(exe_path)], check=False, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("42", proc.stdout)
 
 
 if __name__ == "__main__":
