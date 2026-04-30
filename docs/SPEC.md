@@ -98,6 +98,41 @@ ret buf[0]
 
 Phase 3a emits raw C indexing and performs no bounds checking. Arrays are not first-class values in v0: arrays cannot be passed as function parameters, returned from functions, assigned as whole values, or used directly in arithmetic, comparisons, logical operators, returns, calls, or scalar `let` initializers. Indexed read and indexed write are the only supported array operations.
 
+- struct types use a top-level `type T struct ... end` declaration:
+
+```etl
+type Token struct
+  kind i32
+  value i32
+  line i32
+end
+```
+
+Struct fields may be `i32`, `bool`, fixed-size arrays of those types (`i32[N]` or `bool[N]`), or another previously declared struct type. Struct declarations are emitted as C `typedef struct { ... } T;` in source declaration order. Forward references and recursive structs are not supported. Empty structs, duplicate field names within one struct, and duplicate struct type names are errors.
+
+Struct locals are value locals and are zero-initialized:
+
+```etl
+let t Token
+let buf Token[10]
+```
+
+The C backend emits these as `Token t = {0};` and `Token buf[10] = {0};`. Field read and write use `.`:
+
+```etl
+t.kind = 1
+ret t.kind
+```
+
+Postfix indexing and field access compose for array fields and arrays of structs:
+
+```etl
+t.values[0] = 7
+buf[i].kind = 2
+```
+
+Phase 3b intentionally keeps structs out of first-class operations. Structs cannot be passed as function parameters, returned from functions, assigned as whole values, or compared with `==` / `!=`. Field access on non-struct values and unknown field names are errors. Pointer, extern, `sizeof`, string, struct parameter, and struct return support are deferred.
+
 For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 
 ## Operator precedence (lowest to highest)

@@ -14,6 +14,8 @@ from compiler0.etl0 import (
     Binary,
     BoolLit,
     Call,
+    ExprAssign,
+    FieldAccess,
     If,
     Index,
     IndexAssign,
@@ -700,6 +702,103 @@ end
         self.assertIn("flags[1] = true;", c_source)
         self.assertIn("return buf[0];", c_source)
 
+    # --- Phase 3b: structs and field access tests ---
+
+    def test_parse_simple_struct_decl(self):
+        program = parse("type Token struct\n  kind i32\n  value i32\nend\nfn main() i32\n  ret 0\nend")
+        self.assertEqual(program.structs[0].name, "Token")
+        self.assertEqual([f.name for f in program.structs[0].fields], ["kind", "value"])
+
+    def test_parse_struct_with_array_field(self):
+        program = parse("type Row struct\n  cells i32[4]\nend\nfn main() i32\n  ret 0\nend")
+        self.assertIsInstance(program.structs[0].fields[0].typ, ArrayType)
+
+    def test_parse_struct_with_nested_struct_field(self):
+        program = parse("type Point struct\n  x i32\nend\ntype Box struct\n  p Point\nend\nfn main() i32\n  ret 0\nend")
+        self.assertEqual(program.structs[1].fields[0].typ, "Point")
+
+    def test_parse_rejects_struct_without_end(self):
+        with self.assertRaisesRegex(ParseError, "expected 'end' before EOF in struct 'Point'"):
+            parse("type Point struct\n  x i32\n")
+
+    def test_parse_field_access_and_assignment(self):
+        program = parse("type Point struct\n  x i32\nend\nfn main() i32\n  let p Point\n  p.x = 3\n  ret p.x\nend")
+        self.assertIsInstance(program.functions[0].body[1], ExprAssign)
+        self.assertIsInstance(program.functions[0].body[2].expr, FieldAccess)
+
+    def test_type_allows_struct_local_field_read_write(self):
+        c_source = compile_source("type Point struct\n  x i32\n  y bool\nend\nfn main() i32\n  let p Point\n  p.x = 3\n  p.y = true\n  ret p.x\nend")
+        self.assertIn("Point p = {0};", c_source)
+        self.assertIn("p.x = 3;", c_source)
+        self.assertIn("p.y = true;", c_source)
+        self.assertIn("return p.x;", c_source)
+
+    def test_type_allows_array_field_indexing(self):
+        c_source = compile_source("type Row struct\n  cells i32[3]\nend\nfn main() i32\n  let r Row\n  r.cells[1] = 7\n  ret r.cells[1]\nend")
+        self.assertIn("r.cells[1] = 7;", c_source)
+        self.assertIn("return r.cells[1];", c_source)
+
+    def test_type_allows_array_of_struct_field_indexing(self):
+        c_source = compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let pts Point[2]\n  pts[1].x = 9\n  ret pts[1].x\nend")
+        self.assertIn("Point pts[2] = {0};", c_source)
+        self.assertIn("pts[1].x = 9;", c_source)
+        self.assertIn("return pts[1].x;", c_source)
+
+    def test_type_rejects_empty_struct(self):
+        with self.assertRaisesRegex(SemanticError, "must have at least one field"):
+            compile_source("type Empty struct\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_duplicate_fields(self):
+        with self.assertRaisesRegex(SemanticError, "duplicate field 'x'"):
+            compile_source("type Point struct\n  x i32\n  x bool\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_duplicate_struct_names(self):
+        with self.assertRaisesRegex(SemanticError, "duplicate struct type 'Point'"):
+            compile_source("type Point struct\n  x i32\nend\ntype Point struct\n  y i32\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_forward_struct_reference(self):
+        with self.assertRaisesRegex(SemanticError, "unsupported type 'Point'"):
+            compile_source("type Box struct\n  p Point\nend\ntype Point struct\n  x i32\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_wrong_field_write_type(self):
+        with self.assertRaisesRegex(SemanticError, "assignment expected 'i32', got 'bool'"):
+            compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let p Point\n  p.x = true\n  ret 0\nend")
+
+    def test_type_rejects_wrong_field_read_type(self):
+        with self.assertRaisesRegex(SemanticError, "let 'x' expected 'bool', got 'i32'"):
+            compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let p Point\n  let x bool = p.x\n  ret 0\nend")
+
+    def test_type_rejects_unknown_field(self):
+        with self.assertRaisesRegex(SemanticError, "unknown field 'z' on struct 'Point'"):
+            compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let p Point\n  ret p.z\nend")
+
+    def test_type_rejects_field_access_on_non_struct(self):
+        with self.assertRaisesRegex(SemanticError, "field access on non-struct type 'i32'"):
+            compile_source("fn main() i32\n  let x i32 = 1\n  ret x.y\nend")
+
+    def test_type_rejects_whole_struct_assignment(self):
+        with self.assertRaisesRegex(SemanticError, "cannot assign whole struct"):
+            compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let a Point\n  let b Point\n  a = b\n  ret 0\nend")
+
+    def test_type_rejects_struct_equality(self):
+        with self.assertRaisesRegex(SemanticError, "cannot compare struct type 'Point'"):
+            compile_source("type Point struct\n  x i32\nend\nfn main() i32\n  let a Point\n  let b Point\n  let same bool = a == b\n  ret 0\nend")
+
+    def test_type_rejects_struct_parameter(self):
+        with self.assertRaisesRegex(SemanticError, "parameter 'p' cannot have struct type 'Point'"):
+            compile_source("type Point struct\n  x i32\nend\nfn id(p Point) i32\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_struct_return(self):
+        with self.assertRaisesRegex(SemanticError, "function 'make' cannot return struct type 'Point'"):
+            compile_source("type Point struct\n  x i32\nend\nfn make() Point\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_emit_struct_typedef_order_and_fields(self):
+        c_source = compile_source("type Point struct\n  x i32\n  flags bool[2]\nend\ntype Box struct\n  p Point\nend\nfn main() i32\n  let b Box\n  ret 0\nend")
+        self.assertLess(c_source.index("} Point;"), c_source.index("} Box;"))
+        self.assertIn("typedef struct {\n  int32_t x;\n  bool flags[2];\n} Point;", c_source)
+        self.assertIn("typedef struct {\n  Point p;\n} Box;", c_source)
+        self.assertIn("Box b = {0};", c_source)
+
 
 class SemanticValidationTests(unittest.TestCase):
     def assert_compile_error(self, source, text):
@@ -819,7 +918,7 @@ end
                     SemanticError,
                     re.escape(f"1:1: operator {operator!r} requires i32 operands, got 'u32' and 'i32'"),
                 ):
-                    validate_expr(expr, {}, {"left": "u32"}, "main")
+                    validate_expr(expr, {}, {}, {"left": "u32"}, "main")
 
     def test_rejects_c_reserved_function_name(self):
         self.assert_compile_error("fn int() i32\n  ret 0\nend", "1:1: function name 'int' is reserved by the C backend")
