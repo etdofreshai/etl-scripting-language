@@ -1,5 +1,6 @@
 #include "etl_runtime.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,43 @@ void etl_print_str_n(const int8_t *s, int32_t n) {
     return;
   }
   fwrite(s, 1, (size_t)n, stdout);
+}
+
+int32_t etl_format_i32(int8_t *buf, int32_t cap, int32_t value) {
+  char tmp[16];
+  int n = snprintf(tmp, sizeof(tmp), "%" PRId32, value);
+  if (buf == NULL || cap < 0 || n < 0 || n > cap) {
+    return -1;
+  }
+  memcpy(buf, tmp, (size_t)n);
+  return (int32_t)n;
+}
+
+int32_t etl_append_bytes(int8_t *dst, int32_t dst_len, int32_t dst_cap,
+                         const int8_t *src, int32_t src_len) {
+  if (dst == NULL || src == NULL || dst_len < 0 || dst_cap < dst_len || src_len < 0) {
+    return -1;
+  }
+  if (src_len > dst_cap - dst_len) {
+    return -1;
+  }
+  memcpy(dst + dst_len, src, (size_t)src_len);
+  return dst_len + src_len;
+}
+
+void etl_eprint(const int8_t *buf, int32_t len) {
+  if (buf == NULL || len <= 0) {
+    return;
+  }
+  fwrite(buf, 1, (size_t)len, stderr);
+}
+
+void etl_eprint_i32(int32_t value) {
+  int8_t buf[16];
+  int32_t n = etl_format_i32(buf, (int32_t)sizeof(buf), value);
+  if (n > 0) {
+    etl_eprint(buf, n);
+  }
 }
 
 void etl_exit(int32_t code) {
