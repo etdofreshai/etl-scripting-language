@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end"}
+KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end", "true", "false"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -16,6 +16,14 @@ SINGLE = {
     "/": "SLASH",
     "%": "PERCENT",
     "=": "EQUAL",
+    "<": "LT",
+    ">": "GT",
+}
+DOUBLE = {
+    "==": "EQEQ",
+    "!=": "NEQ",
+    "<=": "LTE",
+    ">=": "GTE",
 }
 
 
@@ -101,6 +109,12 @@ class IntLit:
 
 
 @dataclass(frozen=True)
+class BoolLit:
+    value: bool
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
 class Name:
     value: str
     loc: SourceLoc
@@ -121,7 +135,7 @@ class Binary:
     loc: SourceLoc
 
 
-Expr = IntLit | Name | Call | Binary
+Expr = IntLit | BoolLit | Name | Call | Binary
 
 
 def lex(src: str) -> list[Token]:
@@ -147,6 +161,20 @@ def lex(src: str) -> list[Token]:
             continue
         if ch in "{}":
             raise LexerError(f"unexpected character {ch!r} at {line}:{col}; ETL no longer uses braces for blocks, use 'end'")
+        if ch == "!" and i + 1 < len(src) and src[i + 1] == "=":
+            tokens.append(Token("NEQ", "!=", line, col))
+            i += 2
+            col += 2
+            continue
+        if ch == "!" :
+            raise LexerError(f"unexpected character '!' at {line}:{col}")
+        # Check for two-character operators first
+        if i + 1 < len(src) and src[i:i+2] in DOUBLE:
+            text = src[i:i+2]
+            tokens.append(Token(DOUBLE[text], text, line, col))
+            i += 2
+            col += 2
+            continue
         if ch in SINGLE:
             tokens.append(Token(SINGLE[ch], ch, line, col))
             i += 1
@@ -246,6 +274,14 @@ class Parser:
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
     def parse_expr(self) -> Expr:
+        expr = self.parse_additive()
+        while self.peek().kind in {"EQEQ", "NEQ", "LT", "LTE", "GT", "GTE"}:
+            op_tok = self.peek()
+            self.take(op_tok.kind)
+            expr = Binary(op_tok.text, expr, self.parse_additive(), SourceLoc.from_token(op_tok))
+        return expr
+
+    def parse_additive(self) -> Expr:
         expr = self.parse_term()
         while self.peek().kind in {"PLUS", "MINUS"}:
             op_tok = self.peek()
@@ -263,6 +299,12 @@ class Parser:
 
     def parse_primary(self) -> Expr:
         tok = self.peek()
+        if tok.kind == "TRUE":
+            self.take("TRUE")
+            return BoolLit(True, SourceLoc.from_token(tok))
+        if tok.kind == "FALSE":
+            self.take("FALSE")
+            return BoolLit(False, SourceLoc.from_token(tok))
         if tok.kind == "MINUS":
             minus_tok = self.take("MINUS")
             int_tok = self.peek()
@@ -302,7 +344,7 @@ def parse(src: str) -> Program:
     return Parser(lex(src)).parse_program()
 
 
-SUPPORTED_TYPES = {"i32"}
+SUPPORTED_TYPES = {"i32", "bool"}
 C_RESERVED_IDENTIFIERS = {
     # C keywords and backend-provided typedef names share the ordinary
     # identifier namespace with ETL function/local names in emitted C.
@@ -432,6 +474,8 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
                 f"{expr.loc.format()}: integer literal {expr.value} is outside supported i32 range in {current_fn}"
             )
         return "i32"
+    if isinstance(expr, BoolLit):
+        return "bool"
     if isinstance(expr, Name):
         if expr.value not in names:
             raise SemanticError(f"{expr.loc.format()}: unknown name {expr.value!r} in {current_fn}")
@@ -443,6 +487,22 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
             raise SemanticError(
                 f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
             )
+        if expr.op in {"+", "-"} and (left_type != "i32" or right_type != "i32"):
+            raise SemanticError(
+                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+            )
+        if expr.op in {"==", "!="}:
+            if left_type != right_type:
+                raise SemanticError(
+                    f"{expr.loc.format()}: operator {expr.op!r} requires matching types, got {left_type!r} and {right_type!r} in {current_fn}"
+                )
+        if expr.op in {"<", "<=", ">", ">="}:
+            if left_type != "i32" or right_type != "i32":
+                raise SemanticError(
+                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+                )
+        if expr.op in {"==", "!=", "<", "<=", ">", ">="}:
+            return "bool"
         return "i32"
     if isinstance(expr, Call):
         if expr.name not in functions:
@@ -461,6 +521,8 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
 def c_type(t: str) -> str:
     if t == "i32":
         return "int32_t"
+    if t == "bool":
+        return "bool"
     raise SemanticError(f"unsupported type {t!r}")
 
 
@@ -469,6 +531,8 @@ def emit_expr(expr: Expr) -> str:
         if expr.value == I32_MIN:
             return "(-2147483647 - 1)"
         return str(expr.value)
+    if isinstance(expr, BoolLit):
+        return "true" if expr.value else "false"
     if isinstance(expr, Name):
         return expr.value
     if isinstance(expr, Call):
@@ -485,7 +549,7 @@ def c_signature(fn: Function) -> str:
 
 
 def emit_c(program: Program) -> str:
-    lines = ["#include <stdint.h>", ""]
+    lines = ["#include <stdbool.h>", "#include <stdint.h>", ""]
     for fn in program.functions:
         lines.append(f"{c_signature(fn)};")
     lines.append("")

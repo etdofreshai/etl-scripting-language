@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from compiler0.etl0 import (
     Binary,
+    BoolLit,
     Call,
     IntLit,
     Let,
@@ -371,6 +372,142 @@ end
             self.assertEqual(main(["compile", "-", "-o", "-"]), 0)
         self.assertIn("return 0;", stdout.getvalue())
 
+    # --- Phase 1b: bool type and comparison operator tests ---
+
+    def test_lex_true_and_false_keywords(self):
+        kinds = [t.kind for t in lex("fn main() i32\n  let x bool = true\n  let y bool = false\n  ret 0\nend")]
+        self.assertIn("TRUE", kinds)
+        self.assertIn("FALSE", kinds)
+
+    def test_lex_comparison_operators(self):
+        kinds = [t.kind for t in lex("== != < <= > >=")]
+        self.assertEqual(kinds, ["EQEQ", "NEQ", "LT", "LTE", "GT", "GTE", "EOF"])
+
+    def test_lex_standalone_exclamation_is_error(self):
+        with self.assertRaisesRegex(LexerError, "unexpected character '!' at 1:1"):
+            lex("! x")
+
+    def test_parse_bool_literal_true(self):
+        program = parse("fn main() i32\n  let x bool = true\n  ret 0\nend")
+        let_stmt = program.functions[0].body[0]
+        self.assertIsInstance(let_stmt.expr, BoolLit)
+        self.assertTrue(let_stmt.expr.value)
+
+    def test_parse_bool_literal_false(self):
+        program = parse("fn main() i32\n  let x bool = false\n  ret 0\nend")
+        let_stmt = program.functions[0].body[0]
+        self.assertIsInstance(let_stmt.expr, BoolLit)
+        self.assertFalse(let_stmt.expr.value)
+
+    def test_parse_less_than_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = 1 + 2 < 3 + 4\n  ret 0\nend")
+        let_stmt = program.functions[0].body[0]
+        expr = let_stmt.expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "<")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "+")
+        self.assertIsInstance(expr.right, Binary)
+        self.assertEqual(expr.right.op, "+")
+
+    def test_parse_greater_than_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = a + b > c + d\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, ">")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "+")
+        self.assertIsInstance(expr.right, Binary)
+        self.assertEqual(expr.right.op, "+")
+
+    def test_parse_eq_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = 1 + 2 == 3\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "==")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "+")
+
+    def test_parse_neq_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = a != b + c\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "!=")
+        self.assertIsInstance(expr.right, Binary)
+        self.assertEqual(expr.right.op, "+")
+
+    def test_parse_lte_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = x <= y\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "<=")
+
+    def test_parse_gte_precedence_below_additive(self):
+        program = parse("fn main() i32\n  let p bool = x >= y\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, ">=")
+
+    def test_parse_comparison_left_associative(self):
+        program = parse("fn main() i32\n  let p bool = 1 < 2 < 3\n  ret 0\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "<")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "<")
+
+    def test_emit_bool_type_uses_stdbool(self):
+        c_source = compile_source("fn main() i32\n  let x bool = true\n  ret 0\nend")
+        self.assertIn("#include <stdbool.h>", c_source)
+        self.assertIn("bool x = true;", c_source)
+
+    def test_emit_false_literal(self):
+        c_source = compile_source("fn main() i32\n  let x bool = false\n  ret 0\nend")
+        self.assertIn("bool x = false;", c_source)
+
+    def test_emit_comparison_operators(self):
+        c_source = compile_source("fn main() i32\n  let a bool = 1 < 2\n  let b bool = 1 > 2\n  let c bool = 1 <= 2\n  let d bool = 1 >= 2\n  let e bool = 1 == 2\n  let f bool = 1 != 2\n  ret 0\nend")
+        self.assertIn("bool a = (1 < 2);", c_source)
+        self.assertIn("bool b = (1 > 2);", c_source)
+        self.assertIn("bool c = (1 <= 2);", c_source)
+        self.assertIn("bool d = (1 >= 2);", c_source)
+        self.assertIn("bool e = (1 == 2);", c_source)
+        self.assertIn("bool f = (1 != 2);", c_source)
+
+    def test_emit_bool_function_return(self):
+        c_source = compile_source("fn is_true() bool\n  ret true\nend\nfn main() i32\n  ret 0\nend")
+        self.assertIn("bool is_true(void);", c_source)
+        self.assertIn("return true;", c_source)
+
+    def test_emit_bool_parameter(self):
+        c_source = compile_source("fn id(x bool) bool\n  ret x\nend\nfn main() i32\n  ret 0\nend")
+        self.assertIn("bool id(bool x);", c_source)
+
+    def test_compile_and_run_comparison_smoke(self):
+        c_source = compile_source("fn main() i32\n  let p bool = 5 > 3\n  ret 0\nend")
+        self.assertIn("bool p = (5 > 3);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    def test_compile_and_run_comparison_returns_correct_bool(self):
+        c_source = compile_source("fn is_gt(a i32, b i32) bool\n  ret a > b\nend\nfn main() i32\n  let x bool = is_gt(5, 3)\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    def test_if_keyword_still_produces_not_yet_implemented_diagnostic(self):
+        with self.assertRaisesRegex(ParseError, "expected statement at 2:3"):
+            parse("fn main() i32\n  if true\n    ret 1\n  end\n  ret 0\nend")
+
 
 class SemanticValidationTests(unittest.TestCase):
     def assert_compile_error(self, source, text):
@@ -562,6 +699,58 @@ end
             subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 255)
+
+    # --- Phase 1b: comparison type-mismatch diagnostic tests ---
+
+    def test_rejects_eq_with_mismatched_types(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let y bool = true\n  let p bool = x == y\n  ret 0\nend",
+            "requires matching types.*'i32' and 'bool'",
+        )
+
+    def test_rejects_neq_with_mismatched_types(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let y bool = true\n  let p bool = x != y\n  ret 0\nend",
+            "requires matching types.*'i32' and 'bool'",
+        )
+
+    def test_rejects_lt_with_bool_operand(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x bool = true\n  let p bool = x < 1\n  ret 0\nend",
+            "operator '<' requires i32 operands.*'bool' and 'i32'",
+        )
+
+    def test_rejects_gt_with_bool_operand(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x bool = true\n  let p bool = 1 > x\n  ret 0\nend",
+            "operator '>' requires i32 operands.*'i32' and 'bool'",
+        )
+
+    def test_rejects_lte_with_bool_operand(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let p bool = true <= false\n  ret 0\nend",
+            "operator '<=' requires i32 operands.*'bool' and 'bool'",
+        )
+
+    def test_rejects_gte_with_bool_operand(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let p bool = true >= false\n  ret 0\nend",
+            "operator '>=' requires i32 operands.*'bool' and 'bool'",
+        )
+
+    def test_accepts_bool_eq_bool(self):
+        c_source = compile_source("fn main() i32\n  let a bool = true\n  let b bool = false\n  let p bool = a == b\n  ret 0\nend")
+        self.assertIn("bool p = (a == b);", c_source)
+
+    def test_accepts_bool_neq_bool(self):
+        c_source = compile_source("fn main() i32\n  let a bool = true\n  let b bool = false\n  let p bool = a != b\n  ret 0\nend")
+        self.assertIn("bool p = (a != b);", c_source)
+
+    def test_rejects_additive_with_bool_operand(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x bool = true\n  let y i32 = x + 1\n  ret y\nend",
+            "operator '\\+' requires i32 operands",
+        )
 
 
 if __name__ == "__main__":

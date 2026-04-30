@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if else while ret type use end
+fn let if else while ret type use end true false
 ```
 
 ## Block syntax decision
@@ -41,9 +41,11 @@ end
 ## v0 feature set
 
 - integers: `i32`, `u32`, maybe `i64`, `u64`
+- booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
 - arithmetic expressions initially support left-associative `+`, `-`, `*`, `/`, and `%`; `*`, `/`, and `%` bind tighter than `+` and `-`; negative integer literals use a leading `-`
+- comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
 - v0 division and modulo follow C99 semantics for negative operands.
-- bytes and booleans
+- bytes
 - functions
 - local variables
 - `if` / `else`
