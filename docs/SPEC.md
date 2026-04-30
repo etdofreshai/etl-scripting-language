@@ -42,6 +42,15 @@ end
 
 - integers: `i32`, `u32`, maybe `i64`, `u64`
 - booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
+- fixed-size arrays: `T[N]`, where `T` is `i32` or `bool` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
+
+```etl
+let buf i32[16]
+let flags bool[8]
+```
+
+Array locals are zero-initialized. The C backend emits declarations such as `int32_t buf[16] = {0};`; bool arrays are initialized the same way, yielding `false` elements.
+
 - arithmetic expressions initially support left-associative `+`, `-`, `*`, `/`, and `%`; `*`, `/`, and `%` bind tighter than `+` and `-`; negative integer literals use a leading `-`
 - comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
 - logical operators `and`, `or`, `not` as keywords; all operands and results are `bool`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
@@ -79,6 +88,16 @@ fn inc(x i32) i32
 end
 ```
 
+- Indexed array read uses `array[index]`, where `index` is an `i32` expression. The result type is the array element type. Indexed array write uses `array[index] = expr`; the assigned expression must match the element type.
+
+```etl
+let buf i32[5]
+buf[0] = 7
+ret buf[0]
+```
+
+Phase 3a emits raw C indexing and performs no bounds checking. Arrays are not first-class values in v0: arrays cannot be passed as function parameters, returned from functions, assigned as whole values, or used directly in arithmetic, comparisons, logical operators, returns, calls, or scalar `let` initializers. Indexed read and indexed write are the only supported array operations.
+
 For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 
 ## Operator precedence (lowest to highest)
@@ -103,10 +122,11 @@ For now, non-void functions use a simple final-return rule: the last statement m
 - functions
 - local variables
 - assignment to locals and parameters
+- fixed-size local arrays with indexed read/write
 - `if` / `elif` / `else`
 - `while`
 - `ret`
-- arrays/slices later if needed for compiler-1
+- slices later if needed for compiler-1
 - simple structs/records when needed for AST/IR
 - string literals when needed for diagnostics
 

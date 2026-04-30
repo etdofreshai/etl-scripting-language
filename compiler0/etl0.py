@@ -18,6 +18,8 @@ SINGLE = {
     "=": "EQUAL",
     "<": "LT",
     ">": "GT",
+    "[": "LBRACKET",
+    "]": "RBRACKET",
 }
 DOUBLE = {
     "==": "EQEQ",
@@ -65,6 +67,19 @@ class SemanticError(ETLError):
 
 
 @dataclass(frozen=True)
+class ArrayType:
+    element_type: str
+    size: int
+    loc: SourceLoc
+
+    def format(self) -> str:
+        return f"{self.element_type}[{self.size}]"
+
+
+TypeRef = str | ArrayType
+
+
+@dataclass(frozen=True)
 class Program:
     functions: list["Function"]
 
@@ -73,7 +88,7 @@ class Program:
 class Function:
     name: str
     params: list["Param"]
-    return_type: str
+    return_type: TypeRef
     body: list["Stmt"]
     loc: SourceLoc
 
@@ -81,15 +96,15 @@ class Function:
 @dataclass(frozen=True)
 class Param:
     name: str
-    typ: str
+    typ: TypeRef
     loc: SourceLoc
 
 
 @dataclass(frozen=True)
 class Let:
     name: str
-    typ: str
-    expr: "Expr"
+    typ: TypeRef
+    expr: "Expr | None"
     loc: SourceLoc
 
 
@@ -102,6 +117,14 @@ class Ret:
 @dataclass(frozen=True)
 class Assign:
     name: str
+    expr: "Expr"
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
+class IndexAssign:
+    array: str
+    index: "Expr"
     expr: "Expr"
     loc: SourceLoc
 
@@ -129,7 +152,7 @@ class While:
     loc: SourceLoc
 
 
-Stmt = Let | Ret | Assign | If | While
+Stmt = Let | Ret | Assign | IndexAssign | If | While
 
 
 @dataclass(frozen=True)
@@ -158,6 +181,13 @@ class Call:
 
 
 @dataclass(frozen=True)
+class Index:
+    array: "Expr"
+    index: "Expr"
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
 class Binary:
     op: str
     left: "Expr"
@@ -172,7 +202,7 @@ class Unary:
     loc: SourceLoc
 
 
-Expr = IntLit | BoolLit | Name | Call | Binary | Unary
+Expr = IntLit | BoolLit | Name | Call | Index | Binary | Unary
 
 
 def lex(src: str) -> list[Token]:
@@ -278,7 +308,7 @@ class Parser:
             while True:
                 param_tok = self.take("IDENT")
                 pname = param_tok.text
-                ptype = self.take("IDENT").text
+                ptype = self.parse_type()
                 params.append(Param(pname, ptype, SourceLoc.from_token(param_tok)))
                 if self.peek().kind == "COMMA":
                     self.take("COMMA")
@@ -288,10 +318,34 @@ class Parser:
                     raise ParseError(f"expected COMMA or RPAREN after parameter, got {tok.kind} at {tok.line}:{tok.col}")
                 break
         self.take("RPAREN")
-        return_type = self.take("IDENT").text
+        return_type = self.parse_type()
         body = self.parse_block({"END"}, f"function {name!r}")
         self.take("END")
         return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
+
+    def parse_type(self) -> TypeRef:
+        type_tok = self.take("IDENT")
+        base = type_tok.text
+        if self.peek().kind != "LBRACKET":
+            return base
+        self.take("LBRACKET")
+        if self.peek().kind == "MINUS":
+            minus_tok = self.take("MINUS")
+            if self.peek().kind != "INT":
+                raise ParseError(f"expected array size literal after '-' at {minus_tok.line}:{minus_tok.col}")
+            size = -int(self.take("INT").text)
+            loc = SourceLoc.from_token(minus_tok)
+        elif self.peek().kind == "INT":
+            size_tok = self.take("INT")
+            size = int(size_tok.text)
+            loc = SourceLoc.from_token(size_tok)
+        else:
+            tok = self.peek()
+            raise ParseError(f"expected integer literal array size at {tok.line}:{tok.col}")
+        self.take("RBRACKET")
+        if size <= 0:
+            raise ParseError(f"array size must be a positive integer literal at {loc.format()}")
+        return ArrayType(base, size, loc)
 
     def parse_block(self, terminators: set[str], context: str) -> list[Stmt]:
         body: list[Stmt] = []
@@ -305,9 +359,12 @@ class Parser:
         if self.peek().kind == "LET":
             let_tok = self.take("LET")
             name = self.take("IDENT").text
-            typ = self.take("IDENT").text
-            self.take("EQUAL")
-            return Let(name, typ, self.parse_expr(), SourceLoc.from_token(let_tok))
+            typ = self.parse_type()
+            expr = None
+            if self.peek().kind == "EQUAL":
+                self.take("EQUAL")
+                expr = self.parse_expr()
+            return Let(name, typ, expr, SourceLoc.from_token(let_tok))
         if self.peek().kind == "RET":
             ret_tok = self.take("RET")
             return Ret(self.parse_expr(), SourceLoc.from_token(ret_tok))
@@ -337,6 +394,13 @@ class Parser:
             name_tok = self.take("IDENT")
             self.take("EQUAL")
             return Assign(name_tok.text, self.parse_expr(), SourceLoc.from_token(name_tok))
+        if self.peek().kind == "IDENT" and self.tokens[self.pos + 1].kind == "LBRACKET":
+            name_tok = self.take("IDENT")
+            self.take("LBRACKET")
+            index = self.parse_expr()
+            self.take("RBRACKET")
+            self.take("EQUAL")
+            return IndexAssign(name_tok.text, index, self.parse_expr(), SourceLoc.from_token(name_tok))
         tok = self.peek()
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
@@ -419,6 +483,7 @@ class Parser:
         if tok.kind == "IDENT":
             ident_tok = self.take("IDENT")
             name = ident_tok.text
+            expr: Expr
             if self.peek().kind == "LPAREN":
                 self.take("LPAREN")
                 args: list[Expr] = []
@@ -433,8 +498,15 @@ class Parser:
                             raise ParseError(f"expected COMMA or RPAREN after argument, got {tok.kind} at {tok.line}:{tok.col}")
                         break
                 self.take("RPAREN")
-                return Call(name, args, SourceLoc.from_token(ident_tok))
-            return Name(name, SourceLoc.from_token(ident_tok))
+                expr = Call(name, args, SourceLoc.from_token(ident_tok))
+            else:
+                expr = Name(name, SourceLoc.from_token(ident_tok))
+            while self.peek().kind == "LBRACKET":
+                bracket_tok = self.take("LBRACKET")
+                index = self.parse_expr()
+                self.take("RBRACKET")
+                expr = Index(expr, index, SourceLoc.from_token(bracket_tok))
+            return expr
         raise ParseError(f"expected expression at {tok.line}:{tok.col}")
 
 
@@ -509,17 +581,21 @@ def validate(program: Program) -> None:
     main_fn = functions["main"]
     if main_fn.params:
         raise SemanticError(f"{main_fn.loc.format()}: function 'main' must not take parameters")
-    if main_fn.return_type != "i32":
+    if not same_type(main_fn.return_type, "i32"):
         raise SemanticError(f"{main_fn.loc.format()}: function 'main' must return i32")
 
     for fn in program.functions:
         validate_type(fn.return_type, f"return type for {fn.name}", fn.loc)
+        if is_array_type(fn.return_type):
+            raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} cannot return array type {format_type(fn.return_type)!r} in v0")
         if not fn.body:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
-        names: dict[str, str] = {}
+        names: dict[str, TypeRef] = {}
         for param in fn.params:
             validate_identifier(param.name, "parameter", param.loc)
             validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc)
+            if is_array_type(param.typ):
+                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have array type {format_type(param.typ)!r} in v0")
             if param.name in functions:
                 raise SemanticError(
                     f"{param.loc.format()}: parameter name {param.name!r} conflicts with function name in {fn.name}"
@@ -535,7 +611,7 @@ def validate(program: Program) -> None:
 def validate_stmts(
     stmts: list[Stmt],
     functions: dict[str, Function],
-    names: dict[str, str],
+    names: dict[str, TypeRef],
     fn: Function,
 ) -> bool:
     saw_return = False
@@ -551,17 +627,23 @@ def validate_stmts(
                 )
             if stmt.name in names:
                 raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
-            expr_type = validate_expr(stmt.expr, functions, names, fn.name)
-            if expr_type != stmt.typ:
-                raise SemanticError(
-                    f"{stmt.loc.format()}: let {stmt.name!r} expected {stmt.typ!r}, got {expr_type!r} in {fn.name}"
-                )
+            if is_array_type(stmt.typ):
+                if stmt.expr is not None:
+                    raise SemanticError(f"{stmt.loc.format()}: array local {stmt.name!r} cannot have an initializer in v0")
+            else:
+                if stmt.expr is None:
+                    raise SemanticError(f"{stmt.loc.format()}: scalar local {stmt.name!r} requires an initializer in {fn.name}")
+                expr_type = validate_expr(stmt.expr, functions, names, fn.name)
+                if not same_type(expr_type, stmt.typ):
+                    raise SemanticError(
+                        f"{stmt.loc.format()}: let {stmt.name!r} expected {format_type(stmt.typ)!r}, got {format_type(expr_type)!r} in {fn.name}"
+                    )
             names[stmt.name] = stmt.typ
         elif isinstance(stmt, Ret):
             expr_type = validate_expr(stmt.expr, functions, names, fn.name)
-            if expr_type != fn.return_type:
+            if not same_type(expr_type, fn.return_type):
                 raise SemanticError(
-                    f"{stmt.loc.format()}: return expected {fn.return_type!r}, got {expr_type!r} in {fn.name}"
+                    f"{stmt.loc.format()}: return expected {format_type(fn.return_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
             saw_return = True
         elif isinstance(stmt, Assign):
@@ -569,9 +651,27 @@ def validate_stmts(
                 raise SemanticError(f"{stmt.loc.format()}: assignment to undeclared local {stmt.name!r} in {fn.name}")
             expr_type = validate_expr(stmt.expr, functions, names, fn.name)
             expected_type = names[stmt.name]
-            if expr_type != expected_type:
+            if is_array_type(expected_type):
+                raise SemanticError(f"{stmt.loc.format()}: cannot assign whole array {stmt.name!r} in v0")
+            if not same_type(expr_type, expected_type):
                 raise SemanticError(
-                    f"{stmt.loc.format()}: assignment to {stmt.name!r} expected {expected_type!r}, got {expr_type!r} in {fn.name}"
+                    f"{stmt.loc.format()}: assignment to {stmt.name!r} expected {format_type(expected_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
+                )
+        elif isinstance(stmt, IndexAssign):
+            if stmt.array not in names:
+                raise SemanticError(f"{stmt.loc.format()}: assignment to undeclared local {stmt.array!r} in {fn.name}")
+            array_type = names[stmt.array]
+            if not isinstance(array_type, ArrayType):
+                raise SemanticError(f"{stmt.loc.format()}: indexed assignment target {stmt.array!r} is not an array in {fn.name}")
+            index_type = validate_expr(stmt.index, functions, names, fn.name)
+            if not same_type(index_type, "i32"):
+                raise SemanticError(
+                    f"{stmt.index.loc.format()}: array index expected 'i32', got {format_type(index_type)!r} in {fn.name}"
+                )
+            expr_type = validate_expr(stmt.expr, functions, names, fn.name)
+            if not same_type(expr_type, array_type.element_type):
+                raise SemanticError(
+                    f"{stmt.loc.format()}: indexed assignment to {stmt.array!r} expected {array_type.element_type!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
         elif isinstance(stmt, If):
             cond_type = validate_expr(stmt.cond, functions, names, fn.name)
@@ -619,9 +719,31 @@ def body_returns(stmts: list[Stmt]) -> bool:
     return False
 
 
-def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
+def validate_type(typ: TypeRef, where: str, loc: SourceLoc) -> None:
+    if isinstance(typ, ArrayType):
+        if typ.element_type not in SUPPORTED_TYPES:
+            raise SemanticError(f"{typ.loc.format()}: unsupported array element type {typ.element_type!r} in {where}")
+        if typ.size <= 0:
+            raise SemanticError(f"{typ.loc.format()}: array size must be a positive integer literal in {where}")
+        return
     if typ not in SUPPORTED_TYPES:
         raise SemanticError(f"{loc.format()}: unsupported type {typ!r} in {where}")
+
+
+def is_array_type(typ: TypeRef) -> bool:
+    return isinstance(typ, ArrayType)
+
+
+def same_type(left: TypeRef, right: TypeRef) -> bool:
+    if isinstance(left, ArrayType) and isinstance(right, ArrayType):
+        return left.element_type == right.element_type and left.size == right.size
+    return isinstance(left, str) and isinstance(right, str) and left == right
+
+
+def format_type(typ: TypeRef) -> str:
+    if isinstance(typ, ArrayType):
+        return typ.format()
+    return typ
 
 
 def validate_identifier(name: str, where: str, loc: SourceLoc) -> None:
@@ -633,7 +755,7 @@ def is_c_reserved_underscore_identifier(name: str) -> bool:
     return name.startswith("__") or (len(name) > 1 and name[0] == "_" and name[1].isupper())
 
 
-def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, str], current_fn: str) -> str:
+def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, TypeRef], current_fn: str) -> TypeRef:
     if isinstance(expr, IntLit):
         if not (I32_MIN <= expr.value <= I32_MAX):
             raise SemanticError(
@@ -645,31 +767,48 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
     if isinstance(expr, Name):
         if expr.value not in names:
             raise SemanticError(f"{expr.loc.format()}: unknown name {expr.value!r} in {current_fn}")
-        return names[expr.value]
+        typ = names[expr.value]
+        if isinstance(typ, ArrayType):
+            raise SemanticError(f"{expr.loc.format()}: array {expr.value!r} cannot be used as a whole value in v0")
+        return typ
+    if isinstance(expr, Index):
+        if not isinstance(expr.array, Name):
+            raise SemanticError(f"{expr.loc.format()}: indexed read target must be an array local in {current_fn}")
+        if expr.array.value not in names:
+            raise SemanticError(f"{expr.array.loc.format()}: unknown name {expr.array.value!r} in {current_fn}")
+        array_type = names[expr.array.value]
+        if not isinstance(array_type, ArrayType):
+            raise SemanticError(f"{expr.loc.format()}: indexed read target {expr.array.value!r} is not an array in {current_fn}")
+        index_type = validate_expr(expr.index, functions, names, current_fn)
+        if not same_type(index_type, "i32"):
+            raise SemanticError(
+                f"{expr.index.loc.format()}: array index expected 'i32', got {format_type(index_type)!r} in {current_fn}"
+            )
+        return array_type.element_type
     if isinstance(expr, Binary):
         left_type = validate_expr(expr.left, functions, names, current_fn)
         right_type = validate_expr(expr.right, functions, names, current_fn)
         if expr.op in {"*", "/", "%"} and (left_type != "i32" or right_type != "i32"):
             raise SemanticError(
-                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
         if expr.op in {"+", "-"} and (left_type != "i32" or right_type != "i32"):
             raise SemanticError(
-                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
         if expr.op in {"and", "or"} and (left_type != "bool" or right_type != "bool"):
             raise SemanticError(
-                f"{expr.loc.format()}: operator {expr.op!r} requires bool operands, got {left_type!r} and {right_type!r} in {current_fn}"
+                f"{expr.loc.format()}: operator {expr.op!r} requires bool operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
         if expr.op in {"==", "!="}:
-            if left_type != right_type:
+            if not same_type(left_type, right_type):
                 raise SemanticError(
-                    f"{expr.loc.format()}: operator {expr.op!r} requires matching types, got {left_type!r} and {right_type!r} in {current_fn}"
+                    f"{expr.loc.format()}: operator {expr.op!r} requires matching types, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
         if expr.op in {"<", "<=", ">", ">="}:
             if left_type != "i32" or right_type != "i32":
                 raise SemanticError(
-                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
         if expr.op in {"==", "!=", "<", "<=", ">", ">=", "and", "or"}:
             return "bool"
@@ -678,11 +817,11 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
         operand_type = validate_expr(expr.operand, functions, names, current_fn)
         if expr.op == "not" and operand_type != "bool":
             raise SemanticError(
-                f"{expr.loc.format()}: operator 'not' requires bool operand, got {operand_type!r} in {current_fn}"
+                f"{expr.loc.format()}: operator 'not' requires bool operand, got {format_type(operand_type)!r} in {current_fn}"
             )
         if expr.op == "-" and operand_type != "i32":
             raise SemanticError(
-                f"{expr.loc.format()}: unary '-' requires i32 operand, got {operand_type!r} in {current_fn}"
+                f"{expr.loc.format()}: unary '-' requires i32 operand, got {format_type(operand_type)!r} in {current_fn}"
             )
         return operand_type
     if isinstance(expr, Call):
@@ -693,13 +832,19 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
             raise SemanticError(
                 f"{expr.loc.format()}: function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
             )
-        for arg in expr.args:
-            validate_expr(arg, functions, names, current_fn)
+        for arg, param in zip(expr.args, functions[expr.name].params):
+            arg_type = validate_expr(arg, functions, names, current_fn)
+            if not same_type(arg_type, param.typ):
+                raise SemanticError(
+                    f"{arg.loc.format()}: function {expr.name!r} argument {param.name!r} expected {format_type(param.typ)!r}, got {format_type(arg_type)!r} in {current_fn}"
+                )
         return functions[expr.name].return_type
     raise TypeError(expr)
 
 
-def c_type(t: str) -> str:
+def c_type(t: TypeRef) -> str:
+    if isinstance(t, ArrayType):
+        raise SemanticError(f"array type {t.format()!r} is not a scalar C type")
     if t == "i32":
         return "int32_t"
     if t == "bool":
@@ -718,6 +863,8 @@ def emit_expr(expr: Expr) -> str:
         return expr.value
     if isinstance(expr, Call):
         return f"{expr.name}(" + ", ".join(emit_expr(a) for a in expr.args) + ")"
+    if isinstance(expr, Index):
+        return f"{emit_expr(expr.array)}[{emit_expr(expr.index)}]"
     if isinstance(expr, Binary):
         c_op = expr.op
         if expr.op == "and":
@@ -741,11 +888,17 @@ def c_signature(fn: Function) -> str:
 def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
     pad = " " * indent
     if isinstance(stmt, Let):
-        lines.append(f"{pad}{c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
+        if isinstance(stmt.typ, ArrayType):
+            lines.append(f"{pad}{c_type(stmt.typ.element_type)} {stmt.name}[{stmt.typ.size}] = {{0}};")
+        else:
+            assert stmt.expr is not None
+            lines.append(f"{pad}{c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
     elif isinstance(stmt, Ret):
         lines.append(f"{pad}return {emit_expr(stmt.expr)};")
     elif isinstance(stmt, Assign):
         lines.append(f"{pad}{stmt.name} = {emit_expr(stmt.expr)};")
+    elif isinstance(stmt, IndexAssign):
+        lines.append(f"{pad}{stmt.array}[{emit_expr(stmt.index)}] = {emit_expr(stmt.expr)};")
     elif isinstance(stmt, If):
         lines.append(f"{pad}if ({emit_expr(stmt.cond)}) {{")
         for child in stmt.then_body:

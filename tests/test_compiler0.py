@@ -10,10 +10,13 @@ from unittest.mock import patch
 
 from compiler0.etl0 import (
     Assign,
+    ArrayType,
     Binary,
     BoolLit,
     Call,
     If,
+    Index,
+    IndexAssign,
     IntLit,
     Let,
     LexerError,
@@ -612,6 +615,90 @@ end
     def test_emit_assignment(self):
         c_source = compile_source("fn bump(x i32) i32\n  x = x + 1\n  ret x\nend\nfn main() i32\n  ret bump(4)\nend")
         self.assertIn("x = (x + 1);", c_source)
+
+    # --- Phase 3a: fixed-size arrays and indexing tests ---
+
+    def test_parse_i32_array_let_without_initializer(self):
+        program = parse("fn main() i32\n  let buf i32[16]\n  ret 0\nend")
+        stmt = program.functions[0].body[0]
+        self.assertIsInstance(stmt, Let)
+        self.assertIsInstance(stmt.typ, ArrayType)
+        self.assertEqual(stmt.typ.element_type, "i32")
+        self.assertEqual(stmt.typ.size, 16)
+        self.assertIsNone(stmt.expr)
+
+    def test_parse_bool_array_let_without_initializer(self):
+        program = parse("fn main() i32\n  let flags bool[8]\n  ret 0\nend")
+        stmt = program.functions[0].body[0]
+        self.assertIsInstance(stmt.typ, ArrayType)
+        self.assertEqual(stmt.typ.element_type, "bool")
+        self.assertEqual(stmt.typ.size, 8)
+
+    def test_parse_rejects_zero_array_size(self):
+        with self.assertRaisesRegex(ParseError, "array size must be a positive integer literal"):
+            parse("fn main() i32\n  let buf i32[0]\n  ret 0\nend")
+
+    def test_parse_rejects_negative_array_size(self):
+        with self.assertRaisesRegex(ParseError, "array size must be a positive integer literal"):
+            parse("fn main() i32\n  let buf i32[-1]\n  ret 0\nend")
+
+    def test_parse_rejects_non_literal_array_size(self):
+        with self.assertRaisesRegex(ParseError, "expected integer literal array size"):
+            parse("fn main() i32\n  let n i32 = 4\n  let buf i32[n]\n  ret 0\nend")
+
+    def test_parse_indexed_read(self):
+        program = parse("fn main() i32\n  let buf i32[4]\n  let i i32 = 0\n  ret buf[i]\nend")
+        ret = program.functions[0].body[2]
+        self.assertIsInstance(ret.expr, Index)
+
+    def test_parse_indexed_write(self):
+        program = parse("fn main() i32\n  let buf i32[4]\n  buf[0] = 3\n  ret buf[0]\nend")
+        stmt = program.functions[0].body[1]
+        self.assertIsInstance(stmt, IndexAssign)
+        self.assertEqual(stmt.array, "buf")
+
+    def test_type_allows_i32_index_expression(self):
+        c_source = compile_source("fn main() i32\n  let buf i32[4]\n  let i i32 = 0\n  ret buf[i]\nend")
+        self.assertIn("return buf[i];", c_source)
+
+    def test_type_rejects_bool_index_expression(self):
+        with self.assertRaisesRegex(SemanticError, "array index expected 'i32', got 'bool'"):
+            compile_source("fn main() i32\n  let buf i32[4]\n  let b bool = true\n  ret buf[b]\nend")
+
+    def test_type_rejects_wrong_element_assignment_type(self):
+        with self.assertRaisesRegex(SemanticError, "indexed assignment.*expected 'i32', got 'bool'"):
+            compile_source("fn main() i32\n  let buf i32[4]\n  buf[0] = true\n  ret 0\nend")
+
+    def test_type_rejects_array_as_whole_value(self):
+        with self.assertRaisesRegex(SemanticError, "array 'buf' cannot be used as a whole value"):
+            compile_source("fn main() i32\n  let buf i32[4]\n  ret buf\nend")
+
+    def test_type_rejects_whole_array_assignment(self):
+        with self.assertRaisesRegex(SemanticError, "cannot assign whole array"):
+            compile_source("fn main() i32\n  let buf i32[4]\n  buf = 1\n  ret 0\nend")
+
+    def test_type_rejects_array_parameter(self):
+        with self.assertRaisesRegex(SemanticError, "parameter 'buf' cannot have array type"):
+            compile_source("fn id(buf i32[4]) i32\n  ret 0\nend\nfn main() i32\n  ret id(0)\nend")
+
+    def test_type_rejects_array_return(self):
+        with self.assertRaisesRegex(SemanticError, "cannot return array type"):
+            compile_source("fn bad() i32[4]\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_emit_array_declarations_and_indexing(self):
+        c_source = compile_source("""fn main() i32
+  let buf i32[4]
+  let flags bool[2]
+  buf[0] = 3
+  flags[1] = true
+  ret buf[0]
+end
+""")
+        self.assertIn("int32_t buf[4] = {0};", c_source)
+        self.assertIn("bool flags[2] = {0};", c_source)
+        self.assertIn("buf[0] = 3;", c_source)
+        self.assertIn("flags[1] = true;", c_source)
+        self.assertIn("return buf[0];", c_source)
 
 
 class SemanticValidationTests(unittest.TestCase):

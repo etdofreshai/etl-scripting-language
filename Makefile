@@ -14,6 +14,7 @@ smoke:
 	scripts/if_smoke.sh
 	scripts/while_smoke.sh
 	scripts/fib_smoke.sh
+	scripts/array_smoke.sh
 
 check: test smoke
 
