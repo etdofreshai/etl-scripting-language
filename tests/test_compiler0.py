@@ -20,6 +20,7 @@ from compiler0.etl0 import (
     Ret,
     SemanticError,
     SourceLoc,
+    Unary,
     compile_source,
     lex,
     main,
@@ -130,9 +131,16 @@ end
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
 
-    def test_rejects_unary_minus_before_non_integer(self):
-        with self.assertRaisesRegex(ParseError, "expected integer literal after unary '-' at 2:7"):
-            parse("fn main() i32\n  ret -x\nend")
+    def test_unary_minus_on_name_now_compiles(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 5\n  ret -x\nend")
+        self.assertIn("return (-x);", c_source)
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 256 - 5)  # -5 mod 256 = 251
 
     def test_parse_multiplication_binds_tighter_than_addition(self):
         program = parse("fn main() i32\n  ret 1 + 2 * 3\nend")
@@ -751,6 +759,209 @@ end
             "fn main() i32\n  let x bool = true\n  let y i32 = x + 1\n  ret y\nend",
             "operator '\\+' requires i32 operands",
         )
+
+    # --- Phase 1c: logical operators and unary minus tests ---
+
+    def test_lex_and_or_not_keywords(self):
+        kinds = [t.kind for t in lex("and or not")]
+        self.assertEqual(kinds, ["AND", "OR", "NOT", "EOF"])
+
+    def test_and_or_not_cannot_be_used_as_identifiers(self):
+        with self.assertRaisesRegex(ParseError, "expected IDENT, got AND"):
+            parse("fn and() i32\n  ret 0\nend")
+
+    def test_or_cannot_be_used_as_identifiers(self):
+        with self.assertRaisesRegex(ParseError, "expected IDENT, got OR"):
+            parse("fn or() i32\n  ret 0\nend")
+
+    def test_not_cannot_be_used_as_identifiers(self):
+        with self.assertRaisesRegex(ParseError, "expected IDENT, got NOT"):
+            parse("fn not() i32\n  ret 0\nend")
+
+    # --- Phase 1c: parser precedence tests ---
+
+    def test_parse_or_lower_precedence_than_and(self):
+        """a or b and c parses as a or (b and c)"""
+        program = parse("fn main() i32\n  let a bool = true\n  let b bool = true\n  let c bool = false\n  let p bool = a or b and c\n  ret 0\nend")
+        expr = program.functions[0].body[3].expr  # let p (4th statement: a, b, c, p)
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "or")
+        self.assertIsInstance(expr.right, Binary)
+        self.assertEqual(expr.right.op, "and")
+
+    def test_parse_and_lower_precedence_than_not(self):
+        """not a and b parses as (not a) and b"""
+        program = parse("fn main() i32\n  let a bool = true\n  let b bool = false\n  let p bool = not a and b\n  ret 0\nend")
+        expr = program.functions[0].body[2].expr  # let p
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "and")
+        self.assertIsInstance(expr.left, Unary)
+        self.assertEqual(expr.left.op, "not")
+
+    def test_parse_not_lower_precedence_than_comparison(self):
+        """not a == b parses as not (a == b), since not has lower precedence than comparisons"""
+        program = parse("fn main() i32\n  let a bool = true\n  let b bool = false\n  let p bool = not a == b\n  ret 0\nend")
+        expr = program.functions[0].body[2].expr  # let p
+        self.assertIsInstance(expr, Unary)
+        self.assertEqual(expr.op, "not")
+        self.assertIsInstance(expr.operand, Binary)
+        self.assertEqual(expr.operand.op, "==")
+
+    def test_parse_unary_minus_binds_tighter_than_multiply(self):
+        """-a * b parses as (-a) * b"""
+        program = parse("fn main() i32\n  let a i32 = 3\n  let b i32 = 4\n  ret -a * b\nend")
+        expr = program.functions[0].body[2].expr  # ret
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "*")
+        self.assertIsInstance(expr.left, Unary)
+        self.assertEqual(expr.left.op, "-")
+
+    def test_parse_not_right_binding(self):
+        """not not x parses as not (not x)"""
+        program = parse("fn main() i32\n  let x bool = true\n  let p bool = not not x\n  ret 0\nend")
+        expr = program.functions[0].body[1].expr  # let p
+        self.assertIsInstance(expr, Unary)
+        self.assertEqual(expr.op, "not")
+        self.assertIsInstance(expr.operand, Unary)
+        self.assertEqual(expr.operand.op, "not")
+
+    def test_parse_or_left_associative(self):
+        """a or b or c parses as (a or b) or c"""
+        program = parse("fn main() i32\n  let a bool = true\n  let b bool = false\n  let c bool = true\n  let p bool = a or b or c\n  ret 0\nend")
+        expr = program.functions[0].body[3].expr  # let p
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "or")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "or")
+
+    def test_parse_and_left_associative(self):
+        """a and b and c parses as (a and b) and c"""
+        program = parse("fn main() i32\n  let a bool = true\n  let b bool = false\n  let c bool = true\n  let p bool = a and b and c\n  ret 0\nend")
+        expr = program.functions[0].body[3].expr  # let p
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "and")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "and")
+
+    # --- Phase 1c: emitter tests ---
+
+    def test_emit_and_operator(self):
+        c_source = compile_source("fn main() i32\n  let p bool = true and false\n  ret 0\nend")
+        self.assertIn("bool p = (true && false);", c_source)
+
+    def test_emit_or_operator(self):
+        c_source = compile_source("fn main() i32\n  let p bool = true or false\n  ret 0\nend")
+        self.assertIn("bool p = (true || false);", c_source)
+
+    def test_emit_not_operator(self):
+        c_source = compile_source("fn main() i32\n  let p bool = not true\n  ret 0\nend")
+        self.assertIn("bool p = (!(true));", c_source)
+
+    def test_emit_unary_minus_on_name(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 5\n  ret -x\nend")
+        self.assertIn("return (-x);", c_source)
+
+    def test_emit_unary_minus_on_call(self):
+        c_source = compile_source("fn neg(x i32) i32\n  ret x\nend\nfn main() i32\n  ret -neg(3)\nend")
+        self.assertIn("return (-neg(3));", c_source)
+
+    def test_emit_unary_minus_on_parenthesized(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 5\n  ret -(x + 1)\nend")
+        self.assertIn("return (-(x + 1));", c_source)
+
+    # --- Phase 1c: compile-and-run smoke tests ---
+
+    def test_compile_and_run_and_operator(self):
+        c_source = compile_source("fn main() i32\n  let a bool = true\n  let b bool = true\n  let p bool = a and b\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    def test_compile_and_run_or_operator(self):
+        c_source = compile_source("fn main() i32\n  let a bool = false\n  let b bool = true\n  let p bool = a or b\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    def test_compile_and_run_not_operator(self):
+        c_source = compile_source("fn main() i32\n  let a bool = true\n  let p bool = not a\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    def test_compile_and_run_unary_minus_expression(self):
+        c_source = compile_source("fn main() i32\n  let x i32 = 3\n  ret -x\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 256 - 3)  # -3 mod 256 = 253
+
+    def test_compile_and_run_combined_logical(self):
+        c_source = compile_source("fn main() i32\n  let a bool = true\n  let b bool = false\n  let c bool = not a or b and a\n  ret 0\nend")
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+    # --- Phase 1c: diagnostic tests ---
+
+    def test_rejects_and_with_i32_operands(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let y i32 = 2\n  let p bool = x and y\n  ret 0\nend",
+            "operator 'and' requires bool operands.*'i32' and 'i32'",
+        )
+
+    def test_rejects_or_with_i32_operands(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let y i32 = 2\n  let p bool = x or y\n  ret 0\nend",
+            "operator 'or' requires bool operands.*'i32' and 'i32'",
+        )
+
+    def test_rejects_not_on_i32(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let p bool = not x\n  ret 0\nend",
+            "operator 'not' requires bool operand, got 'i32'",
+        )
+
+    def test_rejects_unary_minus_on_bool(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x bool = true\n  ret -x\nend",
+            "unary '-' requires i32 operand, got 'bool'",
+        )
+
+    def test_rejects_and_with_mixed_types(self):
+        self.assert_compile_error(
+            "fn main() i32\n  let x i32 = 1\n  let p bool = x and true\n  ret 0\nend",
+            "operator 'and' requires bool operands.*'i32' and 'bool'",
+        )
+
+    def test_negative_literal_still_works(self):
+        """Negative integer literals continue to parse as literals."""
+        c_source = compile_source("fn main() i32\n  ret -2\nend")
+        self.assertIn("return -2;", c_source)
+
+    def test_i32_min_literal_still_works(self):
+        """I32_MIN handling does not regress."""
+        c_source = compile_source("fn main() i32\n  ret -2147483648\nend")
+        self.assertIn("return (-2147483647 - 1);", c_source)
 
 
 if __name__ == "__main__":

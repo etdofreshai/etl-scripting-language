@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end", "true", "false"}
+KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -135,7 +135,14 @@ class Binary:
     loc: SourceLoc
 
 
-Expr = IntLit | BoolLit | Name | Call | Binary
+@dataclass(frozen=True)
+class Unary:
+    op: str
+    operand: "Expr"
+    loc: SourceLoc
+
+
+Expr = IntLit | BoolLit | Name | Call | Binary | Unary
 
 
 def lex(src: str) -> list[Token]:
@@ -274,6 +281,32 @@ class Parser:
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
     def parse_expr(self) -> Expr:
+        return self.parse_or()
+
+    def parse_or(self) -> Expr:
+        expr = self.parse_and()
+        while self.peek().kind == "OR":
+            op_tok = self.peek()
+            self.take("OR")
+            expr = Binary("or", expr, self.parse_and(), SourceLoc.from_token(op_tok))
+        return expr
+
+    def parse_and(self) -> Expr:
+        expr = self.parse_not()
+        while self.peek().kind == "AND":
+            op_tok = self.peek()
+            self.take("AND")
+            expr = Binary("and", expr, self.parse_not(), SourceLoc.from_token(op_tok))
+        return expr
+
+    def parse_not(self) -> Expr:
+        if self.peek().kind == "NOT":
+            op_tok = self.take("NOT")
+            operand = self.parse_not()
+            return Unary("not", operand, SourceLoc.from_token(op_tok))
+        return self.parse_comparison()
+
+    def parse_comparison(self) -> Expr:
         expr = self.parse_additive()
         while self.peek().kind in {"EQEQ", "NEQ", "LT", "LTE", "GT", "GTE"}:
             op_tok = self.peek()
@@ -290,12 +323,23 @@ class Parser:
         return expr
 
     def parse_term(self) -> Expr:
-        expr = self.parse_primary()
+        expr = self.parse_unary()
         while self.peek().kind in {"STAR", "SLASH", "PERCENT"}:
             op_tok = self.peek()
             self.take(op_tok.kind)
-            expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
+            expr = Binary(op_tok.text, expr, self.parse_unary(), SourceLoc.from_token(op_tok))
         return expr
+
+    def parse_unary(self) -> Expr:
+        if self.peek().kind == "MINUS":
+            minus_tok = self.take("MINUS")
+            # Check if this is a negative integer literal: '-' followed immediately by INT
+            if self.peek().kind == "INT":
+                return IntLit(-int(self.take("INT").text), SourceLoc.from_token(minus_tok))
+            # General unary minus on expression
+            operand = self.parse_unary()
+            return Unary("-", operand, SourceLoc.from_token(minus_tok))
+        return self.parse_primary()
 
     def parse_primary(self) -> Expr:
         tok = self.peek()
@@ -305,12 +349,6 @@ class Parser:
         if tok.kind == "FALSE":
             self.take("FALSE")
             return BoolLit(False, SourceLoc.from_token(tok))
-        if tok.kind == "MINUS":
-            minus_tok = self.take("MINUS")
-            int_tok = self.peek()
-            if int_tok.kind != "INT":
-                raise ParseError(f"expected integer literal after unary '-' at {minus_tok.line}:{minus_tok.col}")
-            return IntLit(-int(self.take("INT").text), SourceLoc.from_token(minus_tok))
         if tok.kind == "INT":
             return IntLit(int(self.take("INT").text), SourceLoc.from_token(tok))
         if tok.kind == "LPAREN":
@@ -491,6 +529,10 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
             raise SemanticError(
                 f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
             )
+        if expr.op in {"and", "or"} and (left_type != "bool" or right_type != "bool"):
+            raise SemanticError(
+                f"{expr.loc.format()}: operator {expr.op!r} requires bool operands, got {left_type!r} and {right_type!r} in {current_fn}"
+            )
         if expr.op in {"==", "!="}:
             if left_type != right_type:
                 raise SemanticError(
@@ -501,9 +543,20 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, s
                 raise SemanticError(
                     f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
                 )
-        if expr.op in {"==", "!=", "<", "<=", ">", ">="}:
+        if expr.op in {"==", "!=", "<", "<=", ">", ">=", "and", "or"}:
             return "bool"
         return "i32"
+    if isinstance(expr, Unary):
+        operand_type = validate_expr(expr.operand, functions, names, current_fn)
+        if expr.op == "not" and operand_type != "bool":
+            raise SemanticError(
+                f"{expr.loc.format()}: operator 'not' requires bool operand, got {operand_type!r} in {current_fn}"
+            )
+        if expr.op == "-" and operand_type != "i32":
+            raise SemanticError(
+                f"{expr.loc.format()}: unary '-' requires i32 operand, got {operand_type!r} in {current_fn}"
+            )
+        return operand_type
     if isinstance(expr, Call):
         if expr.name not in functions:
             raise SemanticError(f"{expr.loc.format()}: unknown function {expr.name!r} in {current_fn}")
@@ -538,8 +591,17 @@ def emit_expr(expr: Expr) -> str:
     if isinstance(expr, Call):
         return f"{expr.name}(" + ", ".join(emit_expr(a) for a in expr.args) + ")"
     if isinstance(expr, Binary):
-        # ETL v0 follows C99 semantics for division and modulo of negative integers; no normalization is applied.
-        return f"({emit_expr(expr.left)} {expr.op} {emit_expr(expr.right)})"
+        c_op = expr.op
+        if expr.op == "and":
+            c_op = "&&"
+        elif expr.op == "or":
+            c_op = "||"
+        return f"({emit_expr(expr.left)} {c_op} {emit_expr(expr.right)})"
+    if isinstance(expr, Unary):
+        if expr.op == "not":
+            return f"(!({emit_expr(expr.operand)}))"
+        if expr.op == "-":
+            return f"(-{emit_expr(expr.operand)})"
     raise TypeError(expr)
 
 

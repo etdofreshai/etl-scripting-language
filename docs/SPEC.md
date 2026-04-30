@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if else while ret type use end true false
+fn let if else while ret type use end true false and or not
 ```
 
 ## Block syntax decision
@@ -44,6 +44,26 @@ end
 - booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
 - arithmetic expressions initially support left-associative `+`, `-`, `*`, `/`, and `%`; `*`, `/`, and `%` bind tighter than `+` and `-`; negative integer literals use a leading `-`
 - comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
+- logical operators `and`, `or`, `not` as keywords; all operands and results are `bool`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
+- unary minus `-` on `i32` expressions (names, calls, parenthesized expressions); negative integer literals continue to parse as literal values (distinct from unary minus on an expression)
+
+## Operator precedence (lowest to highest)
+
+| Precedence | Operators                              | Associativity |
+|------------|----------------------------------------|---------------|
+| 1 (lowest) | `or`                                   | left          |
+| 2          | `and`                                  | left          |
+| 3          | `not`                                  | right (unary) |
+| 4          | `==` `!=` `<` `<=` `>` `>=`           | left          |
+| 5          | `+` `-`                                | left          |
+| 6          | `*` `/` `%`                            | left          |
+| 7          | unary `-`                              | right (unary) |
+| 8 (highest)| primary (literal, name, call, parens)  | —             |
+
+`not` has lower precedence than comparison operators, so `not a == b` parses as `not (a == b)`. Use parentheses to obtain `(not a) == b` if needed.
+
+`and` and `or` use short-circuit evaluation: the right operand is not evaluated if the left operand determines the result. This is emitted directly as C `&&` and `||`, which have the same semantics.
+
 - v0 division and modulo follow C99 semantics for negative operands.
 - bytes
 - functions
