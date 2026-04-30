@@ -57,14 +57,71 @@ fn emit_c_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret p
 end
 
-fn emit_c_int_literal(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
-  if ast[node].kind != AN_INT()
-    ret -1
+  if ast[node].kind == AN_INT()
+    ret emit_c_append_i32(out, pos, out_cap, ast[node].a)
   end
-  ret emit_c_append_i32(out, pos, out_cap, ast[node].a)
+  if ast[node].kind == AN_UNARY()
+    if ast[node].a != TK_MINUS()
+      ret -1
+    end
+    let minus i8[64] = "-"
+    let p i32 = emit_c_append_text(out, pos, out_cap, minus, 1)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_expr(ast, ast_count, ast[node].b, out, p, out_cap)
+  end
+  if ast[node].kind == AN_BINARY()
+    let lparen i8[64] = "("
+    let rparen i8[64] = ")"
+    let p i32 = emit_c_append_text(out, pos, out_cap, lparen, 1)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_expr(ast, ast_count, ast[node].b, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    let op_text i8[64] = " + "
+    if ast[node].a == TK_PLUS()
+      p = emit_c_append_text(out, p, out_cap, op_text, 3)
+    else
+      if ast[node].a == TK_MINUS()
+        let sub_text i8[64] = " - "
+        p = emit_c_append_text(out, p, out_cap, sub_text, 3)
+      else
+        if ast[node].a == TK_STAR()
+          let mul_text i8[64] = " * "
+          p = emit_c_append_text(out, p, out_cap, mul_text, 3)
+        else
+          if ast[node].a == TK_SLASH()
+            let div_text i8[64] = " / "
+            p = emit_c_append_text(out, p, out_cap, div_text, 3)
+          else
+            if ast[node].a == TK_PERCENT()
+              let mod_text i8[64] = " % "
+              p = emit_c_append_text(out, p, out_cap, mod_text, 3)
+            else
+              ret -1
+            end
+          end
+        end
+      end
+    end
+    if p < 0
+      ret -1
+    end
+    p = emit_c_expr(ast, ast_count, ast[node].c, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_append_text(out, p, out_cap, rparen, 1)
+  end
+  ret -1
 end
 
 fn emit_c_return(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
@@ -80,7 +137,7 @@ fn emit_c_return(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i3
   if p < 0
     ret -1
   end
-  p = emit_c_int_literal(ast, ast_count, ast[node].a, out, p, out_cap)
+  p = emit_c_expr(ast, ast_count, ast[node].a, out, p, out_cap)
   if p < 0
     ret -1
   end
