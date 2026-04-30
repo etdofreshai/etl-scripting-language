@@ -1,5 +1,6 @@
 import contextlib
 import io
+import re
 import subprocess
 import sys
 import tempfile
@@ -7,7 +8,23 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from compiler0.etl0 import Binary, Call, Let, LexerError, ParseError, Ret, compile_source, lex, main, parse
+from compiler0.etl0 import (
+    Binary,
+    Call,
+    IntLit,
+    Let,
+    LexerError,
+    Name,
+    ParseError,
+    Ret,
+    SemanticError,
+    SourceLoc,
+    compile_source,
+    lex,
+    main,
+    parse,
+    validate_expr,
+)
 
 SAMPLE = """fn add(a i32, b i32) i32
   ret a + b
@@ -116,17 +133,39 @@ end
         with self.assertRaisesRegex(ParseError, "expected integer literal after unary '-' at 2:7"):
             parse("fn main() i32\n  ret -x\nend")
 
-    def test_rejects_multiplication_with_targeted_v0_diagnostic(self):
-        with self.assertRaisesRegex(ParseError, r"operator '\*' is not supported in ETL v0 at 2:9"):
-            parse("fn main() i32\n  ret 2 * 3\nend")
+    def test_parse_multiplication_binds_tighter_than_addition(self):
+        program = parse("fn main() i32\n  ret 1 + 2 * 3\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "+")
+        self.assertIsInstance(expr.right, Binary)
+        self.assertEqual(expr.right.op, "*")
 
-    def test_rejects_division_with_targeted_v0_diagnostic(self):
-        with self.assertRaisesRegex(ParseError, "operator '/' is not supported in ETL v0 at 2:9"):
-            parse("fn main() i32\n  ret 6 / 3\nend")
+    def test_parse_subtraction_is_left_associative(self):
+        program = parse("fn main() i32\n  ret 10 - 4 - 2\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "-")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "-")
+        self.assertEqual(expr.right.value, 2)
 
-    def test_rejects_remainder_with_targeted_v0_diagnostic(self):
-        with self.assertRaisesRegex(ParseError, "operator '%' is not supported in ETL v0 at 2:9"):
-            parse("fn main() i32\n  ret 6 % 3\nend")
+    def test_parse_division_is_left_associative(self):
+        program = parse("fn main() i32\n  ret 12 / 2 / 3\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "/")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "/")
+        self.assertEqual(expr.right.value, 3)
+
+    def test_parse_parentheses_override_multiplicative_precedence(self):
+        program = parse("fn main() i32\n  ret (1 + 2) * 3\nend")
+        expr = program.functions[0].body[0].expr
+        self.assertIsInstance(expr, Binary)
+        self.assertEqual(expr.op, "*")
+        self.assertIsInstance(expr.left, Binary)
+        self.assertEqual(expr.left.op, "+")
 
     def test_lexer_distinguishes_division_from_line_comments(self):
         kinds = [t.kind for t in lex("fn main() i32\n  ret 6 / 3\nend // comment")]
@@ -209,6 +248,31 @@ end
             subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 5)
+
+    def test_emits_multiplication_expression(self):
+        c_source = compile_source("fn main() i32\n  ret 2 * 3\nend")
+        self.assertIn("return (2 * 3);", c_source)
+
+    def test_emits_division_expression(self):
+        c_source = compile_source("fn main() i32\n  ret 6 / 3\nend")
+        self.assertIn("return (6 / 3);", c_source)
+
+    def test_emits_remainder_expression(self):
+        c_source = compile_source("fn main() i32\n  ret 7 % 4\nend")
+        self.assertIn("return (7 % 4);", c_source)
+
+    def test_emits_mixed_multiplicative_and_additive_expression(self):
+        c_source = compile_source("""fn main() i32
+  let a i32 = 1
+  let b i32 = 2
+  let c i32 = 3
+  let d i32 = 8
+  let e i32 = 4
+  let f i32 = 3
+  ret (a + b) * c - d / e % f
+end
+""")
+        self.assertIn("return (((a + b) * c) - ((d / e) % f));", c_source)
 
     def test_forward_function_call_compiles_cleanly(self):
         c_source = compile_source("""fn main() i32
@@ -416,6 +480,17 @@ end
 
     def test_rejects_integer_literals_outside_i32_range(self):
         self.assert_compile_error("fn main() i32\n  ret 2147483648\nend", "2:7: integer literal 2147483648 is outside supported i32 range")
+
+    def test_rejects_multiplicative_operator_with_non_i32_operands(self):
+        loc = SourceLoc(1, 1)
+        for operator in ("*", "/", "%"):
+            expr = Binary(operator, Name("left", loc), IntLit(2, loc), loc)
+            with self.subTest(operator=operator):
+                with self.assertRaisesRegex(
+                    SemanticError,
+                    re.escape(f"1:1: operator {operator!r} requires i32 operands, got 'u32' and 'i32'"),
+                ):
+                    validate_expr(expr, {}, {"left": "u32"}, "main")
 
     def test_rejects_c_reserved_function_name(self):
         self.assert_compile_error("fn int() i32\n  ret 0\nend", "1:1: function name 'int' is reserved by the C backend")

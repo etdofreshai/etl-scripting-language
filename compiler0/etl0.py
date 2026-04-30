@@ -246,14 +246,19 @@ class Parser:
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
     def parse_expr(self) -> Expr:
-        expr = self.parse_primary()
+        expr = self.parse_term()
         while self.peek().kind in {"PLUS", "MINUS"}:
             op_tok = self.peek()
             self.take(op_tok.kind)
+            expr = Binary(op_tok.text, expr, self.parse_term(), SourceLoc.from_token(op_tok))
+        return expr
+
+    def parse_term(self) -> Expr:
+        expr = self.parse_primary()
+        while self.peek().kind in {"STAR", "SLASH", "PERCENT"}:
+            op_tok = self.peek()
+            self.take(op_tok.kind)
             expr = Binary(op_tok.text, expr, self.parse_primary(), SourceLoc.from_token(op_tok))
-        if self.peek().kind in {"STAR", "SLASH", "PERCENT"}:
-            tok = self.peek()
-            raise ParseError(f"operator {tok.text!r} is not supported in ETL v0 at {tok.line}:{tok.col}")
         return expr
 
     def parse_primary(self) -> Expr:
@@ -371,7 +376,7 @@ def validate(program: Program) -> None:
         validate_type(fn.return_type, f"return type for {fn.name}", fn.loc)
         if not fn.body:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
-        names: set[str] = set()
+        names: dict[str, str] = {}
         for param in fn.params:
             validate_identifier(param.name, "parameter", param.loc)
             validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc)
@@ -381,7 +386,7 @@ def validate(program: Program) -> None:
                 )
             if param.name in names:
                 raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
-            names.add(param.name)
+            names[param.name] = param.typ
         saw_ret = False
         for stmt in fn.body:
             if saw_ret:
@@ -396,7 +401,7 @@ def validate(program: Program) -> None:
                 if stmt.name in names:
                     raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
                 validate_expr(stmt.expr, functions, names, fn.name)
-                names.add(stmt.name)
+                names[stmt.name] = stmt.typ
             elif isinstance(stmt, Ret):
                 validate_expr(stmt.expr, functions, names, fn.name)
                 saw_ret = True
@@ -420,21 +425,25 @@ def is_c_reserved_underscore_identifier(name: str) -> bool:
     return name.startswith("__") or (len(name) > 1 and name[0] == "_" and name[1].isupper())
 
 
-def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], current_fn: str) -> None:
+def validate_expr(expr: Expr, functions: dict[str, Function], names: dict[str, str], current_fn: str) -> str:
     if isinstance(expr, IntLit):
         if not (I32_MIN <= expr.value <= I32_MAX):
             raise SemanticError(
                 f"{expr.loc.format()}: integer literal {expr.value} is outside supported i32 range in {current_fn}"
             )
-        return
+        return "i32"
     if isinstance(expr, Name):
         if expr.value not in names:
             raise SemanticError(f"{expr.loc.format()}: unknown name {expr.value!r} in {current_fn}")
-        return
+        return names[expr.value]
     if isinstance(expr, Binary):
-        validate_expr(expr.left, functions, names, current_fn)
-        validate_expr(expr.right, functions, names, current_fn)
-        return
+        left_type = validate_expr(expr.left, functions, names, current_fn)
+        right_type = validate_expr(expr.right, functions, names, current_fn)
+        if expr.op in {"*", "/", "%"} and (left_type != "i32" or right_type != "i32"):
+            raise SemanticError(
+                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {left_type!r} and {right_type!r} in {current_fn}"
+            )
+        return "i32"
     if isinstance(expr, Call):
         if expr.name not in functions:
             raise SemanticError(f"{expr.loc.format()}: unknown function {expr.name!r} in {current_fn}")
@@ -445,7 +454,7 @@ def validate_expr(expr: Expr, functions: dict[str, Function], names: set[str], c
             )
         for arg in expr.args:
             validate_expr(arg, functions, names, current_fn)
-        return
+        return functions[expr.name].return_type
     raise TypeError(expr)
 
 
@@ -465,6 +474,7 @@ def emit_expr(expr: Expr) -> str:
     if isinstance(expr, Call):
         return f"{expr.name}(" + ", ".join(emit_expr(a) for a in expr.args) + ")"
     if isinstance(expr, Binary):
+        # ETL v0 follows C99 semantics for division and modulo of negative integers; no normalization is applied.
         return f"({emit_expr(expr.left)} {expr.op} {emit_expr(expr.right)})"
     raise TypeError(expr)
 

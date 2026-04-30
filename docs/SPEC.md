@@ -41,7 +41,8 @@ end
 ## v0 feature set
 
 - integers: `i32`, `u32`, maybe `i64`, `u64`
-- arithmetic expressions initially support left-associative `+` and `-`; negative integer literals use a leading `-`
+- arithmetic expressions initially support left-associative `+`, `-`, `*`, `/`, and `%`; `*`, `/`, and `%` bind tighter than `+` and `-`; negative integer literals use a leading `-`
+- v0 division and modulo follow C99 semantics for negative operands.
 - bytes and booleans
 - functions
 - local variables
