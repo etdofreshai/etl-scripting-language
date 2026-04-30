@@ -1,0 +1,16 @@
+type Inner struct
+  values i32[3]
+end
+
+type Outer struct
+  inner Inner
+  tag i8
+end
+
+fn main() i32
+  let item Outer
+  item.inner.values[0] = 5
+  item.inner.values[1] = 6
+  item.inner.values[2] = 7
+  ret item.inner.values[0] + item.inner.values[1] + item.inner.values[2]
+end

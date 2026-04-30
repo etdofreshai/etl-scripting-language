@@ -1,0 +1,12 @@
+extern fn etl_alloc(bytes i32) ptr
+extern fn etl_free(p ptr)
+extern fn etl_is_null(p ptr) bool
+
+fn main() i32
+  let mem ptr = etl_alloc(16)
+  if etl_is_null(mem)
+    ret 1
+  end
+  etl_free(mem)
+  ret 0
+end

@@ -1,0 +1,10 @@
+fn main() i32
+  let flag bool = true
+  let bytes i8[2] = "A"
+  let tiny i8 = bytes[0]
+  let total i32 = tiny - 52
+  if flag
+    ret total
+  end
+  ret 1
+end

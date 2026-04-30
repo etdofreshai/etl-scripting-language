@@ -1,0 +1,17 @@
+arith_precedence.etl        6  arithmetic precedence, parens, division, modulo
+arith_unary.etl             5  unary minus and parenthesized negation
+comparisons_all.etl         7  equality, inequality, and ordered comparisons
+logical_mix.etl             3  and, or, not with comparison operands
+if_elif_else.etl            8  if/elif/else branch selection
+while_sum.etl               15  while loop and local reassignment
+return_checked_if.etl       11  all branches return from if/elif/else
+bool_i8_types.etl           13  bool, i8, widening assignment, and i8 arithmetic
+array_i32.etl               20  fixed-size i32 arrays with indexed assignment/read
+string_literal.etl          4  i8 array string literal initialization
+struct_fields.etl           22  struct field assignment and reads
+struct_nested_array.etl     18  nested struct fields and arrays inside structs
+sizeof_values.etl           21  sizeof scalar, array, and struct types
+param_assignment.etl        9  assignment to function parameters
+extern_print.etl            0  void extern call to etl_print_i32
+extern_alloc_free.etl       0  ptr local, etl_alloc, etl_is_null, etl_free
+extern_file_ops.etl         0  etl_write_file and etl_read_file runtime calls

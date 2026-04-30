@@ -1,0 +1,25 @@
+fn main() i32
+  let score i32 = 0
+  if 4 == 4
+    score = score + 1
+  end
+  if 4 != 5
+    score = score + 1
+  end
+  if 3 < 4
+    score = score + 1
+  end
+  if 4 <= 4
+    score = score + 1
+  end
+  if 6 > 5
+    score = score + 1
+  end
+  if 6 >= 6
+    score = score + 1
+  end
+  if 7 >= 6
+    score = score + 1
+  end
+  ret score
+end

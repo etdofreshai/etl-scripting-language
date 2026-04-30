@@ -1,0 +1,4 @@
+fn main() i32
+  let msg i8[8] = "ETL"
+  ret msg[0] - 65
+end

@@ -1,0 +1,11 @@
+type Pair struct
+  left i32
+  right i32
+end
+
+fn main() i32
+  let pair Pair
+  pair.left = 9
+  pair.right = 13
+  ret pair.left + pair.right
+end
