@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void etl_print_i32(int32_t value) {
   printf("%d\n", value);
@@ -35,6 +36,23 @@ int32_t etl_read_i32(void) {
     return -1;
   }
   return (int32_t)atoi(buf);
+}
+
+int32_t etl_read_byte(void) {
+  int c = fgetc(stdin);
+  return c == EOF ? -1 : (int32_t)(unsigned char)c;
+}
+
+int32_t etl_write_byte(int32_t b) {
+  return fputc((unsigned char)b, stdout) == EOF ? -1 : 0;
+}
+
+int32_t etl_read_stdin(int8_t *buf, int32_t cap) {
+  if (buf == NULL || cap < 0) {
+    return -1;
+  }
+  size_t n = fread(buf, 1, (size_t)cap, stdin);
+  return ferror(stdin) ? -1 : (int32_t)n;
 }
 
 int8_t *etl_alloc(int32_t bytes) {
@@ -88,6 +106,22 @@ int32_t etl_write_file(int8_t *path, int8_t *buf, int32_t len) {
     return -1;
   }
   return 0;
+}
+
+int32_t etl_bytes_equal(const int8_t *a, int32_t alen, const int8_t *b, int32_t blen) {
+  if (alen != blen) {
+    return -1;
+  }
+  return memcmp(a, b, (size_t)alen);
+}
+
+void etl_bytes_copy(int8_t *dst, const int8_t *src, int32_t len) {
+  memcpy(dst, src, (size_t)len);
+}
+
+int32_t etl_bytes_find(const int8_t *buf, int32_t len, int32_t b) {
+  const int8_t *p = memchr(buf, (unsigned char)b, (size_t)len);
+  return p == NULL ? -1 : (int32_t)(p - buf);
 }
 
 void etl_panic(int8_t *msg) {
