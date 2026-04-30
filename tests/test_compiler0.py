@@ -12,6 +12,7 @@ from compiler0.etl0 import (
     Binary,
     BoolLit,
     Call,
+    If,
     IntLit,
     Let,
     LexerError,
@@ -67,10 +68,6 @@ class Compiler0Tests(unittest.TestCase):
     def test_rejects_keyword_function_name(self):
         with self.assertRaisesRegex(ParseError, "expected IDENT, got IF at 1:4"):
             parse("fn if() i32\n  ret 0\nend")
-
-    def test_rejects_unimplemented_if_statement_as_keyword(self):
-        with self.assertRaisesRegex(ParseError, "expected statement at 2:3"):
-            parse("fn main() i32\n  if 1\n    ret 1\n  end\n  ret 0\nend")
 
     def test_compile_sample_with_comments(self):
         c_source = compile_source("""// file comment
@@ -512,9 +509,58 @@ end
             proc = subprocess.run([str(exe_path)], check=False)
             self.assertEqual(proc.returncode, 0)
 
-    def test_if_keyword_still_produces_not_yet_implemented_diagnostic(self):
+    # --- Phase 2a: if/else parser and emitter tests ---
+
+    def test_parse_if_without_else(self):
+        program = parse("fn main() i32\n  if true\n    ret 1\n  end\n  ret 0\nend")
+        stmt = program.functions[0].body[0]
+        self.assertIsInstance(stmt, If)
+        self.assertIsInstance(stmt.cond, BoolLit)
+        self.assertEqual(len(stmt.then_body), 1)
+        self.assertIsNone(stmt.else_body)
+
+    def test_parse_if_with_else(self):
+        program = parse("fn main() i32\n  if true\n    ret 1\n  else\n    ret 0\n  end\nend")
+        stmt = program.functions[0].body[0]
+        self.assertIsInstance(stmt, If)
+        self.assertEqual(len(stmt.then_body), 1)
+        self.assertEqual(len(stmt.else_body), 1)
+
+    def test_parse_nested_if_else(self):
+        program = parse("""fn main() i32
+  if true
+    if false
+      ret 1
+    else
+      ret 2
+    end
+  else
+    ret 3
+  end
+end
+""")
+        outer = program.functions[0].body[0]
+        self.assertIsInstance(outer, If)
+        inner = outer.then_body[0]
+        self.assertIsInstance(inner, If)
+        self.assertEqual(len(inner.else_body), 1)
+
+    def test_parse_if_missing_end_reports_clean_error(self):
+        with self.assertRaisesRegex(ParseError, "expected 'end' before EOF in if statement"):
+            parse("fn main() i32\n  if true\n    ret 1\n")
+
+    def test_parse_else_without_if_reports_clean_error(self):
         with self.assertRaisesRegex(ParseError, "expected statement at 2:3"):
-            parse("fn main() i32\n  if true\n    ret 1\n  end\n  ret 0\nend")
+            parse("fn main() i32\n  else\n    ret 1\n  end\nend")
+
+    def test_emit_simple_if(self):
+        c_source = compile_source("fn main() i32\n  if true\n    ret 1\n  end\n  ret 0\nend")
+        self.assertIn("if (true) {\n    return 1;\n  }\n  return 0;", c_source)
+        self.assertNotIn("else {", c_source)
+
+    def test_emit_if_else(self):
+        c_source = compile_source("fn main() i32\n  if 2 > 1\n    ret 7\n  else\n    ret 3\n  end\nend")
+        self.assertIn("if ((2 > 1)) {\n    return 7;\n  } else {\n    return 3;\n  }", c_source)
 
 
 class SemanticValidationTests(unittest.TestCase):
@@ -962,6 +1008,39 @@ end
         """I32_MIN handling does not regress."""
         c_source = compile_source("fn main() i32\n  ret -2147483648\nend")
         self.assertIn("return (-2147483647 - 1);", c_source)
+
+    # --- Phase 2a: if/else semantic tests ---
+
+    def test_rejects_if_condition_i32(self):
+        self.assert_compile_error(
+            "fn main() i32\n  if 1\n    ret 1\n  end\n  ret 0\nend",
+            "if condition expected bool, got 'i32'",
+        )
+
+    def test_accepts_if_else_when_both_branches_return(self):
+        c_source = compile_source("""fn main() i32
+  if true
+    ret 1
+  else
+    ret 0
+  end
+end
+""")
+        self.assertIn("return 1;", c_source)
+        self.assertIn("return 0;", c_source)
+
+    def test_rejects_final_if_else_when_one_branch_missing_ret(self):
+        self.assert_compile_error(
+            """fn main() i32
+  if true
+    ret 1
+  else
+    let x i32 = 0
+  end
+end
+""",
+            "function 'main' must end with ret",
+        )
 
 
 if __name__ == "__main__":

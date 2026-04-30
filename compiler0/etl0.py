@@ -99,7 +99,15 @@ class Ret:
     loc: SourceLoc
 
 
-Stmt = Let | Ret
+@dataclass(frozen=True)
+class If:
+    cond: "Expr"
+    then_body: list["Stmt"]
+    else_body: list["Stmt"] | None
+    loc: SourceLoc
+
+
+Stmt = Let | Ret | If
 
 
 @dataclass(frozen=True)
@@ -259,13 +267,17 @@ class Parser:
                 break
         self.take("RPAREN")
         return_type = self.take("IDENT").text
-        body: list[Stmt] = []
-        while self.peek().kind != "END":
-            if self.peek().kind == "EOF":
-                raise ParseError(f"expected 'end' before EOF in function {name!r} at {self.peek().line}:{self.peek().col}")
-            body.append(self.parse_stmt())
+        body = self.parse_block({"END"}, f"function {name!r}")
         self.take("END")
         return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
+
+    def parse_block(self, terminators: set[str], context: str) -> list[Stmt]:
+        body: list[Stmt] = []
+        while self.peek().kind not in terminators:
+            if self.peek().kind == "EOF":
+                raise ParseError(f"expected 'end' before EOF in {context} at {self.peek().line}:{self.peek().col}")
+            body.append(self.parse_stmt())
+        return body
 
     def parse_stmt(self) -> Stmt:
         if self.peek().kind == "LET":
@@ -277,6 +289,16 @@ class Parser:
         if self.peek().kind == "RET":
             ret_tok = self.take("RET")
             return Ret(self.parse_expr(), SourceLoc.from_token(ret_tok))
+        if self.peek().kind == "IF":
+            if_tok = self.take("IF")
+            cond = self.parse_expr()
+            then_body = self.parse_block({"ELSE", "END"}, "if statement")
+            else_body = None
+            if self.peek().kind == "ELSE":
+                self.take("ELSE")
+                else_body = self.parse_block({"END"}, "else block")
+            self.take("END")
+            return If(cond, then_body, else_body, SourceLoc.from_token(if_tok))
         tok = self.peek()
         raise ParseError(f"expected statement at {tok.line}:{tok.col}")
 
@@ -467,28 +489,60 @@ def validate(program: Program) -> None:
             if param.name in names:
                 raise SemanticError(f"{param.loc.format()}: duplicate local name {param.name!r} in {fn.name}")
             names[param.name] = param.typ
-        saw_ret = False
-        for stmt in fn.body:
-            if saw_ret:
-                raise SemanticError(f"{stmt.loc.format()}: unreachable statement after ret in {fn.name}")
-            if isinstance(stmt, Let):
-                validate_identifier(stmt.name, "local", stmt.loc)
-                validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
-                if stmt.name in functions:
-                    raise SemanticError(
-                        f"{stmt.loc.format()}: local name {stmt.name!r} conflicts with function name in {fn.name}"
-                    )
-                if stmt.name in names:
-                    raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
-                validate_expr(stmt.expr, functions, names, fn.name)
-                names[stmt.name] = stmt.typ
-            elif isinstance(stmt, Ret):
-                validate_expr(stmt.expr, functions, names, fn.name)
-                saw_ret = True
-            else:
-                raise TypeError(stmt)
-        if not saw_ret:
+        validate_stmts(fn.body, functions, names, fn)
+        if not body_returns(fn.body):
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
+
+
+def validate_stmts(
+    stmts: list[Stmt],
+    functions: dict[str, Function],
+    names: dict[str, str],
+    fn: Function,
+) -> bool:
+    saw_return = False
+    for stmt in stmts:
+        if saw_return:
+            raise SemanticError(f"{stmt.loc.format()}: unreachable statement after ret in {fn.name}")
+        if isinstance(stmt, Let):
+            validate_identifier(stmt.name, "local", stmt.loc)
+            validate_type(stmt.typ, f"local {stmt.name} in {fn.name}", stmt.loc)
+            if stmt.name in functions:
+                raise SemanticError(
+                    f"{stmt.loc.format()}: local name {stmt.name!r} conflicts with function name in {fn.name}"
+                )
+            if stmt.name in names:
+                raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
+            validate_expr(stmt.expr, functions, names, fn.name)
+            names[stmt.name] = stmt.typ
+        elif isinstance(stmt, Ret):
+            validate_expr(stmt.expr, functions, names, fn.name)
+            saw_return = True
+        elif isinstance(stmt, If):
+            cond_type = validate_expr(stmt.cond, functions, names, fn.name)
+            if cond_type != "bool":
+                raise SemanticError(
+                    f"{stmt.cond.loc.format()}: if condition expected bool, got {cond_type!r} in {fn.name}"
+                )
+            then_returns = validate_stmts(stmt.then_body, functions, names.copy(), fn)
+            else_returns = False
+            if stmt.else_body is not None:
+                else_returns = validate_stmts(stmt.else_body, functions, names.copy(), fn)
+            saw_return = then_returns and else_returns
+        else:
+            raise TypeError(stmt)
+    return saw_return
+
+
+def body_returns(stmts: list[Stmt]) -> bool:
+    if not stmts:
+        return False
+    last = stmts[-1]
+    if isinstance(last, Ret):
+        return True
+    if isinstance(last, If) and last.else_body is not None:
+        return body_returns(last.then_body) and body_returns(last.else_body)
+    return False
 
 
 def validate_type(typ: str, where: str, loc: SourceLoc) -> None:
@@ -610,6 +664,27 @@ def c_signature(fn: Function) -> str:
     return f"{c_type(fn.return_type)} {fn.name}({params})"
 
 
+def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
+    pad = " " * indent
+    if isinstance(stmt, Let):
+        lines.append(f"{pad}{c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
+    elif isinstance(stmt, Ret):
+        lines.append(f"{pad}return {emit_expr(stmt.expr)};")
+    elif isinstance(stmt, If):
+        lines.append(f"{pad}if ({emit_expr(stmt.cond)}) {{")
+        for child in stmt.then_body:
+            emit_stmt(child, lines, indent + 2)
+        if stmt.else_body is None:
+            lines.append(f"{pad}}}")
+        else:
+            lines.append(f"{pad}}} else {{")
+            for child in stmt.else_body:
+                emit_stmt(child, lines, indent + 2)
+            lines.append(f"{pad}}}")
+    else:
+        raise TypeError(stmt)
+
+
 def emit_c(program: Program) -> str:
     lines = ["#include <stdbool.h>", "#include <stdint.h>", ""]
     for fn in program.functions:
@@ -618,12 +693,7 @@ def emit_c(program: Program) -> str:
     for fn in program.functions:
         lines.append(f"{c_signature(fn)} {{")
         for stmt in fn.body:
-            if isinstance(stmt, Let):
-                lines.append(f"  {c_type(stmt.typ)} {stmt.name} = {emit_expr(stmt.expr)};")
-            elif isinstance(stmt, Ret):
-                lines.append(f"  return {emit_expr(stmt.expr)};")
-            else:
-                raise TypeError(stmt)
+            emit_stmt(stmt, lines, 2)
         lines.append("}")
         lines.append("")
     return "\n".join(lines)

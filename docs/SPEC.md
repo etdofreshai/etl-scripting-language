@@ -46,6 +46,19 @@ end
 - comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
 - logical operators `and`, `or`, `not` as keywords; all operands and results are `bool`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
 - unary minus `-` on `i32` expressions (names, calls, parenthesized expressions); negative integer literals continue to parse as literal values (distinct from unary minus on an expression)
+- `if` / `else` statements use keyword-terminated blocks. The `else` block is optional:
+
+```etl
+if a > b
+  ret a
+else
+  ret b
+end
+```
+
+`if` conditions must have type `bool`; there is no implicit truthiness from `i32` or other types.
+
+For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `else` where both branches end in `ret`. Full reachability analysis is intentionally out of scope for v0.
 
 ## Operator precedence (lowest to highest)
 
