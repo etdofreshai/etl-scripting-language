@@ -1,0 +1,31 @@
+extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
+extern fn etl_write_file(path i8[64], buf i8[64], len i32) i32
+
+fn main() i32
+  let path i8[64] = "/dev/stdin"
+  let buf i8[64]
+  let n i32 = etl_read_file(path, buf, 64)
+  let expect i8[64] = "hello\n"
+  if n == 6
+    if buf[0] == expect[0]
+      if buf[1] == expect[1]
+        if buf[2] == expect[2]
+          if buf[3] == expect[3]
+            if buf[4] == expect[4]
+              if buf[5] == expect[5]
+                let outpath i8[64] = "/dev/stdout"
+                let out i8[64] = "h"
+                let w i32 = etl_write_file(outpath, out, 1)
+                if w < 0
+                  ret 2
+                end
+                ret 0
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  ret 1
+end

@@ -49,6 +49,11 @@ make examples
 | 3  | Fixed-size arrays, structs, string literals, `sizeof`                 | linkedlist / token-array smoke                      | 4–6    |
 | 4  | `extern fn` + minimal C runtime (alloc, file I/O, panic, log)         | `make smoke-runtime`                                | 3–5    |
 | 5  | **Compiler-1 in ETL**                                                 | `make selfhost` (c0→c1, c1→c2, behavior-equiv corpus)| 10–16  |
+
+> **Phase 5 status: BEGUN.** Skeleton landed — `compiler1/` exists with
+> `main.etl` built by compiler-0, `make selfhost` gate runs
+> `scripts/c1_smoke.sh`. Next waves grow the skeleton toward a real
+> self-hosting compiler.
 | 6  | SDL3 shim + headless screenshot harness + Conway's Life               | `make visual` (Life golden matches)                 | 6–8    |
 | 7  | App ladder: calculator → breakout → snake → asteroids → pong → CLI    | `make examples`                                     | 18–24  |
 | 8  | C-backend hardening + Linux/macOS/Windows CI matrix                   | matrix green                                        | 4–6    |

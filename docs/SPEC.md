@@ -284,6 +284,30 @@ For now, non-void functions use a simple final-return rule: the last statement m
 - simple structs/records when needed for AST/IR
 - string literals when needed for diagnostics
 
+## Compiler-1 (in ETL)
+
+Compiler-1 is the self-hosted ETL compiler, written in ETL itself. It lives in `compiler1/`. The goal is for compiler-0 (Python) to compile compiler-1, producing a native binary that can then compile itself — reaching a self-hosting fixed point.
+
+### Current state
+
+Compiler-1 is a **skeleton**. It contains:
+
+- `compiler1/main.etl` — a trivial program that reads stdin, checks for the exact input `"hello\n"`, and writes the byte `'h'` to stdout if matched. This proves the full ETL → C → native pipeline end-to-end for a program written in `compiler1/`.
+- `compiler1/lex.etl`, `compiler1/parse.etl`, `compiler1/sema.etl`, `compiler1/emit_c.etl` — placeholder modules with trivial functions, not yet linked into the build.
+
+### Build path
+
+```sh
+compiler0/etl0.py compile compiler1/main.etl -o /tmp/c1.c
+cc /tmp/c1.c runtime/etl_runtime.c -I runtime -o /tmp/c1
+```
+
+Or equivalently: `scripts/build_etl.sh compiler1/main.etl /tmp/c1`
+
+### Smoke gate
+
+`make selfhost` runs `scripts/c1_smoke.sh`, which builds compiler-1 via compiler-0 and verifies it produces correct output. This target will grow over Phase 5 to become the full self-host gate (c0 builds c1, c1 builds c2, behavior-equivalence check).
+
 ## Initial backend strategy
 
 Start with:

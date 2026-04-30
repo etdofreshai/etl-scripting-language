@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke check autopilot-help
+.PHONY: test smoke check selfhost autopilot-help
 
 test:
 	python3 -m unittest discover -s tests
@@ -25,6 +25,9 @@ smoke:
 	scripts/file_smoke.sh
 
 check: test smoke
+
+selfhost:
+	scripts/c1_smoke.sh
 
 autopilot-help:
 	@scripts/project_autopilot_supervisor.py --help
