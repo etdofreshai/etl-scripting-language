@@ -9,6 +9,11 @@ void etl_print_i32(int32_t value);
 void etl_print_bool(bool value);
 void etl_print_str(const int8_t *s);
 void etl_print_str_n(const int8_t *s, int32_t n);
+int32_t etl_format_i32(int8_t *buf, int32_t cap, int32_t value);
+int32_t etl_append_bytes(int8_t *dst, int32_t dst_len, int32_t dst_cap,
+                         const int8_t *src, int32_t src_len);
+void etl_eprint(const int8_t *buf, int32_t len);
+void etl_eprint_i32(int32_t value);
 void etl_exit(int32_t code);
 int32_t etl_read_i32(void);
 int32_t etl_read_byte(void);
