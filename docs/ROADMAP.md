@@ -87,11 +87,11 @@ parallelizes.
 ## Phase 5 sub-tasks
 
 - 5a: scaffold (DONE)
-- 5b: lexer in ETL
-- 5c: parser in ETL
-- 5d: sema in ETL
-- 5e: C emitter in ETL
-- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff
+- 5b: lexer in ETL (DONE at a74d1e9)
+- 5c: parser in ETL (DONE at a74d1e9)
+- 5d: sema in ETL (in progress)
+- 5e: C emitter in ETL (next)
+- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next)
 - 5g: c1→c2 fixed-point; freeze c0
 
 ## Risks pinned to the wall

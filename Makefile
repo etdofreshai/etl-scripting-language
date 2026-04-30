@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check selfhost autopilot-help
+.PHONY: test smoke runtime-test check c1-pipeline selfhost autopilot-help
 
 test:
 	python3 -m unittest discover -s tests
@@ -26,6 +26,7 @@ smoke:
 	scripts/file_smoke.sh
 	scripts/c1_lex_smoke.sh
 	scripts/c1_parse_smoke.sh
+	scripts/c1_sema_smoke.sh
 
 runtime-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -o runtime/test_runtime runtime/test_runtime.c $(ETL_RUNTIME)
@@ -33,7 +34,10 @@ runtime-test:
 
 check: test smoke runtime-test
 
-selfhost:
+c1-pipeline:
+	scripts/c1_pipeline_smoke.sh
+
+selfhost: c1-pipeline
 	scripts/c1_smoke.sh
 
 autopilot-help:
