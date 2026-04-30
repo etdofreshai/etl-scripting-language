@@ -1,0 +1,10 @@
+fn main() i32
+  let a bool = 3 < 4
+  let b bool = 8 == 9
+  if a and not b
+    if b or (10 >= 10)
+      ret 3
+    end
+  end
+  ret 1
+end

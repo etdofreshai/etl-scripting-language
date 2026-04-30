@@ -1,0 +1,5 @@
+fn main() i32
+  let base i32 = 12
+  let value i32 = -base + (3 * 4) + -(2)
+  ret value + 7
+end

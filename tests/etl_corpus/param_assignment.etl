@@ -1,0 +1,8 @@
+fn bump(x i32) i32
+  x = x + 4
+  ret x
+end
+
+fn main() i32
+  ret bump(5)
+end

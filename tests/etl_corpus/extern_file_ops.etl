@@ -1,0 +1,17 @@
+extern fn etl_write_file(path i8[64], buf i8[64], len i32) i32
+extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
+
+fn main() i32
+  let path i8[64] = "/tmp/etl_corpus_file_ops.bin"
+  let outbuf i8[64] = "corpus"
+  let written i32 = etl_write_file(path, outbuf, 6)
+  if written != 0
+    ret 1
+  end
+  let inbuf i8[64]
+  let read i32 = etl_read_file(path, inbuf, 64)
+  if read != 6
+    ret 2
+  end
+  ret 0
+end

@@ -21,6 +21,7 @@ smoke:
 	scripts/string_smoke.sh
 	scripts/sizeof_smoke.sh
 	scripts/extern_smoke.sh
+	scripts/corpus_smoke.sh
 	scripts/runtime_smoke.sh
 	scripts/file_smoke.sh
 	scripts/c1_lex_smoke.sh

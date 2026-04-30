@@ -1,0 +1,8 @@
+type Cell struct
+  id i32
+  flag bool
+end
+
+fn main() i32
+  ret sizeof(i32) + sizeof(i8[8]) + sizeof(Cell) + sizeof(bool)
+end
