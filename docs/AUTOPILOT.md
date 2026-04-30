@@ -22,7 +22,7 @@ Purpose: build ETL, a minimal LLM-oriented language and self-hosting compiler, t
 4. Implement lexer/parser for a tiny function subset.
 5. Emit C for a tiny program and run it.
 5. Grow v0 only enough to write the compiler in ETL.
-6. Begin compiler-1 in ETL.
+6. Continue Phase 5 compiler-1 work in ETL; scaffold is landed, then lexer/parser/sema/C emitter follow.
 7. Bootstrap: compiler-0 builds compiler-1; compiler-1 builds future compiler.
 
 ## Preferred verification
