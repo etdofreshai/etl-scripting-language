@@ -2,6 +2,10 @@
 
 ETL is a minimal LLM-oriented scripting/systems language designed to bootstrap into a self-hosting compiler.
 
+This repository absorbed the companion `etl-scripting` repo. Earlier
+design documents and example programs from that line of work are
+preserved under `docs/legacy/` and `examples/legacy/` for reference.
+
 Early goals:
 
 - tiny, regular syntax
