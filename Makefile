@@ -23,6 +23,7 @@ smoke:
 	scripts/extern_smoke.sh
 	scripts/runtime_smoke.sh
 	scripts/file_smoke.sh
+	scripts/c1_lex_smoke.sh
 
 check: test smoke
 

@@ -816,8 +816,6 @@ def validate_params(
         validate_identifier(param.name, "parameter", param.loc)
         validate_type(param.typ, f"parameter {param.name} in {fn.name}", param.loc, structs)
         if isinstance(fn, Function):
-            if is_array_type(param.typ):
-                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have array type {format_type(param.typ)!r} in v0")
             if is_struct_type(param.typ, structs):
                 raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have struct type {format_type(param.typ)!r} in v0")
             if is_ptr_type(param.typ):
@@ -876,7 +874,7 @@ def validate_stmts(
                 expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
                 if expr_type is None:
                     raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot initialize local {stmt.name!r} in {fn.name}")
-                if not same_type(expr_type, stmt.typ):
+                if not can_assign_type(expr_type, stmt.typ):
                     raise SemanticError(
                         f"{stmt.loc.format()}: let {stmt.name!r} expected {format_type(stmt.typ)!r}, got {format_type(expr_type)!r} in {fn.name}"
                     )
@@ -885,7 +883,7 @@ def validate_stmts(
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
             if expr_type is None:
                 raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be returned in {fn.name}")
-            if not same_type(expr_type, fn.return_type):
+            if not can_assign_type(expr_type, fn.return_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: return expected {format_type(fn.return_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
@@ -901,7 +899,7 @@ def validate_stmts(
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole array {stmt.name!r} in v0")
             if is_struct_type(expected_type, structs):
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole struct {stmt.name!r} in v0")
-            if not same_type(expr_type, expected_type):
+            if not can_assign_type(expr_type, expected_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: assignment to {stmt.name!r} expected {format_type(expected_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
@@ -921,7 +919,7 @@ def validate_stmts(
                 raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be assigned in {fn.name}")
             if is_struct_type(array_type.element_type, structs):
                 raise SemanticError(f"{stmt.loc.format()}: cannot assign whole struct array element {stmt.array!r} in v0")
-            if not same_type(expr_type, array_type.element_type):
+            if not can_assign_type(expr_type, array_type.element_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: indexed assignment to {stmt.array!r} expected {array_type.element_type!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
@@ -934,7 +932,7 @@ def validate_stmts(
             expr_type = validate_expr(stmt.expr, functions, structs, names, fn.name)
             if expr_type is None:
                 raise SemanticError(f"{stmt.expr.loc.format()}: void function call cannot be assigned in {fn.name}")
-            if not same_type(expr_type, expected_type):
+            if not can_assign_type(expr_type, expected_type):
                 raise SemanticError(
                     f"{stmt.loc.format()}: assignment expected {format_type(expected_type)!r}, got {format_type(expr_type)!r} in {fn.name}"
                 )
@@ -1041,6 +1039,16 @@ def same_type(left: TypeRef, right: TypeRef) -> bool:
     return isinstance(left, str) and isinstance(right, str) and left == right
 
 
+def is_integer_type(typ: TypeRef | None) -> bool:
+    return typ in {"i32", "i8"}
+
+
+def can_assign_type(value_type: TypeRef | None, target_type: TypeRef) -> bool:
+    if same_type(value_type, target_type):
+        return True
+    return value_type == "i8" and target_type == "i32"
+
+
 def format_type(typ: TypeRef | None) -> str:
     if typ is None:
         return "void"
@@ -1112,28 +1120,24 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
     if isinstance(expr, Binary):
         left_type = validate_expr(expr.left, functions, structs, names, current_fn)
         right_type = validate_expr(expr.right, functions, structs, names, current_fn)
-        if expr.op in {"+", "-", "*", "/", "%"} and (left_type == "i8" or right_type == "i8"):
-            raise SemanticError(
-                f"{expr.loc.format()}: arithmetic operator {expr.op!r} on i8 is deferred in v0 in {current_fn}"
-            )
         if expr.op in {"+", "-", "*", "/", "%"} and (is_ptr_type(left_type) or is_ptr_type(right_type)):
             raise SemanticError(
                 f"{expr.loc.format()}: cannot use arithmetic operator {expr.op!r} on opaque ptr value in {current_fn}"
             )
-        if expr.op in {"*", "/", "%"} and (left_type != "i32" or right_type != "i32"):
+        if expr.op in {"*", "/", "%"} and (not is_integer_type(left_type) or not is_integer_type(right_type)):
             raise SemanticError(
-                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
+                f"{expr.loc.format()}: operator {expr.op!r} requires integer operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
-        if expr.op in {"+", "-"} and (left_type != "i32" or right_type != "i32"):
+        if expr.op in {"+", "-"} and (not is_integer_type(left_type) or not is_integer_type(right_type)):
             raise SemanticError(
-                f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
+                f"{expr.loc.format()}: operator {expr.op!r} requires integer operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
         if expr.op in {"and", "or"} and (left_type != "bool" or right_type != "bool"):
             raise SemanticError(
                 f"{expr.loc.format()}: operator {expr.op!r} requires bool operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
             )
         if expr.op in {"==", "!="}:
-            if not same_type(left_type, right_type):
+            if not same_type(left_type, right_type) and not (is_integer_type(left_type) and is_integer_type(right_type)):
                 raise SemanticError(
                     f"{expr.loc.format()}: operator {expr.op!r} requires matching types, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
@@ -1146,12 +1150,9 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
         if expr.op in {"<", "<=", ">", ">="}:
             if is_ptr_type(left_type) or is_ptr_type(right_type):
                 raise SemanticError(f"{expr.loc.format()}: cannot compare opaque ptr values with {expr.op!r} in {current_fn}")
-            if not (
-                (left_type == "i32" and right_type == "i32")
-                or (left_type == "i8" and right_type == "i8")
-            ):
+            if not (is_integer_type(left_type) and is_integer_type(right_type)):
                 raise SemanticError(
-                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 or i8 operands of matching type, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
+                    f"{expr.loc.format()}: operator {expr.op!r} requires integer operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
         if expr.op in {"==", "!=", "<", "<=", ">", ">=", "and", "or"}:
             return "bool"
@@ -1193,7 +1194,7 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
             arg_type = validate_expr(arg, functions, structs, names, current_fn)
             if arg_type is None:
                 raise SemanticError(f"{arg.loc.format()}: void function call cannot be used as argument in {current_fn}")
-            if not same_type(arg_type, param.typ):
+            if not can_assign_type(arg_type, param.typ):
                 raise SemanticError(
                     f"{arg.loc.format()}: function {expr.name!r} argument {param.name!r} expected {format_type(param.typ)!r}, got {format_type(arg_type)!r} in {current_fn}"
                 )

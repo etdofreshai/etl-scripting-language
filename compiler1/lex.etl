@@ -1,3 +1,277 @@
-fn lex_init() i32
-  ret 0
+fn is_space(ch i32) bool
+  ret ch == 32 or ch == 9 or ch == 10 or ch == 13
+end
+
+fn is_digit(ch i32) bool
+  ret ch >= 48 and ch <= 57
+end
+
+fn is_alpha(ch i32) bool
+  ret (ch >= 65 and ch <= 90) or (ch >= 97 and ch <= 122)
+end
+
+fn is_ident_start(ch i32) bool
+  ret is_alpha(ch) or ch == 95
+end
+
+fn is_ident_continue(ch i32) bool
+  ret is_ident_start(ch) or is_digit(ch)
+end
+
+fn span_eq(source i8[256], start i32, len i32, text i8[16], text_len i32) bool
+  if len != text_len
+    ret false
+  end
+  let i i32 = 0
+  while i < len
+    if source[start + i] != text[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn keyword_kind(source i8[256], start i32, len i32) i32
+  let kw_fn i8[16] = "fn"
+  if span_eq(source, start, len, kw_fn, 2)
+    ret TK_FN()
+  end
+  let kw_let i8[16] = "let"
+  if span_eq(source, start, len, kw_let, 3)
+    ret TK_LET()
+  end
+  let kw_if i8[16] = "if"
+  if span_eq(source, start, len, kw_if, 2)
+    ret TK_IF()
+  end
+  let kw_elif i8[16] = "elif"
+  if span_eq(source, start, len, kw_elif, 4)
+    ret TK_ELIF()
+  end
+  let kw_else i8[16] = "else"
+  if span_eq(source, start, len, kw_else, 4)
+    ret TK_ELSE()
+  end
+  let kw_while i8[16] = "while"
+  if span_eq(source, start, len, kw_while, 5)
+    ret TK_WHILE()
+  end
+  let kw_ret i8[16] = "ret"
+  if span_eq(source, start, len, kw_ret, 3)
+    ret TK_RET()
+  end
+  let kw_type i8[16] = "type"
+  if span_eq(source, start, len, kw_type, 4)
+    ret TK_TYPE()
+  end
+  let kw_struct i8[16] = "struct"
+  if span_eq(source, start, len, kw_struct, 6)
+    ret TK_STRUCT()
+  end
+  let kw_end i8[16] = "end"
+  if span_eq(source, start, len, kw_end, 3)
+    ret TK_END()
+  end
+  let kw_true i8[16] = "true"
+  if span_eq(source, start, len, kw_true, 4)
+    ret TK_TRUE()
+  end
+  let kw_false i8[16] = "false"
+  if span_eq(source, start, len, kw_false, 5)
+    ret TK_FALSE()
+  end
+  let kw_and i8[16] = "and"
+  if span_eq(source, start, len, kw_and, 3)
+    ret TK_AND()
+  end
+  let kw_or i8[16] = "or"
+  if span_eq(source, start, len, kw_or, 2)
+    ret TK_OR()
+  end
+  let kw_not i8[16] = "not"
+  if span_eq(source, start, len, kw_not, 3)
+    ret TK_NOT()
+  end
+  let kw_extern i8[16] = "extern"
+  if span_eq(source, start, len, kw_extern, 6)
+    ret TK_EXTERN()
+  end
+  ret TK_IDENT()
+end
+
+fn write_token(tokens Token[128], index i32, cap i32, kind i32, start i32, len i32, int_value i32) i32
+  if index >= cap
+    ret -1
+  end
+  tokens[index].kind = kind
+  tokens[index].start = start
+  tokens[index].len = len
+  tokens[index].int_value = int_value
+  ret index + 1
+end
+
+fn lex(source i8[256], source_len i32, tokens Token[128], cap i32) i32
+  let i i32 = 0
+  let n i32 = 0
+  while i < source_len
+    let ch i32 = source[i]
+    if is_space(ch)
+      i = i + 1
+    else
+      if ch == 35
+        while i < source_len and source[i] != 10
+          i = i + 1
+        end
+      else
+        if is_ident_start(ch)
+          let start i32 = i
+          i = i + 1
+          while i < source_len and is_ident_continue(source[i])
+            i = i + 1
+          end
+          n = write_token(tokens, n, cap, keyword_kind(source, start, i - start), start, i - start, 0)
+          if n < 0
+            ret -1
+          end
+        else
+          if is_digit(ch)
+            let start i32 = i
+            let value i32 = 0
+            while i < source_len and is_digit(source[i])
+              value = value * 10 + source[i] - 48
+              i = i + 1
+            end
+            n = write_token(tokens, n, cap, TK_INT(), start, i - start, value)
+            if n < 0
+              ret -1
+            end
+          else
+            if ch == 34
+              let start i32 = i
+              i = i + 1
+              while i < source_len and source[i] != 34
+                if source[i] == 10 or source[i] == 13
+                  ret -1
+                end
+                if source[i] == 92
+                  i = i + 1
+                  if i >= source_len
+                    ret -1
+                  end
+                end
+                i = i + 1
+              end
+              if i >= source_len
+                ret -1
+              end
+              i = i + 1
+              n = write_token(tokens, n, cap, TK_STRING(), start, i - start, 0)
+              if n < 0
+                ret -1
+              end
+            else
+              let kind i32 = -1
+              let len i32 = 1
+              if ch == 40
+                kind = TK_LPAREN()
+              else
+                if ch == 41
+                  kind = TK_RPAREN()
+                else
+                  if ch == 44
+                    kind = TK_COMMA()
+                  else
+                    if ch == 91
+                      kind = TK_LBRACKET()
+                    else
+                      if ch == 93
+                        kind = TK_RBRACKET()
+                      else
+                        if ch == 46
+                          kind = TK_DOT()
+                        else
+                          if ch == 43
+                            kind = TK_PLUS()
+                          else
+                            if ch == 45
+                              kind = TK_MINUS()
+                            else
+                              if ch == 42
+                                kind = TK_STAR()
+                              else
+                                if ch == 47
+                                  kind = TK_SLASH()
+                                else
+                                  if ch == 37
+                                    kind = TK_PERCENT()
+                                  else
+                                    if ch == 61
+                                      kind = TK_EQUAL()
+                                      if i + 1 < source_len
+                                        if source[i + 1] == 61
+                                          kind = TK_EQEQ()
+                                          len = 2
+                                        end
+                                      end
+                                    else
+                                      if ch == 33
+                                        if i + 1 < source_len
+                                          if source[i + 1] == 61
+                                            kind = TK_NEQ()
+                                            len = 2
+                                          end
+                                        end
+                                      else
+                                        if ch == 60
+                                          kind = TK_LT()
+                                          if i + 1 < source_len
+                                            if source[i + 1] == 61
+                                              kind = TK_LTE()
+                                              len = 2
+                                            end
+                                          end
+                                        else
+                                          if ch == 62
+                                            kind = TK_GT()
+                                            if i + 1 < source_len
+                                              if source[i + 1] == 61
+                                                kind = TK_GTE()
+                                                len = 2
+                                              end
+                                            end
+                                          end
+                                        end
+                                      end
+                                    end
+                                  end
+                                end
+                              end
+                            end
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              if kind < 0
+                ret -1
+              end
+              n = write_token(tokens, n, cap, kind, i, len, 0)
+              if n < 0
+                ret -1
+              end
+              i = i + len
+            end
+          end
+        end
+      end
+    end
+  end
+  n = write_token(tokens, n, cap, TK_EOF(), source_len, 0, 0)
+  if n < 0
+    ret -1
+  end
+  ret n
 end
