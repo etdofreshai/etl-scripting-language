@@ -14,6 +14,27 @@ make visual
 make examples
 ```
 
+## Status
+
+| Phase | Status   | Landing commit |
+| ----- | -------- | -------------- |
+| 0     | done     | 88d0c4d        |
+| 1a    | done     | a891678        |
+| 1b    | done     | faa384e        |
+| 1c    | done     | 1727eeb        |
+| 2a    | done     | da79da0        |
+| 2b    | done     | db7dfdd        |
+| 3a    | done     | b28668d        |
+| 3b    | done     | 18ef0df        |
+| 3c    | done     | 3b47fa0        |
+| 4a    | done     | d8f76aa        |
+| 4b    | done     | 625c740        |
+| 5     | in progress (scaffold landed 97d7a3a) | -        |
+| 6     | not started | -            |
+| 7     | not started | -            |
+| 8     | not started | -            |
+| 9     | not started | -            |
+
 ## Standing decisions
 
 - Self-hosting is the critical path. Compiler-0 (Python) freezes once
@@ -62,6 +83,16 @@ make examples
 **Total estimate:** ~60–88 autopilot waves. Critical path to
 self-hosting is Phases 0–5 (~24–38 waves); everything after that
 parallelizes.
+
+## Phase 5 sub-tasks
+
+- 5a: scaffold (DONE)
+- 5b: lexer in ETL
+- 5c: parser in ETL
+- 5d: sema in ETL
+- 5e: C emitter in ETL
+- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff
+- 5g: c1→c2 fixed-point; freeze c0
 
 ## Risks pinned to the wall
 
