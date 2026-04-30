@@ -23,4 +23,4 @@ if [ "$status" -ne 9 ]; then
   exit 1
 fi
 
-echo "c1_sema_smoke: ok (parsed fn main accepted; hardcoded duplicate fn AST rejected)"
+echo "c1_sema_smoke: ok (parsed fn main accepted; hardcoded sema rejection ASTs rejected)"

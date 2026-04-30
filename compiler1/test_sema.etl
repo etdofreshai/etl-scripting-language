@@ -31,6 +31,73 @@ fn test_duplicate_fn_ast() i32
   ret 0
 end
 
+fn test_duplicate_param_ast() i32
+  let ast AstNode[512]
+  let fn_token i32 = 20
+  let param_token i32 = 21
+  let unused_type i32 = -1
+
+  let ok i32 = set_ast(ast, 0, AN_PARAM(), param_token, unused_type, 0, param_token)
+  ok = set_ast(ast, 1, AN_PARAM(), param_token, unused_type, 0, param_token)
+  ok = set_ast(ast, 2, AN_LIST(), 0, -1, 0, param_token)
+  ok = set_ast(ast, 3, AN_LIST(), 1, 2, 0, param_token)
+  ok = set_ast(ast, 4, AN_BLOCK(), 3, 2, 0, param_token)
+  ok = set_ast(ast, 5, AN_BLOCK(), -1, 0, unused_type, fn_token)
+  ok = set_ast(ast, 6, AN_FN(), fn_token, 4, 5, fn_token)
+  ok = set_ast(ast, 7, AN_LIST(), 6, -1, 0, fn_token)
+  ok = set_ast(ast, 8, AN_PROGRAM(), 7, 1, 0, 0)
+
+  if ok != 0
+    ret 1
+  end
+  if sema(ast, 9) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_expr_stmt_not_call_ast() i32
+  let ast AstNode[512]
+  let fn_token i32 = 30
+  let expr_token i32 = 31
+  let unused_type i32 = -1
+
+  let ok i32 = set_ast(ast, 0, AN_BLOCK(), -1, 0, 0, fn_token)
+  ok = set_ast(ast, 1, AN_NAME(), expr_token, 0, 0, expr_token)
+  ok = set_ast(ast, 2, AN_EXPR_STMT(), 1, 0, 0, expr_token)
+  ok = set_ast(ast, 3, AN_LIST(), 2, -1, 0, expr_token)
+  ok = set_ast(ast, 4, AN_BLOCK(), 3, 1, unused_type, fn_token)
+  ok = set_ast(ast, 5, AN_FN(), fn_token, 0, 4, fn_token)
+  ok = set_ast(ast, 6, AN_LIST(), 5, -1, 0, fn_token)
+  ok = set_ast(ast, 7, AN_PROGRAM(), 6, 1, 0, 0)
+
+  if ok != 0
+    ret 1
+  end
+  if sema(ast, 8) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_return_outside_fn_ast() i32
+  let ast AstNode[512]
+  let ret_token i32 = 40
+
+  let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, ret_token)
+  ok = set_ast(ast, 1, AN_RET(), 0, 0, 0, ret_token)
+  ok = set_ast(ast, 2, AN_LIST(), 1, -1, 0, ret_token)
+  ok = set_ast(ast, 3, AN_BLOCK(), 2, 1, 0, ret_token)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_block(ast, 3, 0) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
 fn main() i32
   let source i8[256] = "fn main() i32 ret 42 end"
   let tokens Token[128]
@@ -48,6 +115,15 @@ fn main() i32
   end
   if test_duplicate_fn_ast() != 0
     ret 4
+  end
+  if test_duplicate_param_ast() != 0
+    ret 5
+  end
+  if test_expr_stmt_not_call_ast() != 0
+    ret 6
+  end
+  if test_return_outside_fn_ast() != 0
+    ret 7
   end
   ret 9
 end
