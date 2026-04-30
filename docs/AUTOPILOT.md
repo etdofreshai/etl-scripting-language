@@ -16,14 +16,11 @@ Purpose: build ETL, a minimal LLM-oriented language and self-hosting compiler, t
 
 ## Near-term milestones
 
-1. Migrate compiler-0 and examples from brace-delimited function bodies to `end`-terminated function bodies.
-2. Finalize ETL v0 lexical grammar and syntax choices.
-3. Create compiler-0 skeleton in a pragmatic host language.
-4. Implement lexer/parser for a tiny function subset.
-5. Emit C for a tiny program and run it.
-5. Grow v0 only enough to write the compiler in ETL.
-6. Continue Phase 5 compiler-1 work in ETL; scaffold is landed, then lexer/parser/sema/C emitter follow.
-7. Bootstrap: compiler-0 builds compiler-1; compiler-1 builds future compiler.
+1. Keep compiler-0 frozen except for fixes needed to preserve the existing v0 corpus.
+2. Expand compiler-1's C emitter beyond the initial `main returns i32 literal` smoke.
+3. Connect compiler-1 lex/parse/sema/emit into a real source-to-C command path.
+4. Run compiler-1 against `tests/etl_corpus/` and compare behavior with compiler-0.
+5. Bootstrap: compiler-0 builds compiler-1; compiler-1 builds future compiler.
 
 ## Preferred verification
 
