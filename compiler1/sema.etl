@@ -1,3 +1,307 @@
+fn SEMA_OK() i32 ret 0 end
+fn SEMA_ERROR() i32 ret -1 end
+
+fn SE_DUP_FN() i32 ret 1 end
+fn SE_DUP_STRUCT() i32 ret 2 end
+fn SE_DUP_PARAM() i32 ret 3 end
+fn SE_DUP_LOCAL() i32 ret 4 end
+fn SE_RET_OUTSIDE_FN() i32 ret 5 end
+fn SE_EXPR_STMT_NOT_CALL() i32 ret 6 end
+fn SE_BAD_AST() i32 ret 7 end
+
 fn sema_init() i32
-  ret 0
+  ret SEMA_OK()
+end
+
+fn sema_report(code i32, token i32) i32
+  let keep_code i32 = code
+  let keep_token i32 = token
+  keep_code = keep_code + keep_token
+  ret SEMA_ERROR()
+end
+
+fn sema_same_name(ast AstNode[512], left i32, right i32) bool
+  ret left == right
+end
+
+fn sema_check_list(ast AstNode[512], node i32) i32
+  if node < 0
+    ret SEMA_OK()
+  end
+  if ast[node].kind != AN_LIST()
+    ret sema_report(SE_BAD_AST(), ast[node].token)
+  end
+  ret SEMA_OK()
+end
+
+fn sema_validate_expr(ast AstNode[512], expr i32) i32
+  if expr < 0
+    ret SEMA_OK()
+  end
+  let kind i32 = ast[expr].kind
+  if kind == AN_INT()
+    ret SEMA_OK()
+  end
+  if kind == AN_STRING()
+    ret SEMA_OK()
+  end
+  if kind == AN_BOOL()
+    ret SEMA_OK()
+  end
+  if kind == AN_NAME()
+    ret SEMA_OK()
+  end
+  if kind == AN_CALL()
+    let args i32 = ast[expr].b
+    while args >= 0
+      if sema_check_list(ast, args) < 0
+        ret SEMA_ERROR()
+      end
+      if sema_validate_expr(ast, ast[args].a) < 0
+        ret SEMA_ERROR()
+      end
+      args = ast[args].b
+    end
+    ret SEMA_OK()
+  end
+  if kind == AN_INDEX()
+    if sema_validate_expr(ast, ast[expr].a) < 0
+      ret SEMA_ERROR()
+    end
+    ret sema_validate_expr(ast, ast[expr].b)
+  end
+  if kind == AN_FIELD_ACCESS()
+    ret sema_validate_expr(ast, ast[expr].a)
+  end
+  if kind == AN_BINARY()
+    if sema_validate_expr(ast, ast[expr].b) < 0
+      ret SEMA_ERROR()
+    end
+    ret sema_validate_expr(ast, ast[expr].c)
+  end
+  if kind == AN_UNARY()
+    ret sema_validate_expr(ast, ast[expr].b)
+  end
+  ret sema_report(SE_BAD_AST(), ast[expr].token)
+end
+
+fn sema_check_block_locals(ast AstNode[512], block i32) i32
+  let outer i32 = ast[block].a
+  while outer >= 0
+    if sema_check_list(ast, outer) < 0
+      ret SEMA_ERROR()
+    end
+    let stmt i32 = ast[outer].a
+    if ast[stmt].kind == AN_LET()
+      let inner i32 = ast[outer].b
+      while inner >= 0
+        if sema_check_list(ast, inner) < 0
+          ret SEMA_ERROR()
+        end
+        let other i32 = ast[inner].a
+        if ast[other].kind == AN_LET()
+          if sema_same_name(ast, ast[stmt].a, ast[other].a)
+            ret sema_report(SE_DUP_LOCAL(), ast[stmt].token)
+          end
+        end
+        inner = ast[inner].b
+      end
+    end
+    outer = ast[outer].b
+  end
+  ret SEMA_OK()
+end
+
+fn sema_validate_stmt(ast AstNode[512], stmt i32, in_fn i32) i32
+  let kind i32 = ast[stmt].kind
+  if kind == AN_LET()
+    ret sema_validate_expr(ast, ast[stmt].c)
+  end
+  if kind == AN_ASSIGN()
+    if sema_validate_expr(ast, ast[stmt].a) < 0
+      ret SEMA_ERROR()
+    end
+    ret sema_validate_expr(ast, ast[stmt].b)
+  end
+  if kind == AN_RET()
+    if in_fn == 0
+      ret sema_report(SE_RET_OUTSIDE_FN(), ast[stmt].token)
+    end
+    ret sema_validate_expr(ast, ast[stmt].a)
+  end
+  if kind == AN_EXPR_STMT()
+    if ast[ast[stmt].a].kind != AN_CALL()
+      ret sema_report(SE_EXPR_STMT_NOT_CALL(), ast[stmt].token)
+    end
+    ret sema_validate_expr(ast, ast[stmt].a)
+  end
+  if kind == AN_IF()
+    if sema_validate_expr(ast, ast[stmt].a) < 0
+      ret SEMA_ERROR()
+    end
+    if sema_validate_block(ast, ast[stmt].b, in_fn) < 0
+      ret SEMA_ERROR()
+    end
+    let elifs i32 = ast[ast[stmt].b].c
+    while elifs >= 0
+      if sema_check_list(ast, elifs) < 0
+        ret SEMA_ERROR()
+      end
+      let enode i32 = ast[elifs].a
+      if ast[enode].kind != AN_ELIF()
+        ret sema_report(SE_BAD_AST(), ast[enode].token)
+      end
+      if sema_validate_expr(ast, ast[enode].a) < 0
+        ret SEMA_ERROR()
+      end
+      if sema_validate_block(ast, ast[enode].b, in_fn) < 0
+        ret SEMA_ERROR()
+      end
+      elifs = ast[elifs].b
+    end
+    if ast[stmt].c >= 0
+      ret sema_validate_block(ast, ast[stmt].c, in_fn)
+    end
+    ret SEMA_OK()
+  end
+  if kind == AN_WHILE()
+    if sema_validate_expr(ast, ast[stmt].a) < 0
+      ret SEMA_ERROR()
+    end
+    ret sema_validate_block(ast, ast[stmt].b, in_fn)
+  end
+  ret sema_report(SE_BAD_AST(), ast[stmt].token)
+end
+
+fn sema_validate_block(ast AstNode[512], block i32, in_fn i32) i32
+  if block < 0
+    ret sema_report(SE_BAD_AST(), 0)
+  end
+  if ast[block].kind != AN_BLOCK()
+    ret sema_report(SE_BAD_AST(), ast[block].token)
+  end
+  if sema_check_block_locals(ast, block) < 0
+    ret SEMA_ERROR()
+  end
+  let item i32 = ast[block].a
+  while item >= 0
+    if sema_check_list(ast, item) < 0
+      ret SEMA_ERROR()
+    end
+    if sema_validate_stmt(ast, ast[item].a, in_fn) < 0
+      ret SEMA_ERROR()
+    end
+    item = ast[item].b
+  end
+  ret SEMA_OK()
+end
+
+fn sema_check_params(ast AstNode[512], params i32) i32
+  if params < 0
+    ret sema_report(SE_BAD_AST(), 0)
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret sema_report(SE_BAD_AST(), ast[params].token)
+  end
+  let outer i32 = ast[params].a
+  while outer >= 0
+    if sema_check_list(ast, outer) < 0
+      ret SEMA_ERROR()
+    end
+    let param i32 = ast[outer].a
+    if ast[param].kind != AN_PARAM()
+      ret sema_report(SE_BAD_AST(), ast[param].token)
+    end
+    let inner i32 = ast[outer].b
+    while inner >= 0
+      if sema_check_list(ast, inner) < 0
+        ret SEMA_ERROR()
+      end
+      let other i32 = ast[inner].a
+      if ast[other].kind != AN_PARAM()
+        ret sema_report(SE_BAD_AST(), ast[other].token)
+      end
+      if sema_same_name(ast, ast[param].a, ast[other].a)
+        ret sema_report(SE_DUP_PARAM(), ast[param].token)
+      end
+      inner = ast[inner].b
+    end
+    outer = ast[outer].b
+  end
+  ret SEMA_OK()
+end
+
+fn sema_validate_decl(ast AstNode[512], decl i32) i32
+  let kind i32 = ast[decl].kind
+  if kind == AN_FN()
+    if sema_check_params(ast, ast[decl].b) < 0
+      ret SEMA_ERROR()
+    end
+    ret sema_validate_block(ast, ast[decl].c, 1)
+  end
+  if kind == AN_EXTERN_FN()
+    ret sema_check_params(ast, ast[decl].b)
+  end
+  if kind == AN_STRUCT()
+    ret SEMA_OK()
+  end
+  ret sema_report(SE_BAD_AST(), ast[decl].token)
+end
+
+fn sema_check_top_dups(ast AstNode[512], program i32) i32
+  let outer i32 = ast[program].a
+  while outer >= 0
+    if sema_check_list(ast, outer) < 0
+      ret SEMA_ERROR()
+    end
+    let decl i32 = ast[outer].a
+    let inner i32 = ast[outer].b
+    while inner >= 0
+      if sema_check_list(ast, inner) < 0
+        ret SEMA_ERROR()
+      end
+      let other i32 = ast[inner].a
+      if ast[decl].kind == AN_FN() or ast[decl].kind == AN_EXTERN_FN()
+        if ast[other].kind == AN_FN() or ast[other].kind == AN_EXTERN_FN()
+          if sema_same_name(ast, ast[decl].a, ast[other].a)
+            ret sema_report(SE_DUP_FN(), ast[decl].token)
+          end
+        end
+      end
+      if ast[decl].kind == AN_STRUCT()
+        if ast[other].kind == AN_STRUCT()
+          if sema_same_name(ast, ast[decl].a, ast[other].a)
+            ret sema_report(SE_DUP_STRUCT(), ast[decl].token)
+          end
+        end
+      end
+      inner = ast[inner].b
+    end
+    outer = ast[outer].b
+  end
+  ret SEMA_OK()
+end
+
+fn sema(ast AstNode[512], ast_count i32) i32
+  if ast_count <= 0
+    ret sema_report(SE_BAD_AST(), 0)
+  end
+  let program i32 = ast_count - 1
+  if ast[program].kind != AN_PROGRAM()
+    ret sema_report(SE_BAD_AST(), ast[program].token)
+  end
+  if sema_check_top_dups(ast, program) < 0
+    ret SEMA_ERROR()
+  end
+  let item i32 = ast[program].a
+  while item >= 0
+    if sema_check_list(ast, item) < 0
+      ret SEMA_ERROR()
+    end
+    if sema_validate_decl(ast, ast[item].a) < 0
+      ret SEMA_ERROR()
+    end
+    item = ast[item].b
+  end
+  ret SEMA_OK()
 end

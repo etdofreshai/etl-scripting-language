@@ -1,0 +1,53 @@
+fn set_ast(ast AstNode[512], idx i32, kind i32, a i32, b i32, c i32, token i32) i32
+  ast[idx].kind = kind
+  ast[idx].a = a
+  ast[idx].b = b
+  ast[idx].c = c
+  ast[idx].token = token
+  ret 0
+end
+
+fn test_duplicate_fn_ast() i32
+  let ast AstNode[512]
+  let same_name_token i32 = 10
+  let unused_type i32 = -1
+
+  let ok i32 = set_ast(ast, 0, AN_BLOCK(), -1, 0, 0, 0)
+  ok = set_ast(ast, 1, AN_BLOCK(), -1, 0, unused_type, 0)
+  ok = set_ast(ast, 2, AN_FN(), same_name_token, 0, 1, same_name_token)
+  ok = set_ast(ast, 3, AN_BLOCK(), -1, 0, 0, 0)
+  ok = set_ast(ast, 4, AN_BLOCK(), -1, 0, unused_type, 0)
+  ok = set_ast(ast, 5, AN_FN(), same_name_token, 3, 4, same_name_token)
+  ok = set_ast(ast, 6, AN_LIST(), 2, -1, 0, same_name_token)
+  ok = set_ast(ast, 7, AN_LIST(), 5, 6, 0, same_name_token)
+  ok = set_ast(ast, 8, AN_PROGRAM(), 7, 2, 0, 0)
+
+  if ok != 0
+    ret 1
+  end
+  if sema(ast, 9) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn main() i32
+  let source i8[256] = "fn main() i32 ret 42 end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 24, tokens, 128)
+  if n != 9
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 2
+  end
+  if sema(ast, an) != SEMA_OK()
+    ret 3
+  end
+  if test_duplicate_fn_ast() != 0
+    ret 4
+  end
+  ret 9
+end
