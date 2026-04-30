@@ -1,3 +1,185 @@
-fn emit_c_init() i32
-  ret 0
+fn emit_c_append_byte(out i8[1024], pos i32, out_cap i32, ch i8) i32
+  if pos < 0
+    ret -1
+  end
+  if pos >= out_cap
+    ret -1
+  end
+  out[pos] = ch
+  ret pos + 1
+end
+
+fn emit_c_append_text(out i8[1024], pos i32, out_cap i32, text i8[64], len i32) i32
+  let i i32 = 0
+  let p i32 = pos
+  while i < len
+    p = emit_c_append_byte(out, p, out_cap, text[i])
+    if p < 0
+      ret -1
+    end
+    i = i + 1
+  end
+  ret p
+end
+
+fn emit_c_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
+  let p i32 = pos
+  let zero i8[64] = "0"
+  let minus i8[64] = "-"
+  let digit_text i8[64] = "0123456789"
+  if value == 0
+    ret emit_c_append_text(out, p, out_cap, zero, 1)
+  end
+  if value < 0
+    p = emit_c_append_text(out, p, out_cap, minus, 1)
+    if p < 0
+      ret -1
+    end
+    value = 0 - value
+  end
+  let digits i32[16]
+  let n i32 = 0
+  while value > 0
+    if n >= 16
+      ret -1
+    end
+    digits[n] = value % 10
+    value = value / 10
+    n = n + 1
+  end
+  while n > 0
+    n = n - 1
+    p = emit_c_append_byte(out, p, out_cap, digit_text[digits[n]])
+    if p < 0
+      ret -1
+    end
+  end
+  ret p
+end
+
+fn emit_c_int_literal(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_INT()
+    ret -1
+  end
+  ret emit_c_append_i32(out, pos, out_cap, ast[node].a)
+end
+
+fn emit_c_return(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_RET()
+    ret -1
+  end
+  let ret_text i8[64] = "  return "
+  let semi_text i8[64] = ";\n"
+  let p i32 = emit_c_append_text(out, pos, out_cap, ret_text, 9)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_int_literal(ast, ast_count, ast[node].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+end
+
+fn emit_c_block(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_BLOCK()
+    ret -1
+  end
+  if ast[node].b != 1
+    ret -1
+  end
+  let list i32 = ast[node].a
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b != -1
+    ret -1
+  end
+  ret emit_c_return(ast, ast_count, ast[list].a, out, pos, out_cap)
+end
+
+fn emit_c_function(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_FN()
+    ret -1
+  end
+  let params i32 = ast[node].b
+  if params < 0 or params >= ast_count
+    ret -1
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret -1
+  end
+  if ast[params].b != 0
+    ret -1
+  end
+  let body i32 = ast[node].c
+  if body < 0 or body >= ast_count
+    ret -1
+  end
+  let ret_type i32 = ast[body].c
+  if ret_type < 0 or ret_type >= ast_count
+    ret -1
+  end
+  if ast[ret_type].kind != AN_TYPE()
+    ret -1
+  end
+  let head i8[64] = "int main(void) {\n"
+  let tail i8[64] = "}\n"
+  let p i32 = emit_c_append_text(out, pos, out_cap, head, 17)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_block(ast, ast_count, body, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_c_append_text(out, p, out_cap, tail, 2)
+end
+
+fn emit_c_program(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_PROGRAM()
+    ret -1
+  end
+  if ast[node].b != 1
+    ret -1
+  end
+  let list i32 = ast[node].a
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b != -1
+    ret -1
+  end
+  ret emit_c_function(ast, ast_count, ast[list].a, out, pos, out_cap)
+end
+
+fn emit_c(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
+  if ast_count <= 0
+    ret -1
+  end
+  if out_cap <= 0
+    ret -1
+  end
+  ret emit_c_program(ast, ast_count, ast_count - 1, out, 0, out_cap)
 end

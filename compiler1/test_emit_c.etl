@@ -1,0 +1,59 @@
+fn check_byte(buf i8[1024], index i32, value i32) bool
+  ret buf[index] == value
+end
+
+fn main() i32
+  let source i8[256] = "fn main() i32 ret 42 end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let out i8[1024]
+  let n i32 = lex(source, 24, tokens, 128)
+  if n != 9
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 2
+  end
+  let emitted i32 = emit_c(ast, an, out, 1024)
+  if emitted != 32
+    ret 3
+  end
+  if not check_byte(out, 0, 105)
+    ret 4
+  end
+  if not check_byte(out, 1, 110)
+    ret 5
+  end
+  if not check_byte(out, 2, 116)
+    ret 6
+  end
+  if not check_byte(out, 4, 109)
+    ret 7
+  end
+  if not check_byte(out, 13, 41)
+    ret 8
+  end
+  if not check_byte(out, 18, 32)
+    ret 9
+  end
+  if not check_byte(out, 25, 32)
+    ret 10
+  end
+  if not check_byte(out, 26, 52)
+    ret 11
+  end
+  if not check_byte(out, 27, 50)
+    ret 12
+  end
+  if not check_byte(out, 28, 59)
+    ret 13
+  end
+  if not check_byte(out, 30, 125)
+    ret 14
+  end
+  if not check_byte(out, 31, 10)
+    ret 15
+  end
+  ret 32
+end
