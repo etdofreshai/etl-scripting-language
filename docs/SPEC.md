@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn extern let if elif else while ret type use end true false and or not sizeof
+fn extern let if elif else while ret type use end true false and or not sizeof ptr
 ```
 
 ## Block syntax decision
@@ -55,6 +55,7 @@ end
 - integers: `i32`, `u32`, maybe `i64`, `u64`
 - `i8`: 8-bit signed integer, emitted as C `int8_t`. Integer literals continue to default to `i32` (there is no separate `i8` literal syntax in this phase). `i8` exists primarily so `i8[N]` arrays — i.e. strings — are typeable. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) between two `i8` operands produce `bool`. Arithmetic on `i8` (`+`, `-`, `*`, `/`, `%`) is **deferred** in v0; attempting it produces a clean diagnostic. Mixed `i8`/`i32` operands are rejected.
 - booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
+- `ptr`: opaque byte pointer, emitted as C `int8_t *`. `ptr` may appear only in `extern fn` parameter/return types and in local bindings that store/pass extern pointer values, for example `let buf ptr = etl_alloc(64)`. ETL code cannot dereference, index, access fields on, do arithmetic with, or compare `ptr` values. Null checks go through an extern such as `etl_is_null(p ptr) bool`.
 - fixed-size arrays: `T[N]`, where `T` is `i32`, `bool`, or `i8` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
 
 ```etl
@@ -156,7 +157,7 @@ The only supported binding form in v0 is:
 let s i8[6] = "hello"
 ```
 
-`N` must equal `length-of-string + 1` exactly, or the type-check fails with a clean diagnostic. Using a string literal in any other position (returning it, passing it through general expressions, assigning it to non-`i8[N]` arrays, etc.) is a clean diagnostic; full string ergonomics arrive with Phase 4 `extern` / FFI.
+`N` must be at least `length-of-string + 1`, or the type-check fails with a clean diagnostic. Wider buffers are allowed and retain C's zero-initialization for the remaining elements. Using a string literal in any other position (returning it, passing it through general expressions, assigning it to non-`i8[N]` arrays, etc.) is a clean diagnostic; full string ergonomics arrive with Phase 4 `extern` / FFI.
 
 Supported escape sequences inside string literals:
 
@@ -172,7 +173,7 @@ Any other escape (e.g. `\q`) is a clean lexer error. Unterminated string literal
 
 ### `sizeof(T)` (Phase 3c)
 
-`sizeof(T)` is a compile-time `i32` constant whose value is the size in bytes of the C representation of `T`. `T` may be any type usable in `let`:
+`sizeof(T)` is a compile-time `i32` constant whose value is the size in bytes of the C representation of `T`. `T` may be any non-`ptr` type usable in `let`:
 
 - a primitive (`i32`, `bool`, `i8`),
 - a previously declared struct type,
@@ -186,7 +187,7 @@ let m i32 = sizeof(Pt)         // struct size
 let q i32 = sizeof(i32[10])    // 40 with natural alignment
 ```
 
-`sizeof` of an unknown type is a clean diagnostic. The expression form `sizeof(expr)` is **not** supported in v0 — only `sizeof(type)` — and is rejected at parse time.
+`sizeof` of `ptr` or an unknown type is a clean diagnostic. The expression form `sizeof(expr)` is **not** supported in v0 — only `sizeof(type)` — and is rejected at parse time.
 
 ### `extern fn` declarations (Phase 4a)
 
@@ -200,7 +201,24 @@ extern fn etl_read_i32() i32
 
 `extern fn NAME(PARAMS) [RET_TYPE]` is a top-level declaration. It has no ETL body and is not terminated by `end`. Omitting the return type declares a `void` C function. External names share the same function namespace as ETL-defined functions, so duplicate extern/user function names are rejected.
 
-Parameters may use any v0 type usable in `let`: primitives (`i32`, `bool`, `i8`), previously declared structs, and fixed-size arrays. The C backend emits fixed-size array parameters as pointers to the element type. Return types are restricted to primitives in v0; struct and array returns are rejected.
+Parameters may use any v0 type usable in extern signatures: primitives (`i32`, `bool`, `i8`), opaque `ptr`, previously declared structs, and fixed-size arrays. The C backend emits fixed-size array parameters as pointers to the element type and `ptr` as `int8_t *`. Return types are restricted to primitives and `ptr` in v0; struct and array returns are rejected.
+
+User-defined ETL functions cannot take or return `ptr`; it is an FFI boundary type only. Locals may be declared as `ptr` so an extern return can be saved and passed to another extern:
+
+```etl
+extern fn etl_alloc(bytes i32) ptr
+extern fn etl_free(p ptr)
+extern fn etl_is_null(p ptr) bool
+
+fn main() i32
+  let buf ptr = etl_alloc(64)
+  if etl_is_null(buf)
+    ret 1
+  end
+  etl_free(buf)
+  ret 0
+end
+```
 
 Calls to extern functions type-check like calls to user functions. A void extern call can be used as a statement:
 
@@ -224,7 +242,15 @@ void etl_print_str(const int8_t *s);
 void etl_print_str_n(const int8_t *s, int32_t n);
 void etl_exit(int32_t code);
 int32_t etl_read_i32(void);
+int8_t *etl_alloc(int32_t bytes);
+void etl_free(int8_t *p);
+bool etl_is_null(int8_t *p);
+int32_t etl_read_file(int8_t *path, int8_t *buf, int32_t cap);
+int32_t etl_write_file(int8_t *path, int8_t *buf, int32_t len);
+void etl_panic(int8_t *msg);
 ```
+
+These file and panic declarations intentionally use mutable `int8_t *` in v0 because ETL does not have a `const` qualifier yet; callers should still treat path and output buffers as read-only by convention where the runtime function does not mutate them.
 
 For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 

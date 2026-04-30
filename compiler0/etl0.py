@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof"}
+KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof", "ptr"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -436,7 +436,7 @@ class Parser:
         name = self.take("IDENT").text
         params = self.parse_params()
         return_type = None
-        if self.peek().kind == "IDENT":
+        if self.peek().kind in {"IDENT", "PTR"}:
             return_type = self.parse_type()
         return ExternFunction(name, params, return_type, SourceLoc.from_token(extern_tok))
 
@@ -460,7 +460,11 @@ class Parser:
         return params
 
     def parse_type(self) -> TypeRef:
-        type_tok = self.take("IDENT")
+        if self.peek().kind not in {"IDENT", "PTR"}:
+            tok = self.peek()
+            raise ParseError(f"expected type, got {tok.kind} at {tok.line}:{tok.col}")
+        type_tok = self.peek()
+        self.pos += 1
         base = type_tok.text
         if self.peek().kind != "LBRACKET":
             return base
@@ -621,7 +625,7 @@ class Parser:
         if tok.kind == "SIZEOF":
             sizeof_tok = self.take("SIZEOF")
             self.take("LPAREN")
-            if self.peek().kind != "IDENT":
+            if self.peek().kind not in {"IDENT", "PTR"}:
                 bad = self.peek()
                 raise ParseError(
                     f"sizeof requires a type name at {bad.line}:{bad.col}; sizeof(expression) is not supported in v0"
@@ -681,7 +685,7 @@ def parse(src: str) -> Program:
     return Parser(lex(src)).parse_program()
 
 
-SUPPORTED_TYPES = {"i32", "bool", "i8"}
+SUPPORTED_TYPES = {"i32", "bool", "i8", "ptr"}
 C_RESERVED_IDENTIFIERS = {
     # C keywords and backend-provided typedef names share the ordinary
     # identifier namespace with ETL function/local names in emitted C.
@@ -792,6 +796,8 @@ def validate(program: Program) -> None:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} cannot return array type {format_type(fn.return_type)!r} in v0")
         if is_struct_type(fn.return_type, structs):
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} cannot return struct type {format_type(fn.return_type)!r} in v0")
+        if is_ptr_type(fn.return_type):
+            raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} cannot return opaque ptr type in v0; ptr is only allowed in extern signatures and local bindings")
         if not fn.body:
             raise SemanticError(f"{fn.loc.format()}: function {fn.name!r} must end with ret")
         names = validate_params(fn, functions, structs)
@@ -814,6 +820,8 @@ def validate_params(
                 raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have array type {format_type(param.typ)!r} in v0")
             if is_struct_type(param.typ, structs):
                 raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have struct type {format_type(param.typ)!r} in v0")
+            if is_ptr_type(param.typ):
+                raise SemanticError(f"{param.loc.format()}: parameter {param.name!r} cannot have opaque ptr type in v0; ptr is only allowed in extern signatures and local bindings")
         if param.name in functions:
             raise SemanticError(
                 f"{param.loc.format()}: parameter name {param.name!r} conflicts with function name in {fn.name}"
@@ -853,9 +861,9 @@ def validate_stmts(
                             f"{stmt.loc.format()}: string literal can only initialize i8[N] arrays, got {format_type(stmt.typ)!r} in {fn.name}"
                         )
                     expected_size = len(stmt.expr.value) + 1
-                    if stmt.typ.size != expected_size:
+                    if stmt.typ.size < expected_size:
                         raise SemanticError(
-                            f"{stmt.loc.format()}: string literal of length {len(stmt.expr.value)} requires array size {expected_size}, but local {stmt.name!r} declares size {stmt.typ.size} in {fn.name}"
+                            f"{stmt.loc.format()}: string literal of length {len(stmt.expr.value)} requires array size at least {expected_size}, but local {stmt.name!r} declares size {stmt.typ.size} in {fn.name}"
                         )
                 else:
                     raise SemanticError(f"{stmt.loc.format()}: array local {stmt.name!r} cannot have an initializer in v0")
@@ -983,6 +991,8 @@ def body_returns(stmts: list[Stmt]) -> bool:
 def validate_type(typ: TypeRef, where: str, loc: SourceLoc, structs: dict[str, StructDecl] | None = None) -> None:
     structs = structs or {}
     if isinstance(typ, ArrayType):
+        if typ.element_type == "ptr":
+            raise SemanticError(f"{typ.loc.format()}: opaque ptr is not allowed as an array element type in {where}")
         if typ.element_type not in SUPPORTED_TYPES and typ.element_type not in structs:
             raise SemanticError(f"{typ.loc.format()}: unsupported array element type {typ.element_type!r} in {where}")
         if typ.size <= 0:
@@ -994,11 +1004,15 @@ def validate_type(typ: TypeRef, where: str, loc: SourceLoc, structs: dict[str, S
 
 def validate_field_type(typ: TypeRef, where: str, loc: SourceLoc, structs: dict[str, StructDecl]) -> None:
     if isinstance(typ, ArrayType):
+        if typ.element_type == "ptr":
+            raise SemanticError(f"{typ.loc.format()}: opaque ptr is not allowed as an array field element type in {where}")
         if typ.element_type not in SUPPORTED_TYPES:
             raise SemanticError(f"{typ.loc.format()}: unsupported array field element type {typ.element_type!r} in {where}")
         if typ.size <= 0:
             raise SemanticError(f"{typ.loc.format()}: array size must be a positive integer literal in {where}")
         return
+    if typ == "ptr":
+        raise SemanticError(f"{loc.format()}: opaque ptr is not allowed as a struct field type in {where}")
     validate_type(typ, where, loc, structs)
 
 
@@ -1008,6 +1022,10 @@ def is_array_type(typ: TypeRef) -> bool:
 
 def is_struct_type(typ: TypeRef, structs: dict[str, StructDecl]) -> bool:
     return isinstance(typ, str) and typ in structs
+
+
+def is_ptr_type(typ: TypeRef | None) -> bool:
+    return typ == "ptr"
 
 
 def struct_field(struct_name: str, field_name: str, structs: dict[str, StructDecl], loc: SourceLoc) -> Field:
@@ -1054,6 +1072,10 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
             f"{expr.loc.format()}: string literal can only initialize an i8[N] local in v0, not used as a general expression in {current_fn}"
         )
     if isinstance(expr, SizeOf):
+        if is_ptr_type(expr.typ):
+            raise SemanticError(
+                f"{expr.loc.format()}: sizeof(ptr) is not supported in {current_fn}; ptr is opaque and only allowed in extern signatures and local bindings"
+            )
         validate_type(expr.typ, f"sizeof operand in {current_fn}", expr.loc, structs)
         return "i32"
     if isinstance(expr, Name):
@@ -1071,6 +1093,8 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
         else:
             array_type = validate_expr(expr.array, functions, structs, names, current_fn)
         if not isinstance(array_type, ArrayType):
+            if is_ptr_type(array_type):
+                raise SemanticError(f"{expr.loc.format()}: cannot index opaque ptr value in {current_fn}")
             raise SemanticError(f"{expr.loc.format()}: indexed read target is not an array in {current_fn}")
         index_type = validate_expr(expr.index, functions, structs, names, current_fn)
         if not same_type(index_type, "i32"):
@@ -1081,6 +1105,8 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
     if isinstance(expr, FieldAccess):
         base_type = validate_expr(expr.base, functions, structs, names, current_fn)
         if not is_struct_type(base_type, structs):
+            if is_ptr_type(base_type):
+                raise SemanticError(f"{expr.loc.format()}: cannot access field on opaque ptr value in {current_fn}")
             raise SemanticError(f"{expr.loc.format()}: field access on non-struct type {format_type(base_type)!r} in {current_fn}")
         return struct_field(base_type, expr.field, structs, expr.loc).typ
     if isinstance(expr, Binary):
@@ -1089,6 +1115,10 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
         if expr.op in {"+", "-", "*", "/", "%"} and (left_type == "i8" or right_type == "i8"):
             raise SemanticError(
                 f"{expr.loc.format()}: arithmetic operator {expr.op!r} on i8 is deferred in v0 in {current_fn}"
+            )
+        if expr.op in {"+", "-", "*", "/", "%"} and (is_ptr_type(left_type) or is_ptr_type(right_type)):
+            raise SemanticError(
+                f"{expr.loc.format()}: cannot use arithmetic operator {expr.op!r} on opaque ptr value in {current_fn}"
             )
         if expr.op in {"*", "/", "%"} and (left_type != "i32" or right_type != "i32"):
             raise SemanticError(
@@ -1107,11 +1137,15 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
                 raise SemanticError(
                     f"{expr.loc.format()}: operator {expr.op!r} requires matching types, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
+            if is_ptr_type(left_type):
+                raise SemanticError(f"{expr.loc.format()}: cannot compare opaque ptr values in {current_fn}; use extern etl_is_null for null checks")
             if is_struct_type(left_type, structs):
                 raise SemanticError(f"{expr.loc.format()}: cannot compare struct type {format_type(left_type)!r} in {current_fn}")
             if isinstance(left_type, ArrayType):
                 raise SemanticError(f"{expr.loc.format()}: cannot compare array type {format_type(left_type)!r} in {current_fn}")
         if expr.op in {"<", "<=", ">", ">="}:
+            if is_ptr_type(left_type) or is_ptr_type(right_type):
+                raise SemanticError(f"{expr.loc.format()}: cannot compare opaque ptr values with {expr.op!r} in {current_fn}")
             if not (
                 (left_type == "i32" and right_type == "i32")
                 or (left_type == "i8" and right_type == "i8")
@@ -1143,6 +1177,19 @@ def validate_expr(expr: Expr, functions: dict[str, Function | ExternFunction], s
                 f"{expr.loc.format()}: function {expr.name!r} expects {expected} args, got {len(expr.args)} in {current_fn}"
             )
         for arg, param in zip(expr.args, callee.params):
+            if isinstance(param.typ, ArrayType):
+                if not isinstance(arg, Name):
+                    raise SemanticError(
+                        f"{arg.loc.format()}: function {expr.name!r} argument {param.name!r} expected array local {format_type(param.typ)!r} in {current_fn}"
+                    )
+                if arg.value not in names:
+                    raise SemanticError(f"{arg.loc.format()}: unknown name {arg.value!r} in {current_fn}")
+                arg_type = names[arg.value]
+                if not same_type(arg_type, param.typ):
+                    raise SemanticError(
+                        f"{arg.loc.format()}: function {expr.name!r} argument {param.name!r} expected {format_type(param.typ)!r}, got {format_type(arg_type)!r} in {current_fn}"
+                    )
+                continue
             arg_type = validate_expr(arg, functions, structs, names, current_fn)
             if arg_type is None:
                 raise SemanticError(f"{arg.loc.format()}: void function call cannot be used as argument in {current_fn}")
@@ -1173,6 +1220,8 @@ def c_type(t: TypeRef) -> str:
         return "bool"
     if t == "i8":
         return "int8_t"
+    if t == "ptr":
+        return "int8_t *"
     return t
 
 

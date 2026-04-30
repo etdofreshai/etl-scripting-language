@@ -65,8 +65,8 @@ class Compiler0Tests(unittest.TestCase):
         self.assertEqual(kinds[-1], "EOF")
 
     def test_lex_recognizes_all_draft_keywords(self):
-        kinds = [t.kind for t in lex("fn extern let if elif else while ret type use end")]
-        self.assertEqual(kinds, ["FN", "EXTERN", "LET", "IF", "ELIF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "EOF"])
+        kinds = [t.kind for t in lex("fn extern let if elif else while ret type use end ptr")]
+        self.assertEqual(kinds, ["FN", "EXTERN", "LET", "IF", "ELIF", "ELSE", "WHILE", "RET", "TYPE", "USE", "END", "PTR", "EOF"])
 
     def test_lex_rejects_non_ascii_identifier_start_for_c_backend(self):
         with self.assertRaisesRegex(LexerError, "unexpected character 'é' at 1:4"):
@@ -1438,14 +1438,14 @@ class StringLiteralSemanticTests(unittest.TestCase):
     def test_rejects_string_literal_length_mismatch_too_small(self):
         self.assert_compile_error(
             'fn main() i32\n  let s i8[3] = "hello"\n  ret 0\nend',
-            "string literal of length 5 requires array size 6, but local 's' declares size 3",
+            "string literal of length 5 requires array size at least 6, but local 's' declares size 3",
         )
 
-    def test_rejects_string_literal_length_mismatch_too_large(self):
-        self.assert_compile_error(
+    def test_accepts_wider_string_literal_buffer(self):
+        c_source = compile_source(
             'fn main() i32\n  let s i8[10] = "hi"\n  ret 0\nend',
-            "string literal of length 2 requires array size 3, but local 's' declares size 10",
         )
+        self.assertIn('int8_t s[10] = "hi";', c_source)
 
     def test_rejects_string_literal_to_non_i8_array(self):
         self.assert_compile_error(
@@ -1668,6 +1668,48 @@ class SizeOfTests(unittest.TestCase):
     def test_emit_extern_array_param_decays_to_pointer(self):
         c_source = compile_source("extern fn bytes(buf i8[4])\nfn main() i32\n  ret 0\nend")
         self.assertIn("void bytes(int8_t *buf);", c_source)
+
+    def test_type_allows_extern_array_arg_passing(self):
+        c_source = compile_source("extern fn bytes(buf i8[4]) i32\nfn main() i32\n  let buf i8[4]\n  ret bytes(buf)\nend")
+        self.assertIn("return bytes(buf);", c_source)
+
+    # --- Phase 4b: opaque ptr and runtime allocation/file I/O ---
+
+    def test_parse_extern_ptr_signatures_and_local(self):
+        program = parse("extern fn etl_alloc(bytes i32) ptr\nextern fn etl_free(p ptr)\nfn main() i32\n  let p ptr = etl_alloc(64)\n  etl_free(p)\n  ret 0\nend")
+        self.assertEqual(program.externs[0].return_type, "ptr")
+        self.assertEqual(program.externs[1].params[0].typ, "ptr")
+        self.assertEqual(program.functions[0].body[0].typ, "ptr")
+
+    def test_type_allows_ptr_local_and_extern_arg(self):
+        c_source = compile_source("extern fn etl_alloc(bytes i32) ptr\nextern fn etl_free(p ptr)\nfn main() i32\n  let p ptr = etl_alloc(64)\n  etl_free(p)\n  ret 0\nend")
+        self.assertIn("int8_t * etl_alloc(int32_t bytes);", c_source)
+        self.assertIn("void etl_free(int8_t * p);", c_source)
+        self.assertIn("int8_t * p = etl_alloc(64);", c_source)
+
+    def test_type_rejects_user_function_ptr_param(self):
+        with self.assertRaisesRegex(SemanticError, "parameter 'p' cannot have opaque ptr type"):
+            compile_source("fn id(p ptr) i32\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_user_function_ptr_return(self):
+        with self.assertRaisesRegex(SemanticError, "function 'bad' cannot return opaque ptr type"):
+            compile_source("fn bad() ptr\n  ret 0\nend\nfn main() i32\n  ret 0\nend")
+
+    def test_type_rejects_ptr_arithmetic(self):
+        with self.assertRaisesRegex(SemanticError, "cannot use arithmetic operator '\\+' on opaque ptr value"):
+            compile_source("extern fn etl_alloc(bytes i32) ptr\nfn main() i32\n  let p ptr = etl_alloc(64)\n  let x i32 = p + 1\n  ret x\nend")
+
+    def test_type_rejects_ptr_index(self):
+        with self.assertRaisesRegex(SemanticError, "cannot index opaque ptr value"):
+            compile_source("extern fn etl_alloc(bytes i32) ptr\nfn main() i32\n  let p ptr = etl_alloc(64)\n  ret p[0]\nend")
+
+    def test_type_rejects_ptr_field_access(self):
+        with self.assertRaisesRegex(SemanticError, "cannot access field on opaque ptr value"):
+            compile_source("extern fn etl_alloc(bytes i32) ptr\nfn main() i32\n  let p ptr = etl_alloc(64)\n  ret p.x\nend")
+
+    def test_type_rejects_ptr_equality(self):
+        with self.assertRaisesRegex(SemanticError, "cannot compare opaque ptr values"):
+            compile_source("extern fn etl_alloc(bytes i32) ptr\nfn main() i32\n  let p ptr = etl_alloc(64)\n  let q ptr = etl_alloc(64)\n  let same bool = p == q\n  ret 0\nend")
 
     def test_compile_and_run_extern_print_i32(self):
         c_source = compile_source("extern fn etl_print_i32(value i32)\nfn main() i32\n  etl_print_i32(42)\n  ret 0\nend")

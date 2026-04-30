@@ -21,6 +21,8 @@ smoke:
 	scripts/string_smoke.sh
 	scripts/sizeof_smoke.sh
 	scripts/extern_smoke.sh
+	scripts/runtime_smoke.sh
+	scripts/file_smoke.sh
 
 check: test smoke
 
