@@ -14,7 +14,7 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn let if elif else while ret type use end true false and or not
+fn let if elif else while ret type use end true false and or not sizeof
 ```
 
 ## Block syntax decision
@@ -41,8 +41,9 @@ end
 ## v0 feature set
 
 - integers: `i32`, `u32`, maybe `i64`, `u64`
+- `i8`: 8-bit signed integer, emitted as C `int8_t`. Integer literals continue to default to `i32` (there is no separate `i8` literal syntax in this phase). `i8` exists primarily so `i8[N]` arrays — i.e. strings — are typeable. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) between two `i8` operands produce `bool`. Arithmetic on `i8` (`+`, `-`, `*`, `/`, `%`) is **deferred** in v0; attempting it produces a clean diagnostic. Mixed `i8`/`i32` operands are rejected.
 - booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
-- fixed-size arrays: `T[N]`, where `T` is `i32` or `bool` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
+- fixed-size arrays: `T[N]`, where `T` is `i32`, `bool`, or `i8` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
 
 ```etl
 let buf i32[16]
@@ -131,7 +132,49 @@ t.values[0] = 7
 buf[i].kind = 2
 ```
 
-Phase 3b intentionally keeps structs out of first-class operations. Structs cannot be passed as function parameters, returned from functions, assigned as whole values, or compared with `==` / `!=`. Field access on non-struct values and unknown field names are errors. Pointer, extern, `sizeof`, string, struct parameter, and struct return support are deferred.
+Phase 3b intentionally keeps structs out of first-class operations. Structs cannot be passed as function parameters, returned from functions, assigned as whole values, or compared with `==` / `!=`. Field access on non-struct values and unknown field names are errors. Pointer, extern, struct parameter, and struct return support are deferred.
+
+### String literals (Phase 3c)
+
+ETL string literals use double quotes: `"hello"`. They desugar to static `i8[N]` arrays terminated with a null byte, exactly like C string literals. The effective length is `N = (number of characters in the literal) + 1`, where the trailing `+ 1` is for the null terminator.
+
+The only supported binding form in v0 is:
+
+```etl
+let s i8[6] = "hello"
+```
+
+`N` must equal `length-of-string + 1` exactly, or the type-check fails with a clean diagnostic. Using a string literal in any other position (returning it, passing it through general expressions, assigning it to non-`i8[N]` arrays, etc.) is a clean diagnostic; full string ergonomics arrive with Phase 4 `extern` / FFI.
+
+Supported escape sequences inside string literals:
+
+| Escape | Meaning            |
+|--------|--------------------|
+| `\n`   | newline (0x0A)     |
+| `\t`   | horizontal tab     |
+| `\\`   | literal backslash  |
+| `\"`   | literal `"`        |
+| `\0`   | null byte          |
+
+Any other escape (e.g. `\q`) is a clean lexer error. Unterminated string literals, raw newlines inside a string literal, and a bare backslash at end of line are all clean lexer errors. Only printable ASCII characters (and the escape sequences above) are accepted inside a string literal in v0.
+
+### `sizeof(T)` (Phase 3c)
+
+`sizeof(T)` is a compile-time `i32` constant whose value is the size in bytes of the C representation of `T`. `T` may be any type usable in `let`:
+
+- a primitive (`i32`, `bool`, `i8`),
+- a previously declared struct type,
+- a fixed-size array type such as `i32[10]`.
+
+It emits as `((int32_t)sizeof(T_in_C))` where `T_in_C` is the corresponding C type. Examples:
+
+```etl
+let n i32 = sizeof(i32)        // 4 on the targets we test
+let m i32 = sizeof(Pt)         // struct size
+let q i32 = sizeof(i32[10])    // 40 with natural alignment
+```
+
+`sizeof` of an unknown type is a clean diagnostic. The expression form `sizeof(expr)` is **not** supported in v0 — only `sizeof(type)` — and is rejected at parse time.
 
 For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 

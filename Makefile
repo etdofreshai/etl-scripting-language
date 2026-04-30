@@ -16,6 +16,8 @@ smoke:
 	scripts/fib_smoke.sh
 	scripts/array_smoke.sh
 	scripts/struct_smoke.sh
+	scripts/string_smoke.sh
+	scripts/sizeof_smoke.sh
 
 check: test smoke
 

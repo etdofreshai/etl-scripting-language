@@ -26,7 +26,9 @@ from compiler0.etl0 import (
     ParseError,
     Ret,
     SemanticError,
+    SizeOf,
     SourceLoc,
+    StringLit,
     Unary,
     While,
     compile_source,
@@ -1008,25 +1010,25 @@ end
     def test_rejects_lt_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let x bool = true\n  let p bool = x < 1\n  ret 0\nend",
-            "operator '<' requires i32 operands.*'bool' and 'i32'",
+            "operator '<' requires i32 or i8 operands.*'bool' and 'i32'",
         )
 
     def test_rejects_gt_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let x bool = true\n  let p bool = 1 > x\n  ret 0\nend",
-            "operator '>' requires i32 operands.*'i32' and 'bool'",
+            "operator '>' requires i32 or i8 operands.*'i32' and 'bool'",
         )
 
     def test_rejects_lte_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let p bool = true <= false\n  ret 0\nend",
-            "operator '<=' requires i32 operands.*'bool' and 'bool'",
+            "operator '<=' requires i32 or i8 operands.*'bool' and 'bool'",
         )
 
     def test_rejects_gte_with_bool_operand(self):
         self.assert_compile_error(
             "fn main() i32\n  let p bool = true >= false\n  ret 0\nend",
-            "operator '>=' requires i32 operands.*'bool' and 'bool'",
+            "operator '>=' requires i32 or i8 operands.*'bool' and 'bool'",
         )
 
     def test_accepts_bool_eq_bool(self):
@@ -1336,6 +1338,275 @@ end
             "fn main() i32\n  while true\n    ret 1\n  end\nend",
             "must end with ret",
         )
+
+
+# --- Phase 3c: string literals, i8 primitive, and sizeof ---
+
+
+class StringLiteralLexerTests(unittest.TestCase):
+    def test_lex_simple_string_literal(self):
+        toks = lex('"hello"')
+        self.assertEqual([t.kind for t in toks], ["STRING", "EOF"])
+        self.assertEqual(toks[0].text, "hello")
+        self.assertEqual(toks[0].line, 1)
+        self.assertEqual(toks[0].col, 1)
+
+    def test_lex_empty_string_literal(self):
+        toks = lex('""')
+        self.assertEqual(toks[0].kind, "STRING")
+        self.assertEqual(toks[0].text, "")
+
+    def test_lex_supported_escape_sequences(self):
+        toks = lex(r'"a\nb\tc\\d\"e\0f"')
+        self.assertEqual(toks[0].kind, "STRING")
+        self.assertEqual(toks[0].text, "a\nb\tc\\d\"e\0f")
+
+    def test_lex_rejects_unrecognized_escape(self):
+        with self.assertRaisesRegex(LexerError, r"unrecognized escape sequence '\\q' in string literal at 1:2"):
+            lex(r'"\q"')
+
+    def test_lex_rejects_unterminated_string_literal(self):
+        with self.assertRaisesRegex(LexerError, "unterminated string literal at 1:1"):
+            lex('"hello')
+
+    def test_lex_rejects_raw_newline_in_string_literal(self):
+        with self.assertRaisesRegex(LexerError, "unterminated string literal at 1:1"):
+            lex('"hi\nthere"')
+
+    def test_lex_string_with_escaped_newline_is_one_line(self):
+        toks = lex(r'"line1\nline2"')
+        self.assertEqual(toks[0].kind, "STRING")
+        self.assertEqual(toks[0].text, "line1\nline2")
+
+    def test_lex_rejects_bare_backslash_at_eol(self):
+        with self.assertRaisesRegex(LexerError, "bare backslash at end of line in string literal"):
+            lex('"hi\\\nthere"')
+
+    def test_lex_rejects_non_ascii_in_string_literal(self):
+        with self.assertRaisesRegex(LexerError, "unsupported character 'é' in string literal"):
+            lex('"café"')
+
+    def test_lex_string_among_other_tokens(self):
+        kinds = [t.kind for t in lex('let s i8[6] = "hello"')]
+        self.assertEqual(kinds, ["LET", "IDENT", "IDENT", "LBRACKET", "INT", "RBRACKET", "EQUAL", "STRING", "EOF"])
+
+
+class StringLiteralParserTests(unittest.TestCase):
+    def test_parse_string_literal_in_let(self):
+        program = parse('fn main() i32\n  let s i8[6] = "hello"\n  ret 0\nend')
+        let_stmt = program.functions[0].body[0]
+        self.assertIsInstance(let_stmt, Let)
+        self.assertIsInstance(let_stmt.typ, ArrayType)
+        self.assertEqual(let_stmt.typ.element_type, "i8")
+        self.assertEqual(let_stmt.typ.size, 6)
+        self.assertIsInstance(let_stmt.expr, StringLit)
+        self.assertEqual(let_stmt.expr.value, "hello")
+
+
+class StringLiteralSemanticTests(unittest.TestCase):
+    def assert_compile_error(self, source, text):
+        with self.assertRaisesRegex(SemanticError, text):
+            compile_source(source)
+
+    def test_accepts_matching_length_string_literal(self):
+        c_source = compile_source('fn main() i32\n  let s i8[6] = "hello"\n  ret 0\nend')
+        self.assertIn('int8_t s[6] = "hello";', c_source)
+
+    def test_accepts_empty_string_literal(self):
+        c_source = compile_source('fn main() i32\n  let s i8[1] = ""\n  ret 0\nend')
+        self.assertIn('int8_t s[1] = "";', c_source)
+
+    def test_rejects_string_literal_length_mismatch_too_small(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let s i8[3] = "hello"\n  ret 0\nend',
+            "string literal of length 5 requires array size 6, but local 's' declares size 3",
+        )
+
+    def test_rejects_string_literal_length_mismatch_too_large(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let s i8[10] = "hi"\n  ret 0\nend',
+            "string literal of length 2 requires array size 3, but local 's' declares size 10",
+        )
+
+    def test_rejects_string_literal_to_non_i8_array(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let s i32[6] = "hello"\n  ret 0\nend',
+            "string literal can only initialize i8\\[N\\] arrays",
+        )
+
+    def test_rejects_string_literal_in_return(self):
+        self.assert_compile_error(
+            'fn main() i32\n  ret "hi"\nend',
+            "string literal can only initialize an i8\\[N\\] local",
+        )
+
+    def test_rejects_string_literal_in_arithmetic(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let n i32 = "hi" + 1\n  ret 0\nend',
+            "string literal can only initialize an i8\\[N\\] local",
+        )
+
+    def test_emits_string_literal_with_escapes(self):
+        c_source = compile_source('fn main() i32\n  let s i8[5] = "a\\nb\\t"\n  ret 0\nend')
+        self.assertIn('int8_t s[5] = "a\\nb\\t";', c_source)
+
+    def test_compile_and_run_string_literal_smoke(self):
+        c_source = compile_source('fn main() i32\n  let s i8[6] = "hello"\n  ret 0\nend')
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", "-Wno-unused-variable", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 0)
+
+
+class I8PrimitiveTests(unittest.TestCase):
+    def assert_compile_error(self, source, text):
+        with self.assertRaisesRegex(SemanticError, text):
+            compile_source(source)
+
+    def test_i8_array_local_zero_initialized(self):
+        c_source = compile_source('fn main() i32\n  let buf i8[4]\n  ret 0\nend')
+        self.assertIn("int8_t buf[4] = {0};", c_source)
+
+    def test_i8_arithmetic_addition_is_deferred(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i8[1]\n  c[0] = a[0] + b[0]\n  ret 0\nend',
+            "arithmetic operator '\\+' on i8 is deferred in v0",
+        )
+
+    def test_i8_arithmetic_multiplication_is_deferred(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let c i8[1]\n  c[0] = a[0] * b[0]\n  ret 0\nend',
+            "arithmetic operator '\\*' on i8 is deferred in v0",
+        )
+
+    def test_i8_equality_produces_bool(self):
+        c_source = compile_source(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let p bool = a[0] == b[0]\n  ret 0\nend'
+        )
+        self.assertIn("bool p = (a[0] == b[0]);", c_source)
+
+    def test_i8_inequality_produces_bool(self):
+        c_source = compile_source(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let p bool = a[0] != b[0]\n  ret 0\nend'
+        )
+        self.assertIn("bool p = (a[0] != b[0]);", c_source)
+
+    def test_i8_less_than_produces_bool(self):
+        c_source = compile_source(
+            'fn main() i32\n  let a i8[1]\n  let b i8[1]\n  let p bool = a[0] < b[0]\n  ret 0\nend'
+        )
+        self.assertIn("bool p = (a[0] < b[0]);", c_source)
+
+    def test_i8_mixed_with_i32_comparison_is_rejected(self):
+        self.assert_compile_error(
+            'fn main() i32\n  let a i8[1]\n  let p bool = a[0] < 1\n  ret 0\nend',
+            "operator '<' requires i32 or i8 operands of matching type, got 'i8' and 'i32'",
+        )
+
+    def test_i8_struct_field_emits_int8_t(self):
+        c_source = compile_source('type B struct\n  flag i8\nend\nfn main() i32\n  let b B\n  ret 0\nend')
+        self.assertIn("int8_t flag;", c_source)
+
+
+class SizeOfTests(unittest.TestCase):
+    def assert_compile_error(self, source, text):
+        with self.assertRaisesRegex(SemanticError, text):
+            compile_source(source)
+
+    def test_parse_sizeof_primitive(self):
+        program = parse('fn main() i32\n  ret sizeof(i32)\nend')
+        ret_stmt = program.functions[0].body[0]
+        self.assertIsInstance(ret_stmt.expr, SizeOf)
+        self.assertEqual(ret_stmt.expr.typ, "i32")
+
+    def test_parse_sizeof_struct(self):
+        program = parse('type Token struct\n  k i32\nend\nfn main() i32\n  ret sizeof(Token)\nend')
+        ret_stmt = program.functions[0].body[0]
+        self.assertIsInstance(ret_stmt.expr, SizeOf)
+        self.assertEqual(ret_stmt.expr.typ, "Token")
+
+    def test_parse_sizeof_array_type(self):
+        program = parse('fn main() i32\n  ret sizeof(i32[10])\nend')
+        ret_stmt = program.functions[0].body[0]
+        self.assertIsInstance(ret_stmt.expr, SizeOf)
+        self.assertIsInstance(ret_stmt.expr.typ, ArrayType)
+        self.assertEqual(ret_stmt.expr.typ.element_type, "i32")
+        self.assertEqual(ret_stmt.expr.typ.size, 10)
+
+    def test_emit_sizeof_primitive(self):
+        c_source = compile_source('fn main() i32\n  ret sizeof(i32)\nend')
+        self.assertIn("return ((int32_t)sizeof(int32_t));", c_source)
+
+    def test_emit_sizeof_bool(self):
+        c_source = compile_source('fn main() i32\n  ret sizeof(bool)\nend')
+        self.assertIn("return ((int32_t)sizeof(bool));", c_source)
+
+    def test_emit_sizeof_i8(self):
+        c_source = compile_source('fn main() i32\n  ret sizeof(i8)\nend')
+        self.assertIn("return ((int32_t)sizeof(int8_t));", c_source)
+
+    def test_emit_sizeof_struct(self):
+        c_source = compile_source(
+            'type Pt struct\n  x i32\n  y i32\nend\nfn main() i32\n  ret sizeof(Pt)\nend'
+        )
+        self.assertIn("return ((int32_t)sizeof(Pt));", c_source)
+
+    def test_emit_sizeof_array(self):
+        c_source = compile_source('fn main() i32\n  ret sizeof(i32[10])\nend')
+        self.assertIn("return ((int32_t)sizeof(int32_t[10]));", c_source)
+
+    def test_sizeof_is_i32(self):
+        c_source = compile_source(
+            'fn main() i32\n  let n i32 = sizeof(i32)\n  ret n\nend'
+        )
+        self.assertIn("int32_t n = ((int32_t)sizeof(int32_t));", c_source)
+
+    def test_sizeof_unknown_type_fails(self):
+        self.assert_compile_error(
+            'fn main() i32\n  ret sizeof(Nope)\nend',
+            "unsupported type 'Nope'",
+        )
+
+    def test_sizeof_value_expression_fails(self):
+        with self.assertRaisesRegex(ParseError, "sizeof requires a type, not an expression"):
+            parse('fn main() i32\n  let x i32 = 1\n  ret sizeof(x + 1)\nend')
+
+    def test_sizeof_value_name_passes_parser_then_fails_sema(self):
+        # `sizeof(x)` parses as type 'x' (parser cannot tell name from type),
+        # then sema rejects it because 'x' is not a known type.
+        self.assert_compile_error(
+            'fn main() i32\n  let x i32 = 1\n  ret sizeof(x)\nend',
+            "unsupported type 'x'",
+        )
+
+    def test_sizeof_int_literal_fails_in_parser(self):
+        with self.assertRaisesRegex(ParseError, "sizeof requires a type name"):
+            parse('fn main() i32\n  ret sizeof(123)\nend')
+
+    def test_compile_and_run_sizeof_i32(self):
+        c_source = compile_source('fn main() i32\n  ret sizeof(i32)\nend')
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 4)
+
+    def test_compile_and_run_sizeof_struct_two_i32(self):
+        c_source = compile_source(
+            'type Pt struct\n  x i32\n  y i32\nend\nfn main() i32\n  ret sizeof(Pt)\nend'
+        )
+        with tempfile.TemporaryDirectory() as td:
+            c_path = Path(td) / "out.c"
+            exe_path = Path(td) / "out"
+            c_path.write_text(c_source)
+            subprocess.run(["cc", "-Wall", "-Werror", str(c_path), "-o", str(exe_path)], check=True)
+            proc = subprocess.run([str(exe_path)], check=False)
+            self.assertEqual(proc.returncode, 8)
 
 
 if __name__ == "__main__":

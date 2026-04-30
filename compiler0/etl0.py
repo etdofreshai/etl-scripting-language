@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not"}
+KEYWORDS = {"fn", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -191,6 +191,18 @@ class BoolLit:
 
 
 @dataclass(frozen=True)
+class StringLit:
+    value: str
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
+class SizeOf:
+    typ: TypeRef
+    loc: SourceLoc
+
+
+@dataclass(frozen=True)
 class Name:
     value: str
     loc: SourceLoc
@@ -232,7 +244,7 @@ class Unary:
     loc: SourceLoc
 
 
-Expr = IntLit | BoolLit | Name | Call | Index | FieldAccess | Binary | Unary
+Expr = IntLit | BoolLit | StringLit | SizeOf | Name | Call | Index | FieldAccess | Binary | Unary
 
 
 def lex(src: str) -> list[Token]:
@@ -276,6 +288,49 @@ def lex(src: str) -> list[Token]:
             tokens.append(Token(SINGLE[ch], ch, line, col))
             i += 1
             col += 1
+            continue
+        if ch == '"':
+            start_line = line
+            start_col = col
+            i += 1
+            col += 1
+            buf: list[str] = []
+            while True:
+                if i >= len(src):
+                    raise LexerError(f"unterminated string literal at {start_line}:{start_col}")
+                c = src[i]
+                if c == '"':
+                    i += 1
+                    col += 1
+                    break
+                if c == "\n":
+                    raise LexerError(f"unterminated string literal at {start_line}:{start_col}")
+                if c == "\\":
+                    if i + 1 >= len(src) or src[i + 1] == "\n":
+                        raise LexerError(f"bare backslash at end of line in string literal at {line}:{col}")
+                    nxt = src[i + 1]
+                    if nxt == "n":
+                        buf.append("\n")
+                    elif nxt == "t":
+                        buf.append("\t")
+                    elif nxt == "\\":
+                        buf.append("\\")
+                    elif nxt == '"':
+                        buf.append('"')
+                    elif nxt == "0":
+                        buf.append("\0")
+                    else:
+                        raise LexerError(f"unrecognized escape sequence '\\{nxt}' in string literal at {line}:{col}")
+                    i += 2
+                    col += 2
+                    continue
+                code = ord(c)
+                if code < 0x20 or code > 0x7E:
+                    raise LexerError(f"unsupported character {c!r} in string literal at {line}:{col}")
+                buf.append(c)
+                i += 1
+                col += 1
+            tokens.append(Token("STRING", "".join(buf), start_line, start_col))
             continue
         if ch.isdigit():
             start = i
@@ -526,6 +581,25 @@ class Parser:
             return BoolLit(False, SourceLoc.from_token(tok))
         if tok.kind == "INT":
             return IntLit(int(self.take("INT").text), SourceLoc.from_token(tok))
+        if tok.kind == "STRING":
+            string_tok = self.take("STRING")
+            return StringLit(string_tok.text, SourceLoc.from_token(string_tok))
+        if tok.kind == "SIZEOF":
+            sizeof_tok = self.take("SIZEOF")
+            self.take("LPAREN")
+            if self.peek().kind != "IDENT":
+                bad = self.peek()
+                raise ParseError(
+                    f"sizeof requires a type name at {bad.line}:{bad.col}; sizeof(expression) is not supported in v0"
+                )
+            typ = self.parse_type()
+            if self.peek().kind != "RPAREN":
+                bad = self.peek()
+                raise ParseError(
+                    f"sizeof requires a type, not an expression, at {bad.line}:{bad.col}"
+                )
+            self.take("RPAREN")
+            return SizeOf(typ, SourceLoc.from_token(sizeof_tok))
         if tok.kind == "LPAREN":
             self.take("LPAREN")
             expr = self.parse_expr()
@@ -573,7 +647,7 @@ def parse(src: str) -> Program:
     return Parser(lex(src)).parse_program()
 
 
-SUPPORTED_TYPES = {"i32", "bool"}
+SUPPORTED_TYPES = {"i32", "bool", "i8"}
 C_RESERVED_IDENTIFIERS = {
     # C keywords and backend-provided typedef names share the ordinary
     # identifier namespace with ETL function/local names in emitted C.
@@ -710,7 +784,19 @@ def validate_stmts(
             if stmt.name in names:
                 raise SemanticError(f"{stmt.loc.format()}: duplicate local name {stmt.name!r} in {fn.name}")
             if is_array_type(stmt.typ):
-                if stmt.expr is not None:
+                if stmt.expr is None:
+                    pass
+                elif isinstance(stmt.expr, StringLit):
+                    if stmt.typ.element_type != "i8":
+                        raise SemanticError(
+                            f"{stmt.loc.format()}: string literal can only initialize i8[N] arrays, got {format_type(stmt.typ)!r} in {fn.name}"
+                        )
+                    expected_size = len(stmt.expr.value) + 1
+                    if stmt.typ.size != expected_size:
+                        raise SemanticError(
+                            f"{stmt.loc.format()}: string literal of length {len(stmt.expr.value)} requires array size {expected_size}, but local {stmt.name!r} declares size {stmt.typ.size} in {fn.name}"
+                        )
+                else:
                     raise SemanticError(f"{stmt.loc.format()}: array local {stmt.name!r} cannot have an initializer in v0")
             elif is_struct_type(stmt.typ, structs):
                 if stmt.expr is not None:
@@ -886,6 +972,13 @@ def validate_expr(expr: Expr, functions: dict[str, Function], structs: dict[str,
         return "i32"
     if isinstance(expr, BoolLit):
         return "bool"
+    if isinstance(expr, StringLit):
+        raise SemanticError(
+            f"{expr.loc.format()}: string literal can only initialize an i8[N] local in v0, not used as a general expression in {current_fn}"
+        )
+    if isinstance(expr, SizeOf):
+        validate_type(expr.typ, f"sizeof operand in {current_fn}", expr.loc, structs)
+        return "i32"
     if isinstance(expr, Name):
         if expr.value not in names:
             raise SemanticError(f"{expr.loc.format()}: unknown name {expr.value!r} in {current_fn}")
@@ -916,6 +1009,10 @@ def validate_expr(expr: Expr, functions: dict[str, Function], structs: dict[str,
     if isinstance(expr, Binary):
         left_type = validate_expr(expr.left, functions, structs, names, current_fn)
         right_type = validate_expr(expr.right, functions, structs, names, current_fn)
+        if expr.op in {"+", "-", "*", "/", "%"} and (left_type == "i8" or right_type == "i8"):
+            raise SemanticError(
+                f"{expr.loc.format()}: arithmetic operator {expr.op!r} on i8 is deferred in v0 in {current_fn}"
+            )
         if expr.op in {"*", "/", "%"} and (left_type != "i32" or right_type != "i32"):
             raise SemanticError(
                 f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
@@ -935,10 +1032,15 @@ def validate_expr(expr: Expr, functions: dict[str, Function], structs: dict[str,
                 )
             if is_struct_type(left_type, structs):
                 raise SemanticError(f"{expr.loc.format()}: cannot compare struct type {format_type(left_type)!r} in {current_fn}")
+            if isinstance(left_type, ArrayType):
+                raise SemanticError(f"{expr.loc.format()}: cannot compare array type {format_type(left_type)!r} in {current_fn}")
         if expr.op in {"<", "<=", ">", ">="}:
-            if left_type != "i32" or right_type != "i32":
+            if not (
+                (left_type == "i32" and right_type == "i32")
+                or (left_type == "i8" and right_type == "i8")
+            ):
                 raise SemanticError(
-                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 operands, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
+                    f"{expr.loc.format()}: operator {expr.op!r} requires i32 or i8 operands of matching type, got {format_type(left_type)!r} and {format_type(right_type)!r} in {current_fn}"
                 )
         if expr.op in {"==", "!=", "<", "<=", ">", ">=", "and", "or"}:
             return "bool"
@@ -987,13 +1089,40 @@ def c_type(t: TypeRef) -> str:
         return "int32_t"
     if t == "bool":
         return "bool"
+    if t == "i8":
+        return "int8_t"
     return t
+
+
+def c_sizeof_type(t: TypeRef) -> str:
+    if isinstance(t, ArrayType):
+        return f"{c_type(t.element_type)}[{t.size}]"
+    return c_type(t)
 
 
 def c_decl_type(t: TypeRef) -> str:
     if isinstance(t, ArrayType):
         return c_type(t.element_type)
     return c_type(t)
+
+
+def emit_c_string_literal(value: str) -> str:
+    out = ['"']
+    for ch in value:
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\0":
+            out.append("\\0")
+        else:
+            out.append(ch)
+    out.append('"')
+    return "".join(out)
 
 
 def emit_expr(expr: Expr) -> str:
@@ -1003,6 +1132,10 @@ def emit_expr(expr: Expr) -> str:
         return str(expr.value)
     if isinstance(expr, BoolLit):
         return "true" if expr.value else "false"
+    if isinstance(expr, StringLit):
+        return emit_c_string_literal(expr.value)
+    if isinstance(expr, SizeOf):
+        return f"((int32_t)sizeof({c_sizeof_type(expr.typ)}))"
     if isinstance(expr, Name):
         return expr.value
     if isinstance(expr, Call):
@@ -1035,7 +1168,12 @@ def emit_stmt(stmt: Stmt, lines: list[str], indent: int) -> None:
     pad = " " * indent
     if isinstance(stmt, Let):
         if isinstance(stmt.typ, ArrayType):
-            lines.append(f"{pad}{c_type(stmt.typ.element_type)} {stmt.name}[{stmt.typ.size}] = {{0}};")
+            if isinstance(stmt.expr, StringLit):
+                lines.append(
+                    f"{pad}{c_type(stmt.typ.element_type)} {stmt.name}[{stmt.typ.size}] = {emit_c_string_literal(stmt.expr.value)};"
+                )
+            else:
+                lines.append(f"{pad}{c_type(stmt.typ.element_type)} {stmt.name}[{stmt.typ.size}] = {{0}};")
         elif stmt.expr is None:
             lines.append(f"{pad}{c_type(stmt.typ)} {stmt.name} = {{0}};")
         else:
