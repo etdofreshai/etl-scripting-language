@@ -5,12 +5,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use"}
+KEYWORDS = {"fn", "let", "if", "else", "while", "ret", "type", "use", "end"}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
-    "{": "LBRACE",
-    "}": "RBRACE",
     ",": "COMMA",
     "+": "PLUS",
     "-": "MINUS",
@@ -147,6 +145,8 @@ def lex(src: str) -> list[Token]:
                 i += 1
                 col += 1
             continue
+        if ch in "{}":
+            raise LexerError(f"unexpected character {ch!r} at {line}:{col}; ETL no longer uses braces for blocks, use 'end'")
         if ch in SINGLE:
             tokens.append(Token(SINGLE[ch], ch, line, col))
             i += 1
@@ -224,13 +224,12 @@ class Parser:
                 break
         self.take("RPAREN")
         return_type = self.take("IDENT").text
-        self.take("LBRACE")
         body: list[Stmt] = []
-        while self.peek().kind != "RBRACE":
+        while self.peek().kind != "END":
             if self.peek().kind == "EOF":
-                raise ParseError(f"unterminated function {name!r}; expected RBRACE before EOF at {self.peek().line}:{self.peek().col}")
+                raise ParseError(f"expected 'end' before EOF in function {name!r} at {self.peek().line}:{self.peek().col}")
             body.append(self.parse_stmt())
-        self.take("RBRACE")
+        self.take("END")
         return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
 
     def parse_stmt(self) -> Stmt:

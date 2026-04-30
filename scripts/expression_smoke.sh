@@ -10,18 +10,18 @@ out_c="$tmpdir/expression.c"
 out_bin="$tmpdir/expression"
 
 cat >"$src" <<'ETL'
-fn dec(x i32) i32 {
+fn dec(x i32) i32
   ret x - 1
-}
+end
 
-fn add(a i32, b i32) i32 {
+fn add(a i32, b i32) i32
   ret a + b
-}
+end
 
-fn main() i32 {
+fn main() i32
   let base i32 = add(dec(10), 1)
   ret (base + 2) - dec(3)
-}
+end
 ETL
 
 python3 -m compiler0 compile "$src" -o "$out_c"

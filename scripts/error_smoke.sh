@@ -10,9 +10,9 @@ out_c="$tmpdir/out.c"
 stderr_log="$tmpdir/stderr.log"
 
 cat >"$bad_src" <<'ETL'
-fn main() u32 {
+fn main() u32
   ret 0
-}
+end
 ETL
 
 printf 'previous generated C\n' >"$out_c"
