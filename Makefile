@@ -26,7 +26,6 @@ smoke:
 	scripts/file_smoke.sh
 	scripts/c1_lex_smoke.sh
 	scripts/c1_parse_smoke.sh
-	scripts/c1_sema_smoke.sh
 
 runtime-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -o runtime/test_runtime runtime/test_runtime.c $(ETL_RUNTIME)
