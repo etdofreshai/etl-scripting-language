@@ -28,12 +28,12 @@ Bootstrap path:
 The first compiler is a small Python implementation under `compiler0/`.
 It currently supports the tiny v0 subset needed for the bootstrap smoke:
 
-- `fn` definitions with explicit parameter and return types
+- `function` definitions with explicit parameter and return types
 - `let` locals
-- `ret`
+- `return`
 - integer literals (including negative literals), names, calls, parenthesized expressions, `+`, and `-`
 - explicit v0 diagnostics for operators that are intentionally not implemented yet, such as `*`, `/`, and `%`
-- C emission for `i32`
+- C emission for `integer` (`i32`)
 
 Compile an ETL file to C with:
 
@@ -72,9 +72,11 @@ make check
 Compiler-0 now validates the tiny v0 subset before C emission:
 
 - duplicate function names are rejected
-- only supported v0 types are accepted (`i32` for now)
+- only supported v0 types are accepted (`integer`/`i32` for now)
 - duplicate local/parameter names are rejected
 - unknown names and unknown calls are rejected
 - function call arity is checked
 - integer literals must fit the supported `i32` range
 - the minimum `i32` literal is emitted with a portable C expression instead of relying on an out-of-range positive token
+
+Legacy spellings (`fn`, `ret`, `extern`, `struct`, `i32`, `i8`, `bool`, `ptr`, `sizeof`) remain accepted as compatibility aliases.

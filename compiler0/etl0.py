@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORD_ALIASES = {"pointer": "ptr"}
+KEYWORD_ALIASES = {"pointer": "ptr", "function": "fn", "external": "extern", "return": "ret", "size": "sizeof"}
 KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof", "ptr", *KEYWORD_ALIASES}
 TYPE_ALIASES = {
     "integer": "i32",

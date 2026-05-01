@@ -1,18 +1,18 @@
-extern fn etl_print_i32(value i32)
+external function etl_print_i32(value integer)
 
-fn next_state(s i32) i32
+function next_state(s integer) integer
   if s == 0
-    ret 1
+    return 1
   elif s == 1
-    ret 2
+    return 2
   else
-    ret 0
+    return 0
   end
 end
 
-fn main() i32
-  let state i32 = 0
-  let tick i32 = 0
+function main() integer
+  let state integer = 0
+  let tick integer = 0
   while tick < 6
     etl_print_i32(tick)
     etl_print_i32(state)
@@ -21,5 +21,5 @@ fn main() i32
   end
   etl_print_i32(tick)
   etl_print_i32(state)
-  ret state
+  return state
 end

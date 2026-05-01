@@ -952,7 +952,7 @@ end
         )
 
     def test_rejects_c_reserved_local_name(self):
-        self.assert_compile_error("fn main() i32\n  let return i32 = 1\n  ret return\nend", "2:3: local name 'return' is reserved by the C backend")
+        self.assert_compile_error("fn main() i32\n  let auto i32 = 1\n  ret auto\nend", "2:3: local name 'auto' is reserved by the C backend")
 
     def test_rejects_c_reserved_double_underscore_name(self):
         self.assert_compile_error(

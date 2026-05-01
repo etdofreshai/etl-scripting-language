@@ -30,60 +30,60 @@ ETL source uses terminating keywords, not braces, for human- and LLM-readable st
 ## Example syntax
 
 ```etl
-fn add(a i32, b i32) i32
-  ret a + b
+function add(a integer, b integer) integer
+  return a + b
 end
 
-fn main() i32
-  let x i32 = add(2, 3)
-  ret x
+function main() integer
+  let x integer = add(2, 3)
+  return x
 end
 ```
 
 Top-level declarations are function definitions, external function declarations, and type declarations:
 
 ```etl
-extern fn etl_print_i32(value i32)
-extern fn etl_read_i32() i32
+external function etl_print_i32(value integer)
+external function etl_read_i32() integer
 
-type Point struct
-  x i32
-  y i32
+type Point structure
+  x integer
+  y integer
 end
 ```
 
 ## v0 feature set
 
-- integers: `i32`, `u32`, maybe `i64`, `u64`
-- `i8`: 8-bit signed integer, emitted as C `int8_t`. Integer literals continue to default to `i32` (there is no separate `i8` literal syntax in this phase). `i8` exists primarily so `i8[N]` arrays — i.e. strings — are typeable. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) between two `i8` operands produce `bool`. Arithmetic on `i8` (`+`, `-`, `*`, `/`, `%`) is **deferred** in v0; attempting it produces a clean diagnostic. Mixed `i8`/`i32` operands are rejected.
-- booleans: `bool` (literals `true` and `false`; emitted as C `stdbool.h` `bool`)
-- `ptr`: opaque byte pointer, emitted as C `int8_t *`. `ptr` may appear only in `extern fn` parameter/return types and in local bindings that store/pass extern pointer values, for example `let buf ptr = etl_alloc(64)`. ETL code cannot dereference, index, access fields on, do arithmetic with, or compare `ptr` values. Null checks go through an extern such as `etl_is_null(p ptr) bool`.
-- fixed-size arrays: `T[N]`, where `T` is `i32`, `bool`, or `i8` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
+- integers: `integer` (emitted as C `int32_t`; legacy spelling `i32`), `u32`, maybe `i64`, `u64`
+- `byte` (legacy `i8`): 8-bit signed integer, emitted as C `int8_t`. Integer literals continue to default to `integer`/`i32` (there is no separate `byte` literal syntax in this phase). `byte` exists primarily so `byte[N]` arrays — i.e. strings — are typeable. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) between two `byte` operands produce `boolean`. Arithmetic on `byte` (`+`, `-`, `*`, `/`, `%`) is **deferred** in v0; attempting it produces a clean diagnostic. Mixed `byte`/`integer` operands are rejected.
+- booleans: `boolean` (legacy `bool`; literals `true` and `false`; emitted as C `stdbool.h` `bool`)
+- `pointer` (legacy `ptr`): opaque byte pointer, emitted as C `int8_t *`. `pointer` may appear only in `external function` parameter/return types and in local bindings that store/pass extern pointer values, for example `let buf pointer = etl_alloc(64)`. ETL code cannot dereference, index, access fields on, do arithmetic with, or compare `pointer` values. Null checks go through an extern such as `etl_is_null(p pointer) boolean`.
+- fixed-size arrays: `T[N]`, where `T` is `integer`, `boolean`, or `byte` and `N` is a positive integer literal. Arrays are declared as locals without initializer expressions:
 
 ```etl
-let buf i32[16]
-let flags bool[8]
+let buf integer[16]
+let flags boolean[8]
 ```
 
 Array locals are zero-initialized. The C backend emits declarations such as `int32_t buf[16] = {0};`; bool arrays are initialized the same way, yielding `false` elements.
 
 - arithmetic expressions initially support left-associative `+`, `-`, `*`, `/`, and `%`; `*`, `/`, and `%` bind tighter than `+` and `-`; negative integer literals use a leading `-`
-- comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `bool`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (i32-with-i32 or bool-with-bool); `<`, `<=`, `>`, `>=` require i32 operands
-- logical operators `and`, `or`, `not` as keywords; all operands and results are `bool`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
-- unary minus `-` on `i32` expressions (names, calls, parenthesized expressions); negative integer literals continue to parse as literal values (distinct from unary minus on an expression)
+- comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=`; all produce `boolean`; comparisons sit below additive operators in precedence so `a + b < c + d` parses as `(a + b) < (c + d)`; `==` and `!=` accept matching types (integer-with-integer or boolean-with-boolean); `<`, `<=`, `>`, `>=` require integer operands
+- logical operators `and`, `or`, `not` as keywords; all operands and results are `boolean`; `and` and `or` use short-circuit evaluation, emitted as C `&&` and `||`; `not` is a unary prefix operator emitted as C `!`
+- unary minus `-` on `integer` expressions (names, calls, parenthesized expressions); negative integer literals continue to parse as literal values (distinct from unary minus on an expression)
 - `if` / `elif` / `else` statements use keyword-terminated blocks. `elif` clauses and the `else` block are optional:
 
 ```etl
 if a > b
-  ret a
+  return a
 elif a == b
-  ret 0
+  return 0
 else
-  ret b
+  return b
 end
 ```
 
-`if` and `elif` conditions must have type `bool`; there is no implicit truthiness from `i32` or other types.
+`if` and `elif` conditions must have type `boolean`; there is no implicit truthiness from `integer` or other types.
 
 - `while` statements use a bool condition and an `end`-terminated body:
 
@@ -93,38 +93,38 @@ while i < 10
 end
 ```
 
-`while` conditions must have type `bool`; there is no implicit truthiness. `break` and `continue` are explicitly not supported in v0.
+`while` conditions must have type `boolean`; there is no implicit truthiness. `break` and `continue` are explicitly not supported in v0.
 
 - Assignment to an existing local uses `name = expr`. The name must already be declared in the current function by `let` or as a parameter, and the expression type must match the existing local type. Parameters are assignable because parameters are locals inside the function body.
 
 ```etl
-fn inc(x i32) i32
+function inc(x integer) integer
   x = x + 1
-  ret x
+  return x
 end
 ```
 
 - Indexed array read uses `array[index]`, where `index` is an `i32` expression. The result type is the array element type. Indexed array write uses `array[index] = expr`; the assigned expression must match the element type.
 
 ```etl
-let buf i32[5]
+let buf integer[5]
 buf[0] = 7
-ret buf[0]
+return buf[0]
 ```
 
 Phase 3a emits raw C indexing and performs no bounds checking. Arrays are not first-class values in v0: arrays cannot be passed as function parameters, returned from functions, assigned as whole values, or used directly in arithmetic, comparisons, logical operators, returns, calls, or scalar `let` initializers. Indexed read and indexed write are the only supported array operations.
 
-- struct types use a top-level `type T struct ... end` declaration:
+- struct types use a top-level `type T structure ... end` declaration:
 
 ```etl
-type Token struct
-  kind i32
-  value i32
-  line i32
+type Token structure
+  kind integer
+  value integer
+  line integer
 end
 ```
 
-Struct fields may be `i32`, `bool`, fixed-size arrays of those types (`i32[N]` or `bool[N]`), or another previously declared struct type. Struct declarations are emitted as C `typedef struct { ... } T;` in source declaration order. Forward references and recursive structs are not supported. Empty structs, duplicate field names within one struct, and duplicate struct type names are errors.
+Struct fields may be `integer`, `boolean`, fixed-size arrays of those types (`integer[N]` or `boolean[N]`), or another previously declared struct type. Struct declarations are emitted as C `typedef struct { ... } T;` in source declaration order. Forward references and recursive structs are not supported. Empty structs, duplicate field names within one struct, and duplicate struct type names are errors.
 
 Struct locals are value locals and are zero-initialized:
 
@@ -137,7 +137,7 @@ The C backend emits these as `Token t = {0};` and `Token buf[10] = {0};`. Field 
 
 ```etl
 t.kind = 1
-ret t.kind
+return t.kind
 ```
 
 Postfix indexing and field access compose for array fields and arrays of structs:
@@ -151,15 +151,15 @@ Phase 3b intentionally keeps structs out of first-class operations. Structs cann
 
 ### String literals (Phase 3c)
 
-ETL string literals use double quotes: `"hello"`. They desugar to static `i8[N]` arrays terminated with a null byte, exactly like C string literals. The effective length is `N = (number of characters in the literal) + 1`, where the trailing `+ 1` is for the null terminator.
+ETL string literals use double quotes: `"hello"`. They desugar to static `byte[N]` arrays terminated with a null byte, exactly like C string literals. The effective length is `N = (number of characters in the literal) + 1`, where the trailing `+ 1` is for the null terminator.
 
 The only supported binding form in v0 is:
 
 ```etl
-let s i8[6] = "hello"
+let s byte[6] = "hello"
 ```
 
-`N` must be at least `length-of-string + 1`, or the type-check fails with a clean diagnostic. Wider buffers are allowed and retain C's zero-initialization for the remaining elements. Using a string literal in any other position (returning it, passing it through general expressions, assigning it to non-`i8[N]` arrays, etc.) is a clean diagnostic; full string ergonomics arrive with Phase 4 `extern` / FFI.
+`N` must be at least `length-of-string + 1`, or the type-check fails with a clean diagnostic. Wider buffers are allowed and retain C's zero-initialization for the remaining elements. Using a string literal in any other position (returning it, passing it through general expressions, assigning it to non-`byte[N]` arrays, etc.) is a clean diagnostic; full string ergonomics arrive with Phase 4 `external` / FFI.
 
 Supported escape sequences inside string literals:
 
@@ -173,67 +173,67 @@ Supported escape sequences inside string literals:
 
 Any other escape (e.g. `\q`) is a clean lexer error. Unterminated string literals, raw newlines inside a string literal, and a bare backslash at end of line are all clean lexer errors. Only printable ASCII characters (and the escape sequences above) are accepted inside a string literal in v0.
 
-### `sizeof(T)` (Phase 3c)
+### `size(T)` (Phase 3c)
 
-`sizeof(T)` is a compile-time `i32` constant whose value is the size in bytes of the C representation of `T`. `T` may be any non-`ptr` type usable in `let`:
+`size(T)` (legacy spelling `sizeof`) is a compile-time `integer` constant whose value is the size in bytes of the C representation of `T`. `T` may be any non-`pointer` type usable in `let`:
 
-- a primitive (`i32`, `bool`, `i8`),
+- a primitive (`integer`, `boolean`, `byte`),
 - a previously declared struct type,
-- a fixed-size array type such as `i32[10]`.
+- a fixed-size array type such as `integer[10]`.
 
 It emits as `((int32_t)sizeof(T_in_C))` where `T_in_C` is the corresponding C type. Examples:
 
 ```etl
-let n i32 = sizeof(i32)        // 4 on the targets we test
-let m i32 = sizeof(Pt)         // struct size
-let q i32 = sizeof(i32[10])    // 40 with natural alignment
+let n integer = size(integer)        // 4 on the targets we test
+let m integer = size(Pt)            // struct size
+let q integer = size(integer[10])   // 40 with natural alignment
 ```
 
-`sizeof` of `ptr` or an unknown type is a clean diagnostic. The expression form `sizeof(expr)` is **not** supported in v0 — only `sizeof(type)` — and is rejected at parse time.
+`size` of `pointer` or an unknown type is a clean diagnostic. The expression form `size(expr)` is **not** supported in v0 — only `size(type)` — and is rejected at parse time.
 
-### `extern fn` declarations (Phase 4a)
+### `external function` declarations (Phase 4a)
 
 ETL can declare C functions supplied by the runtime or host program:
 
 ```etl
-extern fn etl_print_i32(value i32)
-extern fn etl_exit(code i32)
-extern fn etl_read_i32() i32
+external function etl_print_i32(value integer)
+external function etl_exit(code integer)
+external function etl_read_i32() integer
 ```
 
-`extern fn NAME(PARAMS) [RET_TYPE]` is a top-level declaration. It has no ETL body and is not terminated by `end`. Omitting the return type declares a `void` C function. External names share the same function namespace as ETL-defined functions, so duplicate extern/user function names are rejected.
+`external function NAME(PARAMS) [RET_TYPE]` is a top-level declaration. It has no ETL body and is not terminated by `end`. Omitting the return type declares a `void` C function. External names share the same function namespace as ETL-defined functions, so duplicate extern/user function names are rejected.
 
-Parameters may use any v0 type usable in extern signatures: primitives (`i32`, `bool`, `i8`), opaque `ptr`, previously declared structs, and fixed-size arrays. The C backend emits fixed-size array parameters as pointers to the element type and `ptr` as `int8_t *`. Return types are restricted to primitives and `ptr` in v0; struct and array returns are rejected.
+Parameters may use any v0 type usable in extern signatures: primitives (`integer`, `boolean`, `byte`), opaque `pointer`, previously declared structs, and fixed-size arrays. The C backend emits fixed-size array parameters as pointers to the element type and `pointer` as `int8_t *`. Return types are restricted to primitives and `pointer` in v0; struct and array returns are rejected.
 
-User-defined ETL functions cannot take or return `ptr`; it is an FFI boundary type only. Locals may be declared as `ptr` so an extern return can be saved and passed to another extern:
+User-defined ETL functions cannot take or return `pointer`; it is an FFI boundary type only. Locals may be declared as `pointer` so an extern return can be saved and passed to another extern:
 
 ```etl
-extern fn etl_alloc(bytes i32) ptr
-extern fn etl_free(p ptr)
-extern fn etl_is_null(p ptr) bool
+external function etl_alloc(bytes integer) pointer
+external function etl_free(p pointer)
+external function etl_is_null(p pointer) boolean
 
-fn main() i32
-  let buf ptr = etl_alloc(64)
+function main() integer
+  let buf pointer = etl_alloc(64)
   if etl_is_null(buf)
-    ret 1
+    return 1
   end
   etl_free(buf)
-  ret 0
+  return 0
 end
 ```
 
 Calls to extern functions type-check like calls to user functions. A void extern call can be used as a statement:
 
 ```etl
-extern fn etl_print_i32(value i32)
+external function etl_print_i32(value integer)
 
-fn main() i32
+function main() integer
   etl_print_i32(42)
-  ret 0
+  return 0
 end
 ```
 
-When a program contains any `extern fn`, the C backend emits `#include "etl_runtime.h"` after the standard includes. Extern prototypes are emitted after struct typedefs and before user function prototypes/definitions.
+When a program contains any `external function`, the C backend emits `#include "etl_runtime.h"` after the standard includes. Extern prototypes are emitted after struct typedefs and before user function prototypes/definitions.
 
 The initial C runtime lives in `runtime/etl_runtime.h` and `runtime/etl_runtime.c`:
 
@@ -254,7 +254,7 @@ void etl_panic(int8_t *msg);
 
 These file and panic declarations intentionally use mutable `int8_t *` in v0 because ETL does not have a `const` qualifier yet; callers should still treat path and output buffers as read-only by convention where the runtime function does not mutate them.
 
-For now, non-void functions use a simple final-return rule: the last statement must be `ret`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `ret`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `ret` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
+For now, non-void functions use a simple final-return rule: the last statement must be `return`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `return`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `return` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 
 ## Operator precedence (lowest to highest)
 
@@ -281,7 +281,7 @@ For now, non-void functions use a simple final-return rule: the last statement m
 - fixed-size local arrays with indexed read/write
 - `if` / `elif` / `else`
 - `while`
-- `ret`
+- `return`
 - slices later if needed for compiler-1
 - simple structs/records when needed for AST/IR
 - string literals when needed for diagnostics
