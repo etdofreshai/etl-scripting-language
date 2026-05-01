@@ -98,6 +98,9 @@ parallelizes.
 - 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next)
 - 5g: c1→c2 fixed-point; freeze c0
 
+See `docs/fixed-point-plan.md` for the detailed fixed-point milestone
+definition, prerequisites, worker chunks, and verification gates.
+
 ## Risks pinned to the wall
 
 1. **Scope creep during Phase 5.** Freeze the grammar at the start of
