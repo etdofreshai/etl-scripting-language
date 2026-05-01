@@ -47,7 +47,7 @@ fn main() i32
   if ast_count < 0
     ret 2
   end
-  if sema(ast, ast_count) < 0
+  if sema(source, tokens, ast, ast_count) < 0
     ret 3
   end
   let n i32 = emit_wasm(ast, ast_count, out, 1024)
