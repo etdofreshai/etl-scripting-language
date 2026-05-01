@@ -233,6 +233,9 @@ run_arith_case while_local "fn main() i32 let x i32 = 0 while x < 3 x = x + 1 en
 
 run_arith_case bool_if_true "fn main() i32 let x i32 = 0 if true x = 5 else x = 9 end ret x end" 5 "i32.const 1" "if" "else" 'local.set \$v0'
 run_arith_case bool_if_false "fn main() i32 let x i32 = 0 if false x = 5 else x = 9 end ret x end" 9 "i32.const 0" "if" "else" 'local.set \$v0'
+run_arith_case elif_true "fn main() i32 let x i32 = 0 if false x = 1 elif true x = 42 else x = 7 end ret x end" 42 "i32.const 0" "i32.const 1" "if" "else" 'local.set \$v0'
+run_arith_case elif_else "fn main() i32 let x i32 = 0 if false x = 1 elif false x = 42 else x = 7 end ret x end" 7 "i32.const 0" "if" "else" 'local.set \$v0'
+run_arith_case elif_source_order "fn main() i32 let x i32 = 0 if false x = 1 elif true x = 42 elif true x = 99 else x = 7 end ret x end" 42 "i32.const 0" "i32.const 1" "if" "else" 'local.set \$v0'
 run_arith_case ret_cmp_true "fn main() i32 ret 2 < 3 end" 1 "i32.const 2" "i32.const 3" "i32.lt_s"
 run_arith_case ret_cmp_false "fn main() i32 ret 2 == 3 end" 0 "i32.const 2" "i32.const 3" "i32.eq"
 
