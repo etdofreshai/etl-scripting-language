@@ -268,8 +268,11 @@ and logical operators all implemented and smoke-tested.
 ### Chunk WASM-2B: WAT i32 array indexing — **Done.**
 Local `i32` array declarations with constant-index and variable-index
 read/write proven by `scripts/c1_wat_array_smoke.sh` (ea5408c, merged
-760a303). WAT byte arrays, byte strings, and struct arrays remain
-unsupported.
+760a303). Local `byte[N]` and `i8[N]` array indexed assignment/read
+using `i32.store8`/`i32.load8_s` proven by the same smoke script
+(cd65f69, merged 7ce9043). WAT byte string literals, extern/param
+byte arrays, structs, struct arrays, bounds checks, and dynamic arrays
+remain unsupported.
 
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).

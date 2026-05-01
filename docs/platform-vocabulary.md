@@ -119,15 +119,17 @@ checks, or array params/externs yet.
 
 Emits WAT text for `main` programs with integer/boolean return, arithmetic,
 all comparisons, logical operators, `let` locals, assignment, `if`/`else`,
-`while` loops, boolean literals, and local `i32` array declaration plus
-constant-index and variable-index read/write. No function parameters, `elif`,
-extern calls, byte arrays, byte strings, structs, or struct arrays yet. Text
+`while` loops, boolean literals, local `i32` array declaration plus
+constant-index and variable-index read/write, and local `byte[N]`/`i8[N]`
+array indexed assignment/read via `i32.store8`/`i32.load8_s`. No function
+parameters, `elif`, extern calls, byte string literals, extern/param byte
+arrays, structs, struct arrays, bounds checks, or dynamic arrays yet. Text
 validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
 integer return, arithmetic, local initialization, local assignment, simple
-`if`/`else`, simple `while`, comparison, eager logical expressions, and
-local `i32` array indexing.
+`if`/`else`, simple `while`, comparison, eager logical expressions, local
+`i32` array indexing, and local `byte[N]`/`i8[N]` array indexed read/write.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 
