@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -106,13 +106,13 @@ and eager logical operators (`and`, `or`, `not`).
 | Assignment | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | Run | Run | Validate, optionally run | Covers simple local reassignment. |
 | Multi-local assign | `fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end` | Run | Run | Validate, optionally run | Two locals with cross-assignment. |
 | If-then | `fn main() i32 let x i32 = 1 if x x = 9 end ret x end` | Run | Run | Validate, optionally run | `if` without `else`. |
-| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | No `elif`; WAT rejects `elif` today. |
+| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | `elif` chains supported in WAT (298b6c2). |
 | While | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
 | Comparisons (6) | `==`, `!=`, `<=`, `>`, `>=`, `<` (true and false cases) | Run | Run | Validate, optionally run | All signed comparison operators. |
 | Logical (2) | `not false or 0`, `2 and 3` | Run | Run | Validate, optionally run | Eager logical lowering, not short-circuiting. |
 
 Limitations: the shared matrix intentionally excludes functions with
-parameters, extern calls, arrays, structs, strings, `elif`, and general I/O.
+parameters, extern calls, arrays, structs, strings, and general I/O.
 Those are covered by the C path and broader smoke tests, but they are not
 shared backend contracts yet. Keep matrix programs small enough for the
 compiler-1 harness buffers (`source i8[256]`, `tokens Token[128]`,
@@ -338,7 +338,7 @@ checks, and dynamic memory remain unsupported in WAT.
 - ASM-4: function parameters and multi-function support.
 - ASM-5: `elif` chains.
 - WASM-3: function parameters and multi-function support.
-- WASM-4: `elif` chains.
+- WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).
 - These can be delegated to independent workers.
 
 ## Build integration
