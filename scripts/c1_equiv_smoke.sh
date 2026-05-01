@@ -16,6 +16,10 @@ fixtures=(
   let_simple.etl
   let_arith.etl
   let_chain.etl
+  ret_unary_minus.etl
+  if_logical_and.etl
+  if_logical_or.etl
+  if_logical_not.etl
 )
 
 pass=0
