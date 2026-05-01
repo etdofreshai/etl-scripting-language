@@ -18,9 +18,9 @@ set +e
 status=$?
 set -e
 
-if [ "$status" -ne 49 ]; then
-  echo "c1_emit_c_smoke: FAIL - expected emitted C length exit 49, got $status" >&2
+if [ "$status" -ne 65 ]; then
+  echo "c1_emit_c_smoke: FAIL - expected emitted C length exit 65, got $status" >&2
   exit 1
 fi
 
-echo "c1_emit_c_smoke: ok (fn main() i32 ret 1 + 2 * (9 - 4) end -> arithmetic return C)"
+echo "c1_emit_c_smoke: ok (fn main() i32 ret 1 + 2 * (9 - 4) end -> prototype plus arithmetic return C)"
