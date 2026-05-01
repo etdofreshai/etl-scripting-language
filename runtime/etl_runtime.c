@@ -146,6 +146,10 @@ int32_t etl_write_file(int8_t *path, int8_t *buf, int32_t len) {
   return 0;
 }
 
+int32_t etl_write_file1024(int8_t *path, int8_t *buf, int32_t len) {
+  return etl_write_file(path, buf, len);
+}
+
 int32_t etl_bytes_equal(const int8_t *a, int32_t alen, const int8_t *b, int32_t blen) {
   if (alen != blen) {
     return -1;
