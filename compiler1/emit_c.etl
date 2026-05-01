@@ -911,24 +911,32 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   ret emit_c_append_text(out, p, out_cap, tail, 2)
 end
 
-fn emit_c_extern_param_list(ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_c_extern_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_c_extern_param_list(ast, ast[list].b, out, pos, out_cap)
+  let p i32 = emit_c_extern_param_list(source, tokens, ast, ast[list].b, out, pos, out_cap)
   if p < 0
     ret -1
   end
   let int_text i8[64] = "int"
+  let byte_ptr_text i8[64] = "signed char *"
   let comma i8[64] = ", "
   if ast[list].b >= 0
     p = emit_c_append_text(out, p, out_cap, comma, 2)
     if p < 0
       ret -1
     end
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind != AN_PARAM()
+    ret -1
+  end
+  if emit_c_type_is_byte_array(source, tokens, ast, ast[param].b)
+    ret emit_c_append_text(out, p, out_cap, byte_ptr_text, 13)
   end
   ret emit_c_append_text(out, p, out_cap, int_text, 3)
 end
@@ -971,7 +979,7 @@ fn emit_c_extern_function(source i8[256], tokens Token[128], ast AstNode[512], a
     let void_arg i8[64] = "void"
     p = emit_c_append_text(out, p, out_cap, void_arg, 4)
   else
-    p = emit_c_extern_param_list(ast, ast[params].a, out, p, out_cap)
+    p = emit_c_extern_param_list(source, tokens, ast, ast[params].a, out, p, out_cap)
   end
   if p < 0
     ret -1

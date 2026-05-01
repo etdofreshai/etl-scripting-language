@@ -1,0 +1,28 @@
+extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+
+fn main() i32
+  let source i8[256] = "external function etl_sum_bytes(buf byte[4]) integer function main() integer let text byte[4] = \"abc\" return etl_sum_bytes(text) end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let out i8[1024]
+  let n i32 = lex(source, 132, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 2
+  end
+  if sema(source, tokens, ast, an) < 0
+    ret 3
+  end
+  let emitted i32 = emit_c(source, tokens, ast, an, out, 1024)
+  if emitted < 0
+    ret 4
+  end
+  let path i8[64] = "/tmp/etl_c1_source_to_c_byte_string_extern.c"
+  if etl_write_file1024(path, out, emitted) < 0
+    ret 5
+  end
+  ret 0
+end

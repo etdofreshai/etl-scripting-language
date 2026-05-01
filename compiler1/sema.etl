@@ -160,6 +160,34 @@ fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], pa
   ret count
 end
 
+fn sema_count_extern_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
+  if params < 0
+    ret -1
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret -1
+  end
+  let count i32 = 0
+  let item i32 = ast[params].a
+  while item >= 0
+    if sema_check_list(ast, item) < 0
+      ret -1
+    end
+    let param i32 = ast[item].a
+    if ast[param].kind != AN_PARAM()
+      ret -1
+    end
+    if sema_type_is_i32(source, tokens, ast, ast[param].b) == false
+      if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
+        ret -1
+      end
+    end
+    count = count + 1
+    item = ast[item].b
+  end
+  ret count
+end
+
 fn sema_scope_add(source i8[256], tokens Token[128], scope i32[64], name i32) i32
   let count i32 = scope[0]
   let i i32 = 1
@@ -613,6 +641,9 @@ fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], pro
         ret sema_report(SE_BAD_AST(), ast[decl].token)
       end
       let argc i32 = sema_count_i32_params(source, tokens, ast, ast[decl].b)
+      if ast[decl].kind == AN_EXTERN_FN()
+        argc = sema_count_extern_params(source, tokens, ast, ast[decl].b)
+      end
       if argc < 0
         ret sema_report(SE_BAD_AST(), ast[decl].token)
       end
