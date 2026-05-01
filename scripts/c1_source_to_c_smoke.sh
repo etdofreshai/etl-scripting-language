@@ -31,4 +31,4 @@ if [ "$status" -ne 17 ]; then
   exit 1
 fi
 
-echo "c1_source_to_c_smoke: ok (compiler-1 lex/parse/sema/emit_c produced native C returning 17)"
+echo "c1_source_to_c_smoke: ok (compiler-1 lex/parse/sema/emit_c produced let/return C returning 17)"
