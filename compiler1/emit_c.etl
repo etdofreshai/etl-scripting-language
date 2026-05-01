@@ -265,6 +265,18 @@ fn emit_c_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
     end
     ret emit_c_append_text(out, p, out_cap, close_text, 1)
   end
+  if ast[node].kind == AN_FIELD_ACCESS()
+    let dot i8[64] = "."
+    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, dot, 1)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_append_token_text(source, tokens, ast[node].b, out, p, out_cap)
+  end
   if ast[node].kind == AN_UNARY()
     if ast[node].a == TK_NOT()
       let not_text i8[64] = "!("
@@ -358,9 +370,39 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret -1
   end
   let decl_text i8[64] = "  int "
+  let struct_text i8[64] = "  struct "
   let eq_text i8[64] = " = "
   let semi_text i8[64] = ";\n"
-  let p i32 = emit_c_append_text(out, pos, out_cap, decl_text, 6)
+  let p i32 = pos
+  let is_i32 i32 = 0
+  let i32_name i8[16] = "i32"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3)
+    is_i32 = 1
+  end
+  let integer_name i8[16] = "integer"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7)
+    is_i32 = 1
+  end
+  if is_i32 != 0
+    p = emit_c_append_text(out, p, out_cap, decl_text, 6)
+  else
+    if ast[typ].b > 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, struct_text, 9)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_token_text(source, tokens, ast[typ].a, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    let space i8[64] = " "
+    p = emit_c_append_text(out, p, out_cap, space, 1)
+  end
   if p < 0
     ret -1
   end
@@ -388,6 +430,9 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     end
     ret emit_c_append_text(out, p, out_cap, semi_text, 2)
   end
+  if is_i32 == 0
+    ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+  end
   if ast[node].c < 0
     ret -1
   end
@@ -400,6 +445,86 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret -1
   end
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+end
+
+fn emit_c_struct_fields(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_c_struct_fields(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let field i32 = ast[list].a
+  if field < 0 or field >= ast_count
+    ret -1
+  end
+  if ast[field].kind != AN_FIELD()
+    ret -1
+  end
+  let typ i32 = ast[field].b
+  if typ < 0 or typ >= ast_count
+    ret -1
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret -1
+  end
+  if ast[typ].b > 0
+    ret -1
+  end
+  let i32_name i8[16] = "i32"
+  let integer_name i8[16] = "integer"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3) == false
+    if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7) == false
+      ret -1
+    end
+  end
+  let head i8[64] = "  int "
+  p = emit_c_append_text(out, p, out_cap, head, 6)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_token_text(source, tokens, ast[field].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let semi i8[64] = ";\n"
+  ret emit_c_append_text(out, p, out_cap, semi, 2)
+end
+
+fn emit_c_struct(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_STRUCT()
+    ret -1
+  end
+  let head i8[64] = "struct "
+  let open i8[64] = " {\n"
+  let tail i8[64] = "};\n"
+  let p i32 = emit_c_append_text(out, pos, out_cap, head, 7)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_text(out, p, out_cap, open, 3)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_struct_fields(source, tokens, ast, ast_count, ast[node].b, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_c_append_text(out, p, out_cap, tail, 3)
 end
 
 fn emit_c_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
@@ -826,6 +951,9 @@ fn emit_c_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   let decl i32 = ast[list].a
   if ast[decl].kind == AN_EXTERN_FN()
     ret emit_c_extern_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
+  end
+  if ast[decl].kind == AN_STRUCT()
+    ret emit_c_struct(source, tokens, ast, ast_count, decl, out, p, out_cap)
   end
   if ast[decl].kind == AN_FN()
     ret emit_c_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
