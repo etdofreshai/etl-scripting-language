@@ -82,7 +82,7 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, and local `byte[N]`/`i8[N]` string literal initialization with constant-index reads; assembled and linked by smoke tests. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, and local struct declaration with i32 field store/load; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, and local struct declaration with i32 field store/load; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -285,6 +285,17 @@ using `i32.store8`/`i32.load8_s` proven by the same smoke script
 with constant-index reads proven by the same smoke script (c173e18,
 merged 44ac63e). Extern/param byte arrays, structs, struct arrays,
 bounds checks, and dynamic arrays remain unsupported.
+
+### Chunk ASM-3D: x86-64 local i32 struct field store/load — **Done.**
+Local struct declarations with `i32`-only fields, field store via
+`mov $imm, %rax` + `mov %rax, -offset(%rbp)`, and field load via
+`mov -offset(%rbp), %rax` proven by
+`scripts/c1_asm_struct_field_smoke.sh` (f2d7ba9, merged 87fc689).
+Smoke returns 42 via `type Pair structure left integer right integer
+end` with `p.left = 19; p.right = 23; ret p.left + p.right`.
+Struct arrays, nested structs, non-i32 fields, function parameters,
+extern calls, bounds checks, and dynamic memory remain unsupported in
+ASM.
 
 ### Chunk WASM-2C: WAT local i32 struct field store/load — **Done.**
 Local struct declarations with `i32`-only fields, field store via
