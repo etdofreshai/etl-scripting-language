@@ -1,0 +1,4 @@
+fn EMIT_OK() i32 ret 0 end
+fn EMIT_ERR_CAPACITY() i32 ret -1 end
+fn EMIT_ERR_UNSUPPORTED() i32 ret -2 end
+fn EMIT_ERR_BAD_AST() i32 ret -3 end
