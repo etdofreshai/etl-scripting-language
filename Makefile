@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost equiv backend-plan backend-plan-smoke backend-asm autopilot-help
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost equiv backend-plan backend-plan-smoke backend-asm selfhost-asm autopilot-help
 
 test:
 	python3 -m unittest discover -s tests
@@ -52,7 +52,9 @@ backend-plan-smoke:
 	scripts/backend_plan_smoke.sh
 
 backend-asm:
-	scripts/c1_asm_return_smoke.sh
+	scripts/c1_emit_asm_smoke.sh
+
+selfhost-asm: backend-asm
 
 backend-plan: backend-plan-smoke backend-asm
 

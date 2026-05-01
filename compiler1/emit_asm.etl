@@ -26,7 +26,7 @@ fn emit_asm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   let p i32 = pos
   let zero i8[64] = "0"
   let minus i8[64] = "-"
-  let digits_text i8[64] = "0123456789"
+  let digit_text i8[64] = "0123456789"
   if value == 0
     ret emit_asm_append_text(out, p, out_cap, zero, 1)
   end
@@ -49,7 +49,7 @@ fn emit_asm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   end
   while n > 0
     n = n - 1
-    p = emit_asm_append_byte(out, p, out_cap, digits_text[digits[n]])
+    p = emit_asm_append_byte(out, p, out_cap, digit_text[digits[n]])
     if p < 0
       ret -1
     end
@@ -57,28 +57,35 @@ fn emit_asm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret p
 end
 
-fn emit_asm_append_mov_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
-  let p i32 = pos
-  let mov_head i8[64] = "  mov $"
-  let mov_tail i8[64] = ", %rax\n"
-  p = emit_asm_append_text(out, p, out_cap, mov_head, 7)
-  if p < 0
-    ret -1
-  end
-  p = emit_asm_append_i32(out, p, out_cap, value)
-  if p < 0
-    ret -1
-  end
-  ret emit_asm_append_text(out, p, out_cap, mov_tail, 7)
+fn emit_asm_nl(out i8[1024], pos i32, out_cap i32) i32
+  let nl i8[64] = "\n"
+  ret emit_asm_append_text(out, pos, out_cap, nl, 1)
 end
 
 fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
+
   if ast[node].kind == AN_INT()
-    ret emit_asm_append_mov_i32(out, pos, out_cap, ast[node].a)
+    let p i32 = pos
+    let t1 i8[64] = "    mov $"
+    let t2 i8[64] = ", %rax"
+    p = emit_asm_append_text(out, p, out_cap, t1, 9)
+    if p < 0
+      ret -1
+    end
+    p = emit_asm_append_i32(out, p, out_cap, ast[node].a)
+    if p < 0
+      ret -1
+    end
+    p = emit_asm_append_text(out, p, out_cap, t2, 6)
+    if p < 0
+      ret -1
+    end
+    ret emit_asm_nl(out, p, out_cap)
   end
+
   if ast[node].kind == AN_UNARY()
     if ast[node].a != TK_MINUS()
       ret -1
@@ -87,144 +94,358 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i3
     if p < 0
       ret -1
     end
-    let neg_text i8[64] = "  neg %rax\n"
-    ret emit_asm_append_text(out, p, out_cap, neg_text, 11)
+    let neg_t i8[64] = "    neg %rax"
+    p = emit_asm_append_text(out, p, out_cap, neg_t, 12)
+    if p < 0
+      ret -1
+    end
+    ret emit_asm_nl(out, p, out_cap)
   end
+
   if ast[node].kind == AN_BINARY()
-    let p i32 = emit_asm_expr(ast, ast_count, ast[node].b, out, pos, out_cap)
+    let p i32 = 0
+
+    p = emit_asm_expr(ast, ast_count, ast[node].c, out, pos, out_cap)
     if p < 0
       ret -1
     end
-    let push_text i8[64] = "  push %rax\n"
-    p = emit_asm_append_text(out, p, out_cap, push_text, 12)
+    let push_t i8[64] = "    push %rax"
+    p = emit_asm_append_text(out, p, out_cap, push_t, 13)
     if p < 0
       ret -1
     end
-    p = emit_asm_expr(ast, ast_count, ast[node].c, out, p, out_cap)
+    p = emit_asm_nl(out, p, out_cap)
     if p < 0
       ret -1
     end
-    let pop_text i8[64] = "  pop %rcx\n"
-    p = emit_asm_append_text(out, p, out_cap, pop_text, 11)
+
+    p = emit_asm_expr(ast, ast_count, ast[node].b, out, p, out_cap)
     if p < 0
       ret -1
     end
 
     if ast[node].a == TK_PLUS()
-      let add_text i8[64] = "  add %rcx, %rax\n"
-      ret emit_asm_append_text(out, p, out_cap, add_text, 17)
+      let pop_t i8[64] = "    pop %rcx"
+      p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let op_t i8[64] = "    add %rcx, %rax"
+      p = emit_asm_append_text(out, p, out_cap, op_t, 18)
+    else
+      if ast[node].a == TK_MINUS()
+        let mr i8[64] = "    mov %rax, %rcx"
+        p = emit_asm_append_text(out, p, out_cap, mr, 18)
+        if p < 0
+          ret -1
+        end
+        p = emit_asm_nl(out, p, out_cap)
+        if p < 0
+          ret -1
+        end
+        let pop_t i8[64] = "    pop %rax"
+        p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+        if p < 0
+          ret -1
+        end
+        p = emit_asm_nl(out, p, out_cap)
+        if p < 0
+          ret -1
+        end
+        let op_t i8[64] = "    sub %rcx, %rax"
+        p = emit_asm_append_text(out, p, out_cap, op_t, 18)
+      else
+        if ast[node].a == TK_STAR()
+          let pop_t i8[64] = "    pop %rcx"
+          p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+          if p < 0
+            ret -1
+          end
+          p = emit_asm_nl(out, p, out_cap)
+          if p < 0
+            ret -1
+          end
+          let op_t i8[64] = "    imul %rcx, %rax"
+          p = emit_asm_append_text(out, p, out_cap, op_t, 19)
+        else
+          if ast[node].a == TK_SLASH()
+            let mr i8[64] = "    mov %rax, %rcx"
+            p = emit_asm_append_text(out, p, out_cap, mr, 18)
+            if p < 0
+              ret -1
+            end
+            p = emit_asm_nl(out, p, out_cap)
+            if p < 0
+              ret -1
+            end
+            let pop_t i8[64] = "    pop %rax"
+            p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+            if p < 0
+              ret -1
+            end
+            p = emit_asm_nl(out, p, out_cap)
+            if p < 0
+              ret -1
+            end
+            let sign_t i8[64] = "    cqto"
+            p = emit_asm_append_text(out, p, out_cap, sign_t, 8)
+            if p < 0
+              ret -1
+            end
+            p = emit_asm_nl(out, p, out_cap)
+            if p < 0
+              ret -1
+            end
+            let op_t i8[64] = "    idiv %rcx"
+            p = emit_asm_append_text(out, p, out_cap, op_t, 13)
+          else
+            if ast[node].a == TK_PERCENT()
+              let mr i8[64] = "    mov %rax, %rcx"
+              p = emit_asm_append_text(out, p, out_cap, mr, 18)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let pop_t i8[64] = "    pop %rax"
+              p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let sign_t i8[64] = "    cqto"
+              p = emit_asm_append_text(out, p, out_cap, sign_t, 8)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let op_t i8[64] = "    idiv %rcx"
+              p = emit_asm_append_text(out, p, out_cap, op_t, 13)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let mr2 i8[64] = "    mov %rdx, %rax"
+              p = emit_asm_append_text(out, p, out_cap, mr2, 18)
+            else
+              ret -1
+            end
+          end
+        end
+      end
     end
-    if ast[node].a == TK_MINUS()
-      let sub_text i8[64] = "  sub %rax, %rcx\n"
-      p = emit_asm_append_text(out, p, out_cap, sub_text, 17)
-      if p < 0
-        ret -1
-      end
-      let mov_text i8[64] = "  mov %rcx, %rax\n"
-      ret emit_asm_append_text(out, p, out_cap, mov_text, 17)
+    if p < 0
+      ret -1
     end
-    if ast[node].a == TK_STAR()
-      let mul_text i8[64] = "  imul %rcx, %rax\n"
-      ret emit_asm_append_text(out, p, out_cap, mul_text, 18)
-    end
-    if ast[node].a == TK_SLASH() or ast[node].a == TK_PERCENT()
-      let save_rhs i8[64] = "  mov %rax, %rbx\n"
-      p = emit_asm_append_text(out, p, out_cap, save_rhs, 17)
-      if p < 0
-        ret -1
-      end
-      let move_lhs i8[64] = "  mov %rcx, %rax\n"
-      p = emit_asm_append_text(out, p, out_cap, move_lhs, 17)
-      if p < 0
-        ret -1
-      end
-      let sign_text i8[64] = "  cqto\n"
-      p = emit_asm_append_text(out, p, out_cap, sign_text, 7)
-      if p < 0
-        ret -1
-      end
-      let div_text i8[64] = "  idiv %rbx\n"
-      p = emit_asm_append_text(out, p, out_cap, div_text, 12)
-      if p < 0
-        ret -1
-      end
-      if ast[node].a == TK_PERCENT()
-        let rem_text i8[64] = "  mov %rdx, %rax\n"
-        ret emit_asm_append_text(out, p, out_cap, rem_text, 17)
-      end
-      ret p
-    end
-    ret -1
+    ret emit_asm_nl(out, p, out_cap)
   end
+
   ret -1
 end
 
-fn emit_asm_return_expr(ast AstNode[512], ast_count i32) i32
-  let program i32 = ast_count - 1
-  if program < 0
+fn emit_asm_return(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
     ret -1
   end
-  if ast[program].kind != AN_PROGRAM()
+  if ast[node].kind != AN_RET()
     ret -1
   end
-  if ast[program].b != 1
-    ret -1
-  end
+  ret emit_asm_expr(ast, ast_count, ast[node].a, out, pos, out_cap)
+end
 
-  let decl_list i32 = ast[program].a
-  if decl_list < 0 or decl_list >= ast_count
+fn emit_asm_block(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
     ret -1
   end
-  if ast[decl_list].kind != AN_LIST()
+  if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  if ast[decl_list].b != -1
+  if ast[node].b != 1
     ret -1
   end
+  let list i32 = ast[node].a
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b != -1
+    ret -1
+  end
+  ret emit_asm_return(ast, ast_count, ast[list].a, out, pos, out_cap)
+end
 
-  let fn_node i32 = ast[decl_list].a
-  if fn_node < 0 or fn_node >= ast_count
+fn emit_asm_function(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
     ret -1
   end
-  if ast[fn_node].kind != AN_FN()
+  if ast[node].kind != AN_FN()
     ret -1
   end
-
-  let body i32 = ast[fn_node].c
+  let params i32 = ast[node].b
+  if params < 0 or params >= ast_count
+    ret -1
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret -1
+  end
+  if ast[params].b != 0
+    ret -1
+  end
+  let body i32 = ast[node].c
   if body < 0 or body >= ast_count
     ret -1
   end
-  if ast[body].kind != AN_BLOCK()
+  let ret_type i32 = ast[body].c
+  if ret_type < 0 or ret_type >= ast_count
     ret -1
   end
-  if ast[body].b != 1
-    ret -1
-  end
-
-  let stmt_list i32 = ast[body].a
-  if stmt_list < 0 or stmt_list >= ast_count
-    ret -1
-  end
-  if ast[stmt_list].kind != AN_LIST()
-    ret -1
-  end
-  if ast[stmt_list].b != -1
+  if ast[ret_type].kind != AN_TYPE()
     ret -1
   end
 
-  let ret_node i32 = ast[stmt_list].a
-  if ret_node < 0 or ret_node >= ast_count
+  let p i32 = pos
+
+  let t1 i8[64] = "    .section .text"
+  p = emit_asm_append_text(out, p, out_cap, t1, 18)
+  if p < 0
     ret -1
   end
-  if ast[ret_node].kind != AN_RET()
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
     ret -1
   end
 
-  let expr i32 = ast[ret_node].a
-  if expr < 0 or expr >= ast_count
+  let t2 i8[64] = "    .globl main"
+  p = emit_asm_append_text(out, p, out_cap, t2, 15)
+  if p < 0
     ret -1
   end
-  ret expr
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let t3 i8[64] = "    .type main, @function"
+  p = emit_asm_append_text(out, p, out_cap, t3, 25)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let t4 i8[64] = "main:"
+  p = emit_asm_append_text(out, p, out_cap, t4, 5)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let push_t i8[64] = "    push %rbp"
+  p = emit_asm_append_text(out, p, out_cap, push_t, 13)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let mov_t i8[64] = "    mov %rsp, %rbp"
+  p = emit_asm_append_text(out, p, out_cap, mov_t, 18)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  p = emit_asm_block(ast, ast_count, body, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let pop_t i8[64] = "    pop %rbp"
+  p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let ret_t i8[64] = "    ret"
+  p = emit_asm_append_text(out, p, out_cap, ret_t, 7)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let size_t i8[64] = "    .size main, .-main"
+  p = emit_asm_append_text(out, p, out_cap, size_t, 22)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+
+  let note_t i8[64] = "    .section .note.GNU-stack"
+  p = emit_asm_append_text(out, p, out_cap, note_t, 28)
+  if p < 0
+    ret -1
+  end
+  ret emit_asm_nl(out, p, out_cap)
+end
+
+fn emit_asm_program(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_PROGRAM()
+    ret -1
+  end
+  if ast[node].b != 1
+    ret -1
+  end
+  let list i32 = ast[node].a
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b != -1
+    ret -1
+  end
+  ret emit_asm_function(ast, ast_count, ast[list].a, out, pos, out_cap)
 end
 
 fn emit_asm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
@@ -234,38 +455,5 @@ fn emit_asm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
   if out_cap <= 0
     ret EMIT_ERR_CAPACITY()
   end
-
-  let expr i32 = emit_asm_return_expr(ast, ast_count)
-  if expr < 0
-    ret EMIT_ERR_UNSUPPORTED()
-  end
-
-  let p i32 = 0
-  let header i8[64] = ".text\n.globl _start\n_start:\n"
-  let move_status i8[64] = "  mov %rax, %rdi\n"
-  let mov_rax i8[64] = "  mov $60, %rax\n"
-  let syscall i8[64] = "  syscall\n"
-
-  p = emit_asm_append_text(out, p, out_cap, header, 28)
-  if p < 0
-    ret EMIT_ERR_CAPACITY()
-  end
-  p = emit_asm_expr(ast, ast_count, expr, out, p, out_cap)
-  if p < 0
-    ret EMIT_ERR_CAPACITY()
-  end
-  p = emit_asm_append_text(out, p, out_cap, move_status, 17)
-  if p < 0
-    ret EMIT_ERR_CAPACITY()
-  end
-  p = emit_asm_append_text(out, p, out_cap, mov_rax, 16)
-  if p < 0
-    ret EMIT_ERR_CAPACITY()
-  end
-  p = emit_asm_append_text(out, p, out_cap, syscall, 10)
-  if p < 0
-    ret EMIT_ERR_CAPACITY()
-  end
-
-  ret p
+  ret emit_asm_program(ast, ast_count, ast_count - 1, out, 0, out_cap)
 end
