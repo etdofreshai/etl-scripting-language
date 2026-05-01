@@ -66,6 +66,11 @@ each self-eval graphics program will produce:
 5. Harness computes SHA-256 of each PPM and compares against `.sha256` sidecar.
 6. Determinism check: run twice, require identical stdout and pixel hashes.
 
+The combined `make selfeval-all` target runs both headless selfeval and
+graphics smoke in a single pass. It automatically detects SDL3 and
+reports SKIP for graphics when absent. See `docs/selfeval.md` for the
+full combined contract.
+
 ### Portability notes
 
 - PPM is used now for simplicity; PNG can be added when libpng or stb_image_write
