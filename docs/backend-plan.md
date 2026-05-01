@@ -81,7 +81,7 @@ codes for consistent error handling.
 
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
-| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
+| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs and user-defined `i32` parameters. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
 
@@ -112,11 +112,11 @@ and eager logical operators (`and`, `or`, `not`).
 | Logical (2) | `not false or 0`, `2 and 3` | Run | Run | Validate, optionally run | Eager logical lowering, not short-circuiting. |
 
 Limitations: the shared matrix intentionally excludes functions with
-parameters, extern calls, arrays, structs, strings, and general I/O.
-Those are covered by the C path and broader smoke tests, but they are not
-shared backend contracts yet. Keep matrix programs small enough for the
-compiler-1 harness buffers (`source i8[256]`, `tokens Token[128]`,
-`out i8[1024]`).
+parameters, extern calls, arrays, structs, strings, and general I/O. Basic
+multi-function programs and user-defined `i32` parameters are covered by the
+C path through `make selfhost-equiv`, but they are not shared C/ASM/WAT
+contracts yet. Keep matrix programs small enough for the compiler-1 harness
+buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
 
 ## C backend (current)
 
