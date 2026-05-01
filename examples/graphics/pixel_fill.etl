@@ -1,34 +1,34 @@
-extern fn etl_gfx_create(width i32, height i32) i32
-extern fn etl_gfx_destroy()
-extern fn etl_gfx_clear(r i32, g i32, b i32) i32
-extern fn etl_gfx_set_pixel(x i32, y i32, r i32, g i32, b i32) i32
-extern fn etl_gfx_write_ppm(path i8[256]) i32
-extern fn etl_gfx_get_pixel(x i32, y i32) i32
-extern fn etl_print_i32(value i32)
+external function etl_gfx_create(width integer, height integer) integer
+external function etl_gfx_destroy()
+external function etl_gfx_clear(r integer, g integer, b integer) integer
+external function etl_gfx_set_pixel(x integer, y integer, r integer, g integer, b integer) integer
+external function etl_gfx_write_ppm(path byte[256]) integer
+external function etl_gfx_get_pixel(x integer, y integer) integer
+external function etl_print_i32(value integer)
 
-fn main() i32
+function main() integer
   if etl_gfx_create(8, 8) < 0
-    ret 1
+    return 1
   end
 
   if etl_gfx_clear(255, 0, 0) < 0
     etl_gfx_destroy()
-    ret 2
+    return 2
   end
 
   if etl_gfx_set_pixel(4, 4, 0, 255, 0) < 0
     etl_gfx_destroy()
-    ret 3
+    return 3
   end
 
-  let center i32 = etl_gfx_get_pixel(4, 4)
+  let center integer = etl_gfx_get_pixel(4, 4)
   etl_print_i32(center)
 
   if etl_gfx_write_ppm("build/graphics/pixel_fill.ppm") < 0
     etl_gfx_destroy()
-    ret 4
+    return 4
   end
 
   etl_gfx_destroy()
-  ret 0
+  return 0
 end

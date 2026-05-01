@@ -12,7 +12,7 @@ stage harnesses and prove a small source-to-C path.
 | `lex.etl`    | Lexer module for the compiler-1 subset.          |
 | `parse.etl`  | Parser module for the compiler-1 subset.         |
 | `sema.etl`   | Semantic analysis module for compiler-1 AST validation. |
-| `emit_c.etl` | C emitter for `fn main() i32 ret <integer arithmetic expression> end`. |
+| `emit_c.etl` | C emitter for `function main() integer return <integer arithmetic expression> end`. |
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
 | `emit_asm.etl` | ASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
 | `emit_wasm.etl` | WASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |

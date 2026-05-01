@@ -1,9 +1,9 @@
-extern fn etl_print_i32(value i32)
+external function etl_print_i32(value integer)
 
-fn main() i32
-  let pos i32 = 0
-  let vel i32 = 1
-  let tick i32 = 0
+function main() integer
+  let pos integer = 0
+  let vel integer = 1
+  let tick integer = 0
   while tick < 5
     etl_print_i32(tick)
     etl_print_i32(pos)
@@ -13,5 +13,5 @@ fn main() i32
   end
   etl_print_i32(tick)
   etl_print_i32(pos)
-  ret pos
+  return pos
 end
