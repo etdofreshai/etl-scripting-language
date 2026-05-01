@@ -16,7 +16,7 @@ The `make headless-ready` gate proves the current self-evaluation surface:
 |---|---|---|
 | Compiler-0 correctness | `make check` | Tests, smoke suite, runtime tests |
 | Compiler-1 pipeline | `make selfhost` | Lex/parse/sema/emit stages pass |
-| Backend plan scaffolds | `make backend-plan` | ASM scaffold compiles |
+| Backend plan scaffolds | `make backend-plan` | ASM backend smoke passes |
 | Shared backend subset | `make backend-subset` | C, ASM, WAT agree on small corpus |
 | WAT/WASM smoke | `make backend-wasm` | WAT text validates, optionally runs |
 | Deterministic stdout | `make headless-selfeval` | Exit codes, golden files, repeatability |
@@ -117,9 +117,10 @@ compiler can target multiple platforms without behavioral divergence.
 
 ### Phase 5 (in progress): Compiler-1 in ETL
 
-**Current state**: lex, parse, sema, and C emitter smokes are landed. The
-compiler-1 pipeline compiles via compiler-0 and produces C output for a
-growing subset.
+**Current state**: lex, parse, sema, C emission, and C extern call support
+(void and return-valued) are landed. The compiler-1 pipeline compiles via
+compiler-0 and produces C output for a growing subset. The 18-case shared
+backend subset exercises C, ASM, and WAT/WASM backends.
 
 **Self-eval relevance**: Once compiler-1 can compile the full v0 corpus with
 behavior-equivalence to compiler-0, it becomes the first self-improvement

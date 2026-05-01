@@ -93,16 +93,23 @@ their exit codes are checked. WAT output is always text-validated; when
 `wat2wasm` plus `wasmtime` or `wasmer` are available, the generated WASM is
 also executed.
 
+The current corpus contains 18 test cases spanning return, arithmetic,
+local initialization, single and multi-local assignment, `if` and `if`/`else`,
+`while`, all six comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`),
+and eager logical operators (`and`, `or`, `not`).
+
 | Source shape | Corpus example | C | ASM | WAT/WASM | Notes |
 |--------------|----------------|---|-----|----------|-------|
 | Return literal | `fn main() i32 ret 42 end` | Run | Run | Validate, optionally run | Baseline `i32` return. |
 | Arithmetic return | `fn main() i32 ret 1 + 2 * 3 end` | Run | Run | Validate, optionally run | Covers precedence and `+`/`*`. |
 | Local init/return | `fn main() i32 let x i32 = 12 ret x end` | Run | Run | Validate, optionally run | Covers local declaration, initialization, lookup, and return. |
 | Assignment | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | Run | Run | Validate, optionally run | Covers simple local reassignment. |
-| Simple if/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | No `elif`; WAT rejects `elif` today. |
-| Simple while | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
-| Comparison return | `fn main() i32 ret 8 <= 8 end` | Run | Run | Validate, optionally run | Covers equality and signed comparison operators. |
-| Logical return | `fn main() i32 ret not false or 0 end` | Run | Run | Validate, optionally run | Current logical lowering is truthy/eager, not short-circuiting. |
+| Multi-local assign | `fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end` | Run | Run | Validate, optionally run | Two locals with cross-assignment. |
+| If-then | `fn main() i32 let x i32 = 1 if x x = 9 end ret x end` | Run | Run | Validate, optionally run | `if` without `else`. |
+| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | No `elif`; WAT rejects `elif` today. |
+| While | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
+| Comparisons (6) | `==`, `!=`, `<=`, `>`, `>=`, `<` (true and false cases) | Run | Run | Validate, optionally run | All signed comparison operators. |
+| Logical (2) | `not false or 0`, `2 and 3` | Run | Run | Validate, optionally run | Eager logical lowering, not short-circuiting. |
 
 Limitations: the shared matrix intentionally excludes functions with
 parameters, extern calls, arrays, structs, strings, `elif`, and general I/O.
