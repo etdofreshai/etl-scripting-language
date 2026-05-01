@@ -98,6 +98,12 @@ Specifically, c1 can emit:
   indexed field access — proven by `scripts/c1_source_to_c_struct_array_smoke.sh`
   (6c54423). Struct arrays with non-integer fields, struct params/returns, and
   nested struct-in-struct are not yet covered.
+- Narrow fixed byte/i8 array extern parameters emitted as `signed char *`
+  in extern function declarations — proven by
+  `scripts/c1_source_to_c_byte_string_extern_smoke.sh` (8d72ca2). Local byte
+  string buffers can be passed to an extern C helper function. User-defined
+  byte-array parameters (in non-extern user functions) and non-byte-array
+  extern param types (structs, nested arrays) are not yet covered.
 
 ### What c1 cannot emit yet (self-compilation blockers)
 
@@ -113,7 +119,7 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Struct field access | c1 has no `.field` expression emission | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); cross-function struct params and returns do not |
 | Index expressions | c1 has no `arr[i]` expression emission | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); non-`i32` index expressions do not |
 | String literal data | c1 cannot emit C string data or char arrays | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads, multiple string buffers, and extern param string buffers do not |
-| Extern fn with typed params | c1 emits all extern params as `int` | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32` |
+| Extern fn with typed params | c1 emits all extern params as `int` | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); user-defined byte-array params and non-byte-array extern param types do not |
 | Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
 
 ## The self-compilation chain
