@@ -195,7 +195,9 @@ Premature IR abstraction is a known risk.
 | `compiler1/backend_defs.etl`      | Shared backend constants (error codes).       |
 | `compiler1/emit_asm.etl`          | ASM backend scaffold (placeholder).           |
 | `compiler1/emit_wasm.etl`         | WASM backend scaffold (placeholder).          |
-| `scripts/backend_plan_smoke.sh`   | Verifies scaffolds parse via compiler-0.      |
+| `scripts/backend_plan_smoke.sh`   | Verifies scaffolds compile via compiler-0.    |
+| `scripts/c1_emit_asm_smoke.sh`    | ASM backend skip-safe smoke (TODO).           |
+| `scripts/c1_emit_wasm_smoke.sh`   | WASM backend skip-safe smoke (TODO).          |
 | `Makefile`                        | `make backend-plan` target.                   |
 
 ## Verification
@@ -246,6 +248,63 @@ These chunks can be delegated to independent workers in the future:
 - Build a lowering pass: AST → IR.
 - Verify: IR output round-trips through C backend unchanged.
 - Depends on: Phase 5f and at least one non-C backend at Chunk *-2.
+
+## Build integration
+
+Backends are selected at build time by the concatenation-based module system.
+Exactly one `emit_<target>` module is included per compiler build:
+
+```
+main.etl (shared decls, minus fn main)
+  + lex.etl
+  + parse.etl
+  + sema.etl
+  + emit_<target>.etl
+  + test_<target>.etl
+```
+
+No runtime dispatch is needed. The backend is baked into the compiler binary
+at build time.
+
+### Adding a new backend
+
+1. Create `compiler1/emit_<target>.etl` implementing the contract above.
+2. Create `compiler1/test_<target>.etl` with byte-level output assertions.
+3. Create `scripts/c1_emit_<target>_smoke.sh` following the concatenation
+   pattern from `scripts/c1_emit_c_smoke.sh`. Start as a skip-safe placeholder.
+4. Wire the smoke script into `scripts/c1_pipeline_smoke.sh` behind a
+   conditional check (see existing pattern for sema/emit_c).
+
+## Reference gate outputs
+
+These are the expected outputs for the gate test programs that each backend
+must match before being considered functional.
+
+### WASM gate: `fn main() i32 ret 1 + 2 * (9 - 4) end`
+
+```wat
+(module
+  (func (export "main") (result i32)
+    i32.const 1
+    i32.const 2
+    i32.const 9
+    i32.const 4
+    i32.sub
+    i32.mul
+    i32.add
+  )
+)
+```
+
+### ASM gate: `fn main() i32 ret 42 end`
+
+```asm
+    .text
+    .globl main
+main:
+    mov $42, %eax
+    ret
+```
 
 ## Constraints
 
