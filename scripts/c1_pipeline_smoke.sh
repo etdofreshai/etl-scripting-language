@@ -36,6 +36,9 @@ scripts/c1_source_to_c_smoke.sh
 echo "c1_pipeline: run array source-to-C smoke"
 scripts/c1_source_to_c_array_smoke.sh
 
+echo "c1_pipeline: run byte-string source-to-C smoke"
+scripts/c1_source_to_c_byte_string_smoke.sh
+
 echo "c1_pipeline: run struct-field source-to-C smoke"
 scripts/c1_source_to_c_struct_field_smoke.sh
 
