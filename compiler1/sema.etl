@@ -89,6 +89,30 @@ fn sema_find_extern(source i8[256], tokens Token[128], extern_names i32[64], ext
   ret -1
 end
 
+fn sema_add_params_to_scope(source i8[256], tokens Token[128], ast AstNode[512], params i32, scope i32[64]) i32
+  if params < 0
+    ret sema_report(SE_BAD_AST(), 0)
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret sema_report(SE_BAD_AST(), ast[params].token)
+  end
+  let item i32 = ast[params].a
+  while item >= 0
+    if sema_check_list(ast, item) < 0
+      ret SEMA_ERROR()
+    end
+    let param i32 = ast[item].a
+    if ast[param].kind != AN_PARAM()
+      ret sema_report(SE_BAD_AST(), ast[param].token)
+    end
+    if sema_scope_add(source, tokens, scope, ast[param].a) < 0
+      ret SEMA_ERROR()
+    end
+    item = ast[item].b
+  end
+  ret SEMA_OK()
+end
+
 fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
   if params < 0
     ret -1
@@ -536,6 +560,9 @@ fn sema_validate_decl_ex(source i8[256], tokens Token[128], ast AstNode[512], de
     end
     let scope i32[64]
     scope[0] = 0
+    if sema_add_params_to_scope(source, tokens, ast, ast[decl].b, scope) < 0
+      ret SEMA_ERROR()
+    end
     ret sema_validate_block_ex(source, tokens, ast, ast[decl].c, 1, scope, 1, extern_names, extern_argc, extern_ret, extern_count)
   end
   if kind == AN_EXTERN_FN()
@@ -555,7 +582,7 @@ fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], pro
       ret -1
     end
     let decl i32 = ast[item].a
-    if ast[decl].kind == AN_EXTERN_FN()
+    if ast[decl].kind == AN_EXTERN_FN() or ast[decl].kind == AN_FN()
       if count >= 64
         ret sema_report(SE_BAD_AST(), ast[decl].token)
       end
@@ -564,8 +591,15 @@ fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], pro
         ret sema_report(SE_BAD_AST(), ast[decl].token)
       end
       let ret_type i32 = TY_VOID()
-      if ast[decl].c >= 0
-        if sema_type_is_i32(source, tokens, ast, ast[decl].c) == false
+      let ret_node i32 = ast[decl].c
+      if ast[decl].kind == AN_FN()
+        if ret_node < 0 or ast[ret_node].kind != AN_BLOCK()
+          ret sema_report(SE_BAD_AST(), ast[decl].token)
+        end
+        ret_node = ast[ret_node].c
+      end
+      if ret_node >= 0
+        if sema_type_is_i32(source, tokens, ast, ret_node) == false
           ret sema_report(SE_BAD_AST(), ast[decl].token)
         end
         ret_type = TY_I32()

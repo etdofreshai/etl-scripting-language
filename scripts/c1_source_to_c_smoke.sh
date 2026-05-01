@@ -26,9 +26,9 @@ set +e
 status=$?
 set -e
 
-if [ "$status" -ne 10 ]; then
-  echo "c1_source_to_c_smoke: FAIL - expected emitted program exit 10, got $status" >&2
+if [ "$status" -ne 42 ]; then
+  echo "c1_source_to_c_smoke: FAIL - expected emitted program exit 42, got $status" >&2
   exit 1
 fi
 
-echo "c1_source_to_c_smoke: ok (compiler-1 lex/parse/sema/emit_c produced local/assign C returning 10)"
+echo "c1_source_to_c_smoke: ok (compiler-1 lex/parse/sema/emit_c produced user function call C returning 42)"
