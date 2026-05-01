@@ -100,6 +100,8 @@ parallelizes.
 
 See `docs/fixed-point-plan.md` for the detailed fixed-point milestone
 definition, prerequisites, worker chunks, and verification gates.
+See `docs/c1-corpus-expansion-plan.md` for the ordered fixture catalog
+and acceptance criteria driving the 5f emitter expansion.
 
 ## Risks pinned to the wall
 

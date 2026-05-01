@@ -234,16 +234,17 @@ is documentation, test infrastructure, or corpus expansion.
 **Scope**: Add new corpus fixtures to `tests/c1_corpus/` that exercise
 features c1 will need for self-compilation. No compiler changes.
 
-- `multi_fn.etl`: Two functions, one calling the other.
-- `fn_params.etl`: Function with integer parameters.
-- `local_bool.etl`: Function with `bool` local variables.
-- `local_array.etl`: Function with `i32[N]` array local.
-- `struct_decl.etl`: Program declaring and using a struct.
-- `field_access.etl`: Struct field read and write.
-- `index_expr.etl`: Array indexing in expressions.
-- `string_local.etl`: `i8[N]` local with string literal.
+See `docs/c1-corpus-expansion-plan.md` for the full fixture catalog with
+acceptance criteria, tier ordering, and blocker mapping. Summary:
 
-Each fixture needs a corresponding expected exit code. These fixtures will
+- Tier 1 (4 fixtures): multi-function, parameters, recursive calls
+- Tier 2 (3 fixtures): `bool` locals, `i8` locals
+- Tier 3 (3 fixtures): array locals, index expressions, variable subscripts
+- Tier 4 (3 fixtures): struct declarations, field access, struct arrays
+- Tier 5 (2 fixtures): string-initialized `i8[]` locals
+- Tier 6 (1 fixture): typed extern function parameters
+
+Each fixture has an expected exit code. These fixtures will
 initially fail c1 equiv (because c1 cannot emit them yet) but serve as the
 target set for the emitter expansion chunks.
 
