@@ -79,11 +79,32 @@ codes for consistent error handling.
 
 ## Backend status
 
-| Backend   | File                  | Status      | Notes                              |
-|-----------|-----------------------|-------------|------------------------------------|
-| C         | `compiler1/emit_c.etl`  | **Active**  | Full arithmetic return emission    |
-| ASM       | `compiler1/emit_asm.etl`| Scaffold    | Placeholder; not linked into build |
-| WASM      | `compiler1/emit_wasm.etl`| Scaffold   | Placeholder; not linked into build |
+| Backend | File | Status | Notes |
+|---------|------|--------|-------|
+| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly for small `main` programs; assembled and linked by opt-in smoke tests. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text for small `main` programs; opt-in smoke validates text and executes only when WAT/WASM tools are installed. |
+
+## Shared backend subset smoke
+
+`make backend-subset` runs a deliberately small corpus through all three
+compiler-1 backends. C and ASM outputs are compiled to native executables and
+their exit codes are checked. WAT output is always text-validated; when
+`wat2wasm` plus `wasmtime` or `wasmer` are available, the generated WASM is
+also executed.
+
+| Source shape | Corpus example | C | ASM | WAT/WASM | Notes |
+|--------------|----------------|---|-----|----------|-------|
+| Return literal | `fn main() i32 ret 42 end` | Run | Run | Validate, optionally run | Baseline `i32` return. |
+| Arithmetic return | `fn main() i32 ret 1 + 2 * 3 end` | Run | Run | Validate, optionally run | Covers precedence and `+`/`*`. |
+| Comparison return | `fn main() i32 ret 2 < 3 end` | Run | Run | Validate, optionally run | Boolean results use `0`/`1` exits. |
+| Logical return | `fn main() i32 ret not false or 0 end` | Run | Run | Validate, optionally run | Current logical lowering is truthy/eager, not short-circuiting. |
+
+Limitations: the shared matrix intentionally excludes functions with
+parameters, extern calls, arrays, structs, strings, and general I/O. Those are
+covered by the C path and broader smoke tests, but they are not shared backend
+contracts yet. Keep matrix programs small enough for the compiler-1 harness
+buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
 
 ## C backend (current)
 
@@ -204,6 +225,7 @@ Premature IR abstraction is a known risk.
 
 ```sh
 make backend-plan   # Verify scaffolds compile through compiler-0
+make backend-subset # Opt-in shared C/ASM/WAT subset matrix smoke
 make check          # Unchanged — all existing tests must pass
 make selfhost       # Unchanged — compiler-1 pipeline must pass
 ```
