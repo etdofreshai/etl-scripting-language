@@ -141,11 +141,150 @@ fn emit_asm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[51
   ret false
 end
 
-fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNode[512], list i32) i32
+fn emit_asm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let i32_text i8[64] = "i32"
+  let integer_text i8[64] = "integer"
+  let tok i32 = ast[typ].a
+  if tok < 0
+    ret false
+  end
+  if tokens[tok].len == 3
+    let s i32 = tokens[tok].start
+    if source[s] == i32_text[0] and source[s + 1] == i32_text[1] and source[s + 2] == i32_text[2]
+      ret true
+    end
+  end
+  if tokens[tok].len == 7
+    let s2 i32 = tokens[tok].start
+    let i i32 = 0
+    while i < 7
+      if source[s2 + i] != integer_text[i]
+        ret false
+      end
+      i = i + 1
+    end
+    ret true
+  end
+  ret false
+end
+
+fn emit_asm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, name_token i32) i32
+  let i i32 = 0
+  while i < ast_count
+    if ast[i].kind == AN_STRUCT()
+      if emit_asm_same_name(source, tokens, ast[i].a, name_token)
+        ret i
+      end
+    end
+    i = i + 1
+  end
+  ret -1
+end
+
+fn emit_asm_type_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, typ i32) i32
+  if typ < 0 or typ >= ast_count
+    ret -1
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret -1
+  end
+  if ast[typ].b != -1
+    ret -1
+  end
+  ret emit_asm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
+end
+
+fn emit_asm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32) i32
+  if struct_node < 0 or struct_node >= ast_count
+    ret -1
+  end
+  if ast[struct_node].kind != AN_STRUCT()
+    ret -1
+  end
+  let fields i32 = ast[struct_node].b
+  let count i32 = 0
+  while fields >= 0
+    if fields >= ast_count
+      ret -1
+    end
+    if ast[fields].kind != AN_LIST()
+      ret -1
+    end
+    let field i32 = ast[fields].a
+    if field < 0 or field >= ast_count
+      ret -1
+    end
+    if ast[field].kind != AN_FIELD()
+      ret -1
+    end
+    let ftyp i32 = ast[field].b
+    if emit_asm_type_is_i32_scalar(source, tokens, ast, ftyp) == false
+      ret -1
+    end
+    count = count + 1
+    fields = ast[fields].b
+  end
+  ret count * 4
+end
+
+fn emit_asm_count_fields(ast AstNode[512], list i32) i32
   if list < 0
     ret 0
   end
-  let bytes i32 = emit_asm_count_prior_stack_bytes(source, tokens, ast, ast[list].b)
+  ret emit_asm_count_fields(ast, ast[list].b) + 1
+end
+
+fn emit_asm_struct_field_offset_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, field_token i32) i32
+  if list < 0
+    ret -1
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let prior i32 = emit_asm_struct_field_offset_list(source, tokens, ast, ast_count, ast[list].b, field_token)
+  if prior >= 0
+    ret prior
+  end
+  let field i32 = ast[list].a
+  if field < 0 or field >= ast_count
+    ret -1
+  end
+  if ast[field].kind != AN_FIELD()
+    ret -1
+  end
+  if emit_asm_same_name(source, tokens, ast[field].a, field_token)
+    ret emit_asm_count_fields(ast, ast[list].b) * 4
+  end
+  ret -1
+end
+
+fn emit_asm_struct_field_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32, field_token i32) i32
+  if struct_node < 0 or struct_node >= ast_count
+    ret -1
+  end
+  if ast[struct_node].kind != AN_STRUCT()
+    ret -1
+  end
+  ret emit_asm_struct_field_offset_list(source, tokens, ast, ast_count, ast[struct_node].b, field_token)
+end
+
+fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32) i32
+  if list < 0
+    ret 0
+  end
+  let bytes i32 = emit_asm_count_prior_stack_bytes(source, tokens, ast, ast_count, ast[list].b)
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
     let typ i32 = ast[stmt].b
@@ -154,6 +293,14 @@ fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNo
     end
     if emit_asm_type_is_byte_array(source, tokens, ast, typ)
       ret bytes + ast[typ].b
+    end
+    let struct_node i32 = emit_asm_type_struct_decl(source, tokens, ast, ast_count, typ)
+    if struct_node >= 0
+      let byte_count i32 = emit_asm_struct_bytes(source, tokens, ast, ast_count, struct_node)
+      if byte_count < 0
+        ret -1
+      end
+      ret bytes + byte_count
     end
     ret bytes + 8
   end
@@ -194,24 +341,32 @@ fn emit_asm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list
   ret -1
 end
 
-fn emit_asm_find_local_offset(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_asm_find_local_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, name_token i32) i32
   if list < 0
     ret -1
   end
-  let prior i32 = emit_asm_find_local_offset(source, tokens, ast, ast[list].b, name_token)
+  let prior i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, ast[list].b, name_token)
   if prior >= 0
     ret prior
   end
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
     if emit_asm_same_name(source, tokens, ast[stmt].a, name_token)
-      let prior_bytes i32 = emit_asm_count_prior_stack_bytes(source, tokens, ast, ast[list].b)
+      let prior_bytes i32 = emit_asm_count_prior_stack_bytes(source, tokens, ast, ast_count, ast[list].b)
       let typ i32 = ast[stmt].b
       if emit_asm_type_is_i32_array(source, tokens, ast, typ)
         ret prior_bytes + ast[typ].b * 4
       end
       if emit_asm_type_is_byte_array(source, tokens, ast, typ)
         ret prior_bytes + ast[typ].b
+      end
+      let struct_node i32 = emit_asm_type_struct_decl(source, tokens, ast, ast_count, typ)
+      if struct_node >= 0
+        let byte_count i32 = emit_asm_struct_bytes(source, tokens, ast, ast_count, struct_node)
+        if byte_count < 0
+          ret -1
+        end
+        ret prior_bytes + byte_count
       end
       ret prior_bytes + 8
     end
@@ -315,8 +470,8 @@ fn emit_asm_append_byte_array_index_ref(out i8[1024], pos i32, out_cap i32, base
   ret emit_asm_append_text(out, p, out_cap, tail, 3)
 end
 
-fn emit_asm_load_local(source i8[256], tokens Token[128], ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
-  let off i32 = emit_asm_find_local_offset(source, tokens, ast, locals, name_token)
+fn emit_asm_load_local(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+  let off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, name_token)
   if off < 0
     ret -1
   end
@@ -338,8 +493,8 @@ fn emit_asm_load_local(source i8[256], tokens Token[128], ast AstNode[512], loca
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_store_local(source i8[256], tokens Token[128], ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
-  let off i32 = emit_asm_find_local_offset(source, tokens, ast, locals, name_token)
+fn emit_asm_store_local(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+  let off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, name_token)
   if off < 0
     ret -1
   end
@@ -466,7 +621,7 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     ret emit_asm_mov_i32(out, pos, out_cap, ast[node].a)
   end
   if ast[node].kind == AN_NAME()
-    ret emit_asm_load_local(source, tokens, ast, locals, ast[node].a, out, pos, out_cap)
+    ret emit_asm_load_local(source, tokens, ast, ast_count, locals, ast[node].a, out, pos, out_cap)
   end
   if ast[node].kind == AN_UNARY()
     let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
@@ -756,7 +911,7 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     if ast[array_node].kind != AN_NAME()
       ret -1
     end
-    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, locals, ast[array_node].a)
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, ast[array_node].a)
     if base_off < 0
       ret -1
     end
@@ -820,6 +975,44 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     end
     ret emit_asm_nl(out, p, out_cap)
   end
+  if ast[node].kind == AN_FIELD_ACCESS()
+    let base_node i32 = ast[node].a
+    if base_node < 0 or base_node >= ast_count
+      ret -1
+    end
+    if ast[base_node].kind != AN_NAME()
+      ret -1
+    end
+    let typ i32 = emit_asm_find_local_type(source, tokens, ast, locals, ast[base_node].a)
+    let struct_node i32 = emit_asm_type_struct_decl(source, tokens, ast, ast_count, typ)
+    if struct_node < 0
+      ret -1
+    end
+    let field_off i32 = emit_asm_struct_field_offset(source, tokens, ast, ast_count, struct_node, ast[node].b)
+    if field_off < 0
+      ret -1
+    end
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, ast[base_node].a)
+    if base_off < 0
+      ret -1
+    end
+    let p i32 = pos
+    let head i8[64] = "    mov "
+    let tail i8[64] = ", %rax"
+    p = emit_asm_append_text(out, p, out_cap, head, 8)
+    if p < 0
+      ret -1
+    end
+    p = emit_asm_append_stack_offset(out, p, out_cap, base_off - field_off)
+    if p < 0
+      ret -1
+    end
+    p = emit_asm_append_text(out, p, out_cap, tail, 6)
+    if p < 0
+      ret -1
+    end
+    ret emit_asm_nl(out, p, out_cap)
+  end
   ret -1
 end
 
@@ -847,20 +1040,23 @@ fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
     if ast[node].c < 0
       ret pos
     end
-    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, visible_locals, ast[node].a)
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, visible_locals, ast[node].a)
     if base_off < 0
       ret -1
     end
     ret emit_asm_init_byte_array_string(source, tokens, ast, ast[node].b, ast[node].c, base_off, out, pos, out_cap)
   end
   if ast[node].c < 0
+    if emit_asm_type_struct_decl(source, tokens, ast, ast_count, ast[node].b) >= 0
+      ret pos
+    end
     ret -1
   end
   let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].c, prior_locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_asm_store_local(source, tokens, ast, visible_locals, ast[node].a, out, p, out_cap)
+  ret emit_asm_store_local(source, tokens, ast, ast_count, visible_locals, ast[node].a, out, p, out_cap)
 end
 
 fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
@@ -869,6 +1065,43 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   end
   if ast[node].kind != AN_ASSIGN()
     ret -1
+  end
+  if ast[ast[node].a].kind == AN_FIELD_ACCESS()
+    let field_node i32 = ast[node].a
+    let base_node i32 = ast[field_node].a
+    if base_node < 0 or base_node >= ast_count
+      ret -1
+    end
+    if ast[base_node].kind != AN_NAME()
+      ret -1
+    end
+    let typ i32 = emit_asm_find_local_type(source, tokens, ast, locals, ast[base_node].a)
+    let struct_node i32 = emit_asm_type_struct_decl(source, tokens, ast, ast_count, typ)
+    if struct_node < 0
+      ret -1
+    end
+    let field_off i32 = emit_asm_struct_field_offset(source, tokens, ast, ast_count, struct_node, ast[field_node].b)
+    if field_off < 0
+      ret -1
+    end
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, ast[base_node].a)
+    if base_off < 0
+      ret -1
+    end
+    let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    let mov_head i8[64] = "    mov %rax, "
+    p = emit_asm_append_text(out, p, out_cap, mov_head, 14)
+    if p < 0
+      ret -1
+    end
+    p = emit_asm_append_stack_offset(out, p, out_cap, base_off - field_off)
+    if p < 0
+      ret -1
+    end
+    ret emit_asm_nl(out, p, out_cap)
   end
   if ast[ast[node].a].kind == AN_INDEX()
     let idx_node i32 = ast[node].a
@@ -879,7 +1112,7 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
     if ast[array_node].kind != AN_NAME()
       ret -1
     end
-    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, locals, ast[array_node].a)
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, ast[array_node].a)
     if base_off < 0
       ret -1
     end
@@ -967,7 +1200,7 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if p < 0
     ret -1
   end
-  ret emit_asm_store_local(source, tokens, ast, locals, ast[ast[node].a].a, out, p, out_cap)
+  ret emit_asm_store_local(source, tokens, ast, ast_count, locals, ast[ast[node].a].a, out, p, out_cap)
 end
 
 fn emit_asm_label(out i8[1024], pos i32, out_cap i32, prefix i8[64], len i32, id i32) i32
@@ -1264,7 +1497,7 @@ fn emit_asm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   if ast[node].kind != AN_PROGRAM()
     ret -1
   end
-  if ast[node].b != 1
+  if ast[node].b < 1
     ret -1
   end
   let list i32 = ast[node].a
@@ -1274,10 +1507,35 @@ fn emit_asm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  if ast[list].b != -1
+  let item i32 = list
+  let fn_node i32 = -1
+  while item >= 0
+    if item >= ast_count
+      ret -1
+    end
+    if ast[item].kind != AN_LIST()
+      ret -1
+    end
+    let decl i32 = ast[item].a
+    if decl < 0 or decl >= ast_count
+      ret -1
+    end
+    if ast[decl].kind == AN_FN()
+      if fn_node >= 0
+        ret -1
+      end
+      fn_node = decl
+    else
+      if ast[decl].kind != AN_STRUCT()
+        ret -1
+      end
+    end
+    item = ast[item].b
+  end
+  if fn_node < 0
     ret -1
   end
-  ret emit_asm_function(source, tokens, ast, ast_count, ast[list].a, out, pos, out_cap)
+  ret emit_asm_function(source, tokens, ast, ast_count, fn_node, out, pos, out_cap)
 end
 
 fn emit_asm(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
