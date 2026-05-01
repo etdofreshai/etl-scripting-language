@@ -1473,6 +1473,100 @@ fn emit_asm_jump_label(out i8[1024], pos i32, out_cap i32, op i8[64], op_len i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
+fn emit_asm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b < 0
+    ret list
+  end
+  ret emit_asm_oldest_elif_list(ast, ast_count, ast[list].b)
+end
+
+fn emit_asm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i32) i32
+  if list < 0
+    ret -1
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b == current
+    ret list
+  end
+  ret emit_asm_next_elif_list(ast, ast_count, ast[list].b, current)
+end
+
+fn emit_asm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, end_id i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if current < 0 or current >= ast_count
+    ret -1
+  end
+  if ast[current].kind != AN_LIST()
+    ret -1
+  end
+  let enode i32 = ast[current].a
+  if enode < 0 or enode >= ast_count
+    ret -1
+  end
+  if ast[enode].kind != AN_ELIF()
+    ret -1
+  end
+  let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[enode].a, locals, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let cmp_t i8[64] = "    cmp $0, %rax"
+  p = emit_asm_append_text(out, p, out_cap, cmp_t, 16)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let je_t i8[64] = "    je "
+  let jmp_t i8[64] = "    jmp "
+  let next_p i8[64] = ".Lelifnext"
+  let end_p i8[64] = ".Lendif"
+  p = emit_asm_jump_label(out, p, out_cap, je_t, 7, next_p, 10, enode)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[enode].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_jump_label(out, p, out_cap, jmp_t, 8, end_p, 7, end_id)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_label(out, p, out_cap, next_p, 10, enode)
+  if p < 0
+    ret -1
+  end
+  let next i32 = emit_asm_next_elif_list(ast, ast_count, all_elifs, current)
+  if next >= 0
+    ret emit_asm_elif_chain_from(source, tokens, ast, ast_count, all_elifs, next, else_body, end_id, locals, out, p, out_cap)
+  end
+  if else_body >= 0
+    ret emit_asm_nested_block(source, tokens, ast, ast_count, else_body, locals, out, p, out_cap)
+  end
+  ret p
+end
+
+fn emit_asm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, end_id i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  let first i32 = emit_asm_oldest_elif_list(ast, ast_count, elifs)
+  if first < 0
+    ret -1
+  end
+  ret emit_asm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, end_id, locals, out, pos, out_cap)
+end
+
 fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
   if p < 0
@@ -1491,6 +1585,7 @@ fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
   let jmp_t i8[64] = "    jmp "
   let else_p i8[64] = ".Lelse"
   let end_p i8[64] = ".Lendif"
+  let elifs i32 = ast[ast[node].b].c
   p = emit_asm_jump_label(out, p, out_cap, je_t, 7, else_p, 6, node)
   if p < 0
     ret -1
@@ -1507,10 +1602,17 @@ fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
   if p < 0
     ret -1
   end
-  if ast[node].c >= 0
-    p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+  if elifs >= 0
+    p = emit_asm_elif_chain(source, tokens, ast, ast_count, elifs, ast[node].c, node, locals, out, p, out_cap)
     if p < 0
       ret -1
+    end
+  else
+    if ast[node].c >= 0
+      p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
     end
   end
   ret emit_asm_label(out, p, out_cap, end_p, 7, node)
