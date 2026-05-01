@@ -243,9 +243,14 @@ These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 > (`scripts/c1_source_to_c_struct_field_smoke.sh`, commit 902b736). It proves c1
 > can emit `typedef struct { ... } Pair;` declarations, `Pair p;` struct locals,
 > integer field writes (`p.left = 19`), and integer field reads (`p.left + p.right`)
-> for local struct variables with `i32` fields. The fixtures below expand coverage
-> to struct parameters passed across function boundaries, struct arrays, and
-> combined struct + array access patterns — none of which are covered yet.
+> for local struct variables with `i32` fields. A narrow local struct array field
+> smoke has also landed (`scripts/c1_source_to_c_struct_array_smoke.sh`, commit
+> 6c54423), proving c1 can emit `Pair arr[N]` struct array declarations with
+> constant-index field writes (`arr[0].left = 19`) and reads (`arr[0].left +
+> arr[1].right`). The fixtures below expand coverage to struct parameters passed
+> across function boundaries, variable-index struct arrays, and combined struct +
+> array access patterns — variable-index struct arrays and struct params are not
+> yet covered.
 
 #### `struct_decl.etl`
 
@@ -310,7 +315,10 @@ end
 
 **Acceptance**: c0 exit 200, c1 exit 200. Proves combined struct + array:
 `Item items[3]` declarations and `items[i].field` access patterns.
-**Not yet covered** — requires both struct and array emitter capabilities.
+The narrow struct array field smoke (6c54423) covers constant-index
+`arr[i].field` reads and writes for 2-element struct arrays with `i32` fields;
+this fixture extends to 3-element arrays with constant subscripts as a
+regression guard. Variable-index struct array access is not yet covered.
 
 **Unlocks**: 5f-STRUCTS chunk. The narrow local integer struct field smoke covers
 a subset (struct declarations + local i32 field read/write); struct parameters,
