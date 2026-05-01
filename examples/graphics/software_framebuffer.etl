@@ -7,28 +7,46 @@ external function etl_gfx_get_pixel(x integer, y integer) integer
 external function etl_print_i32(value integer)
 
 function main() integer
-  let path byte[256] = "build/graphics/pixel_fill.ppm"
+  let path byte[256] = "build/graphics/software_framebuffer.ppm"
 
-  if etl_gfx_create(8, 8) < 0
+  if etl_gfx_create(4, 4) < 0
     return 1
   end
 
-  if etl_gfx_clear(255, 0, 0) < 0
+  if etl_gfx_clear(10, 20, 30) < 0
     etl_gfx_destroy()
     return 2
   end
 
-  if etl_gfx_set_pixel(4, 4, 0, 255, 0) < 0
+  if etl_gfx_set_pixel(0, 0, 255, 0, 0) < 0
     etl_gfx_destroy()
     return 3
   end
 
-  let center integer = etl_gfx_get_pixel(4, 4)
-  etl_print_i32(center)
+  if etl_gfx_set_pixel(1, 1, 0, 255, 0) < 0
+    etl_gfx_destroy()
+    return 4
+  end
+
+  if etl_gfx_set_pixel(2, 2, 0, 0, 255) < 0
+    etl_gfx_destroy()
+    return 5
+  end
+
+  if etl_gfx_set_pixel(3, 3, 255, 255, 255) < 0
+    etl_gfx_destroy()
+    return 6
+  end
+
+  etl_print_i32(etl_gfx_get_pixel(0, 0))
+  etl_print_i32(etl_gfx_get_pixel(1, 1))
+  etl_print_i32(etl_gfx_get_pixel(2, 2))
+  etl_print_i32(etl_gfx_get_pixel(3, 3))
+  etl_print_i32(etl_gfx_get_pixel(3, 0))
 
   if etl_gfx_write_ppm(path) < 0
     etl_gfx_destroy()
-    return 4
+    return 7
   end
 
   etl_gfx_destroy()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Combined selfeval-all: runs headless self-evaluation + graphics smoke.
-# Graphics checks are skip-safe: if SDL3 is absent, report SKIP and pass.
+# Software graphics always runs; SDL3 graphics is skip-safe when SDL3 is absent.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,11 @@ echo "=== selfeval-all: headless self-evaluation ==="
 "$repo_root/scripts/selfeval_smoke.sh"
 
 echo ""
-echo "=== selfeval-all: headless graphics ==="
+echo "=== selfeval-all: software graphics ==="
+"$repo_root/scripts/software_graphics_smoke.sh"
+
+echo ""
+echo "=== selfeval-all: SDL3 graphics ==="
 "$repo_root/scripts/sdl3_headless_smoke.sh"
 
 if $sdl3_available; then
@@ -28,7 +32,7 @@ if $sdl3_available; then
   else
     echo "  WARNING: SDL3 available but no PPM artifact found"
   fi
-  echo "selfeval-all: PASS (selfeval + graphics with artifacts)"
+  echo "selfeval-all: PASS (selfeval + software graphics + SDL3 graphics with artifacts)"
 else
-  echo "selfeval-all: PASS (selfeval; graphics SKIP — SDL3 absent)"
+  echo "selfeval-all: PASS (selfeval + software graphics; SDL3 graphics SKIP)"
 fi
