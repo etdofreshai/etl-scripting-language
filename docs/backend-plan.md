@@ -328,6 +328,12 @@ main:
     ret
 ```
 
+## Vocabulary and compatibility
+
+`docs/platform-vocabulary.md` defines the canonical full-word vocabulary,
+the complete legacy alias set, and the compatibility tiers for every backend.
+Consult it before adding new keywords or backend features.
+
 ## Constraints
 
 - Do not modify compiler-0 behavior.

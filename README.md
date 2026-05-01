@@ -90,4 +90,4 @@ Compiler-0 now validates the tiny v0 subset before C emission:
 - integer literals must fit the supported `i32` range
 - the minimum `i32` literal is emitted with a portable C expression instead of relying on an out-of-range positive token
 
-Legacy spellings (`fn`, `ret`, `extern`, `struct`, `i32`, `i8`, `bool`, `ptr`, `sizeof`) remain accepted as compatibility aliases.
+Legacy spellings (`fn`, `ret`, `extern`, `struct`, `i32`, `i8`, `bool`, `ptr`, `sizeof`) remain accepted as compatibility aliases. See `docs/platform-vocabulary.md` for the full canonical vocabulary and platform compatibility tiers.
