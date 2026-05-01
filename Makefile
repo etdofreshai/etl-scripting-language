@@ -65,6 +65,7 @@ backend-asm:
 	scripts/c1_emit_asm_smoke.sh
 	scripts/c1_asm_array_smoke.sh
 	scripts/c1_asm_struct_field_smoke.sh
+	scripts/c1_asm_struct_array_smoke.sh
 
 selfhost-asm: backend-asm
 
