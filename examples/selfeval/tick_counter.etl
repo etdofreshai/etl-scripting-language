@@ -1,0 +1,17 @@
+extern fn etl_print_i32(value i32)
+
+fn main() i32
+  let pos i32 = 0
+  let vel i32 = 1
+  let tick i32 = 0
+  while tick < 5
+    etl_print_i32(tick)
+    etl_print_i32(pos)
+    pos = pos + vel
+    vel = vel + 1
+    tick = tick + 1
+  end
+  etl_print_i32(tick)
+  etl_print_i32(pos)
+  ret pos
+end
