@@ -14,6 +14,10 @@ echo "=== selfeval-all: headless self-evaluation ==="
 "$repo_root/scripts/selfeval_smoke.sh"
 
 echo ""
+echo "=== selfeval-all: deterministic trace artifact ==="
+"$repo_root/scripts/selfeval_trace_smoke.sh"
+
+echo ""
 echo "=== selfeval-all: software graphics ==="
 "$repo_root/scripts/software_graphics_smoke.sh"
 
