@@ -166,6 +166,14 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   end
 
   if ast[node].kind == AN_UNARY()
+    if ast[node].a == TK_NOT()
+      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+      if p < 0
+        ret -1
+      end
+      let eqz_t i8[64] = "    i32.eqz\n"
+      ret emit_wasm_append_text(out, p, out_cap, eqz_t, 12)
+    end
     if ast[node].a != TK_MINUS()
       ret -1
     end
@@ -186,6 +194,28 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
     if p < 0
       ret -1
+    end
+    if ast[node].a == TK_AND() or ast[node].a == TK_OR()
+      let truth_l i8[64] = "    i32.const 0\n    i32.ne\n"
+      p = emit_wasm_append_text(out, p, out_cap, truth_l, 27)
+      if p < 0
+        ret -1
+      end
+      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let truth_r i8[64] = "    i32.const 0\n    i32.ne\n"
+      p = emit_wasm_append_text(out, p, out_cap, truth_r, 27)
+      if p < 0
+        ret -1
+      end
+      if ast[node].a == TK_AND()
+        let op_t i8[64] = "    i32.and\n"
+        ret emit_wasm_append_text(out, p, out_cap, op_t, 12)
+      end
+      let op_t i8[64] = "    i32.or\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 11)
     end
     p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
     if p < 0

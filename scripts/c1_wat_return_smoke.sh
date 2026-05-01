@@ -231,6 +231,16 @@ run_arith_case if_local "fn main() i32 let x i32 = 1 if x x = 9 end ret x end" 9
 run_arith_case if_else_local "fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end" 7 "if" "else" 'local.set \$v0'
 run_arith_case while_local "fn main() i32 let x i32 = 0 while x < 3 x = x + 1 end ret x end" 3 "block" "loop" "i32.lt_s" "br_if 1" "br 0"
 
+run_arith_case bool_if_true "fn main() i32 let x i32 = 0 if true x = 5 else x = 9 end ret x end" 5 "i32.const 1" "if" "else" 'local.set \$v0'
+run_arith_case bool_if_false "fn main() i32 let x i32 = 0 if false x = 5 else x = 9 end ret x end" 9 "i32.const 0" "if" "else" 'local.set \$v0'
+run_arith_case ret_cmp_true "fn main() i32 ret 2 < 3 end" 1 "i32.const 2" "i32.const 3" "i32.lt_s"
+run_arith_case ret_cmp_false "fn main() i32 ret 2 == 3 end" 0 "i32.const 2" "i32.const 3" "i32.eq"
+
+# WAT logical and/or currently use eager truthiness lowering, not short-circuiting.
+run_arith_case logic_not "fn main() i32 ret not false end" 1 "i32.const 0" "i32.eqz"
+run_arith_case logic_and "fn main() i32 ret 1 < 2 and 3 < 4 end" 1 "i32.lt_s" "i32.ne" "i32.and"
+run_arith_case logic_or "fn main() i32 ret 1 > 2 or true end" 1 "i32.gt_s" "i32.const 1" "i32.ne" "i32.or"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_return_smoke: FAIL - $fail failed, $pass passed" >&2
