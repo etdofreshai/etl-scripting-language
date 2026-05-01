@@ -50,7 +50,7 @@ fn main() i32
   if sema(source, tokens, ast, ast_count) < 0
     ret 3
   end
-  let n i32 = emit_wasm(ast, ast_count, out, 1024)
+  let n i32 = emit_wasm(source, tokens, ast, ast_count, out, 1024)
   if n <= 0
     ret 4
   end
@@ -223,6 +223,13 @@ run_arith_case() {
 run_arith_case arith_add "fn main() i32 ret 10 + 20 end" 30 "i32.const 10" "i32.const 20" "i32.add"
 run_arith_case arith_mul "fn main() i32 ret 3 * 7 end" 21 "i32.const 3" "i32.const 7" "i32.mul"
 run_arith_case arith_precedence "fn main() i32 ret 1 + 2 * 3 end" 7 "i32.const 1" "i32.const 2" "i32.const 3" "i32.mul" "i32.add"
+
+run_arith_case local_init_return "fn main() i32 let x i32 = 12 ret x end" 12 '(local \$v0 i32)' 'local.set \$v0' 'local.get \$v0'
+run_arith_case local_assign_return "fn main() i32 let x i32 = 1 x = x + 8 ret x end" 9 'local.get \$v0' "i32.add" 'local.set \$v0'
+run_arith_case local_spelling "fn main() i32 let aa i32 = 4 let a i32 = 2 aa = aa + a ret aa end" 6 '(local \$v0 i32)' '(local \$v1 i32)' 'local.get \$v0' 'local.get \$v1'
+run_arith_case if_local "fn main() i32 let x i32 = 1 if x x = 9 end ret x end" 9 "if" 'local.set \$v0' 'local.get \$v0'
+run_arith_case if_else_local "fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end" 7 "if" "else" 'local.set \$v0'
+run_arith_case while_local "fn main() i32 let x i32 = 0 while x < 3 x = x + 1 end ret x end" 3 "block" "loop" "i32.lt_s" "br_if 1" "br 0"
 
 # Summary
 if [ "$fail" -gt 0 ]; then
