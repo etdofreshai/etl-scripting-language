@@ -1,3 +1,133 @@
+fn emit_asm_append_byte(out i8[1024], pos i32, out_cap i32, ch i8) i32
+  if pos < 0
+    ret -1
+  end
+  if pos >= out_cap
+    ret -1
+  end
+  out[pos] = ch
+  ret pos + 1
+end
+
+fn emit_asm_append_text(out i8[1024], pos i32, out_cap i32, text i8[64], len i32) i32
+  let i i32 = 0
+  let p i32 = pos
+  while i < len
+    p = emit_asm_append_byte(out, p, out_cap, text[i])
+    if p < 0
+      ret -1
+    end
+    i = i + 1
+  end
+  ret p
+end
+
+fn emit_asm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
+  let p i32 = pos
+  let zero i8[64] = "0"
+  let minus i8[64] = "-"
+  let digits_text i8[64] = "0123456789"
+  if value == 0
+    ret emit_asm_append_text(out, p, out_cap, zero, 1)
+  end
+  if value < 0
+    p = emit_asm_append_text(out, p, out_cap, minus, 1)
+    if p < 0
+      ret -1
+    end
+    value = 0 - value
+  end
+  let digits i32[16]
+  let n i32 = 0
+  while value > 0
+    if n >= 16
+      ret -1
+    end
+    digits[n] = value % 10
+    value = value / 10
+    n = n + 1
+  end
+  while n > 0
+    n = n - 1
+    p = emit_asm_append_byte(out, p, out_cap, digits_text[digits[n]])
+    if p < 0
+      ret -1
+    end
+  end
+  ret p
+end
+
+fn emit_asm_ret_literal(ast AstNode[512], ast_count i32) i32
+  let program i32 = ast_count - 1
+  if program < 0
+    ret -1
+  end
+  if ast[program].kind != AN_PROGRAM()
+    ret -1
+  end
+  if ast[program].b != 1
+    ret -1
+  end
+
+  let decl_list i32 = ast[program].a
+  if decl_list < 0 or decl_list >= ast_count
+    ret -1
+  end
+  if ast[decl_list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[decl_list].b != -1
+    ret -1
+  end
+
+  let fn_node i32 = ast[decl_list].a
+  if fn_node < 0 or fn_node >= ast_count
+    ret -1
+  end
+  if ast[fn_node].kind != AN_FN()
+    ret -1
+  end
+
+  let body i32 = ast[fn_node].c
+  if body < 0 or body >= ast_count
+    ret -1
+  end
+  if ast[body].kind != AN_BLOCK()
+    ret -1
+  end
+  if ast[body].b != 1
+    ret -1
+  end
+
+  let stmt_list i32 = ast[body].a
+  if stmt_list < 0 or stmt_list >= ast_count
+    ret -1
+  end
+  if ast[stmt_list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[stmt_list].b != -1
+    ret -1
+  end
+
+  let ret_node i32 = ast[stmt_list].a
+  if ret_node < 0 or ret_node >= ast_count
+    ret -1
+  end
+  if ast[ret_node].kind != AN_RET()
+    ret -1
+  end
+
+  let expr i32 = ast[ret_node].a
+  if expr < 0 or expr >= ast_count
+    ret -1
+  end
+  if ast[expr].kind != AN_INT()
+    ret -1
+  end
+  ret ast[expr].a
+end
+
 fn emit_asm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
   if ast_count <= 0
     ret EMIT_ERR_BAD_AST()
@@ -5,5 +135,43 @@ fn emit_asm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
   if out_cap <= 0
     ret EMIT_ERR_CAPACITY()
   end
-  ret EMIT_ERR_UNSUPPORTED()
+
+  let value i32 = emit_asm_ret_literal(ast, ast_count)
+  if value < 0
+    ret EMIT_ERR_UNSUPPORTED()
+  end
+
+  let p i32 = 0
+  let header i8[64] = ".text\n.globl _start\n_start:\n"
+  let mov_rdi i8[64] = "  mov $"
+  let to_rdi i8[64] = ", %rdi\n"
+  let mov_rax i8[64] = "  mov $60, %rax\n"
+  let syscall i8[64] = "  syscall\n"
+
+  p = emit_asm_append_text(out, p, out_cap, header, 28)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  p = emit_asm_append_text(out, p, out_cap, mov_rdi, 7)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  p = emit_asm_append_i32(out, p, out_cap, value)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  p = emit_asm_append_text(out, p, out_cap, to_rdi, 7)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  p = emit_asm_append_text(out, p, out_cap, mov_rax, 16)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  p = emit_asm_append_text(out, p, out_cap, syscall, 10)
+  if p < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+
+  ret p
 end
