@@ -248,6 +248,23 @@ fn emit_c_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
     end
     ret emit_c_append_text(out, p, out_cap, close_text, 1)
   end
+  if ast[node].kind == AN_INDEX()
+    let open i8[64] = "["
+    let close_text i8[64] = "]"
+    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, open, 1)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_append_text(out, p, out_cap, close_text, 1)
+  end
   if ast[node].kind == AN_UNARY()
     if ast[node].a == TK_NOT()
       let not_text i8[64] = "!("
@@ -329,9 +346,6 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
   if ast[node].kind != AN_LET()
     ret -1
   end
-  if ast[node].c < 0
-    ret -1
-  end
   let typ i32 = ast[node].b
   if typ < 0 or typ >= ast_count
     ret -1
@@ -352,6 +366,29 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
   end
   p = emit_c_append_local_name(out, p, out_cap, local)
   if p < 0
+    ret -1
+  end
+  if ast[typ].b > 0
+    if ast[node].c >= 0
+      ret -1
+    end
+    let lbr i8[64] = "["
+    let rbr i8[64] = "]"
+    p = emit_c_append_text(out, p, out_cap, lbr, 1)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_i32(out, p, out_cap, ast[typ].b)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, rbr, 1)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+  end
+  if ast[node].c < 0
     ret -1
   end
   p = emit_c_append_text(out, p, out_cap, eq_text, 3)
