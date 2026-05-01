@@ -28,6 +28,7 @@ smoke:
 	scripts/c1_parse_smoke.sh
 	scripts/c1_sema_smoke.sh
 	scripts/c1_emit_c_smoke.sh
+	scripts/c1_emit_control_flow_smoke.sh
 	scripts/c1_source_to_c_smoke.sh
 
 runtime-test:
