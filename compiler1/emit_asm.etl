@@ -375,6 +375,59 @@ fn emit_asm_mov_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
+fn emit_asm_store_const_byte(out i8[1024], pos i32, out_cap i32, off i32, value i32) i32
+  let p i32 = pos
+  let head i8[64] = "    movb $"
+  let mid i8[64] = ", "
+  p = emit_asm_append_text(out, p, out_cap, head, 10)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_i32(out, p, out_cap, value)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_text(out, p, out_cap, mid, 2)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_stack_offset(out, p, out_cap, off)
+  if p < 0
+    ret -1
+  end
+  ret emit_asm_nl(out, p, out_cap)
+end
+
+fn emit_asm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNode[512], typ i32, string_node i32, base_off i32, out i8[1024], pos i32, out_cap i32) i32
+  if typ < 0
+    ret -1
+  end
+  if string_node < 0
+    ret pos
+  end
+  if ast[string_node].kind != AN_STRING()
+    ret -1
+  end
+  let tok i32 = ast[string_node].a
+  if tok < 0
+    ret -1
+  end
+  let p i32 = pos
+  let i i32 = 0
+  let literal_len i32 = tokens[tok].len - 2
+  while i < literal_len
+    if i >= ast[typ].b
+      ret -1
+    end
+    p = emit_asm_store_const_byte(out, p, out_cap, base_off - i, source[tokens[tok].start + 1 + i])
+    if p < 0
+      ret -1
+    end
+    i = i + 1
+  end
+  ret p
+end
+
 fn emit_asm_setcc_result(out i8[1024], pos i32, out_cap i32, set_op i8[64], set_len i32) i32
   let p i32 = pos
   let cmp_t i8[64] = "    cmp %rcx, %rax"
@@ -791,7 +844,14 @@ fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
     ret pos
   end
   if emit_asm_type_is_byte_array(source, tokens, ast, ast[node].b)
-    ret pos
+    if ast[node].c < 0
+      ret pos
+    end
+    let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, visible_locals, ast[node].a)
+    if base_off < 0
+      ret -1
+    end
+    ret emit_asm_init_byte_array_string(source, tokens, ast, ast[node].b, ast[node].c, base_off, out, pos, out_cap)
   end
   if ast[node].c < 0
     ret -1
