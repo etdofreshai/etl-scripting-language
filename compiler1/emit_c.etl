@@ -847,10 +847,13 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
   if ast[param].kind != AN_PARAM()
     ret -1
   end
+  if emit_c_type_is_i32(source, tokens, ast, ast[param].b) == false
+    ret -1
+  end
   ret emit_c_append_token_text(source, tokens, ast[param].a, out, p, out_cap)
 end
 
-fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_c_function_signature(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -875,7 +878,9 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if ast[ret_type].kind != AN_TYPE()
     ret -1
   end
-  let tail i8[64] = "}\n"
+  if emit_c_type_is_i32(source, tokens, ast, ret_type) == false
+    ret -1
+  end
   let int_head i8[64] = "int "
   let p i32 = emit_c_append_text(out, pos, out_cap, int_head, 4)
   if p < 0
@@ -899,8 +904,28 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if p < 0
     ret -1
   end
-  let close_head i8[64] = ") {\n"
-  p = emit_c_append_text(out, p, out_cap, close_head, 4)
+  let close i8[64] = ")"
+  ret emit_c_append_text(out, p, out_cap, close, 1)
+end
+
+fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_FN()
+    ret -1
+  end
+  let body i32 = ast[node].c
+  if body < 0 or body >= ast_count
+    ret -1
+  end
+  let tail i8[64] = "}\n"
+  let p i32 = emit_c_function_signature(source, tokens, ast, ast_count, node, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let close_head i8[64] = " {\n"
+  p = emit_c_append_text(out, p, out_cap, close_head, 3)
   if p < 0
     ret -1
   end
@@ -909,6 +934,32 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
     ret -1
   end
   ret emit_c_append_text(out, p, out_cap, tail, 2)
+end
+
+fn emit_c_function_prototypes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let decl i32 = ast[list].a
+  if ast[decl].kind != AN_FN()
+    ret p
+  end
+  p = emit_c_function_signature(source, tokens, ast, ast_count, decl, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let semi i8[64] = ";\n"
+  ret emit_c_append_text(out, p, out_cap, semi, 2)
 end
 
 fn emit_c_extern_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
@@ -1032,7 +1083,11 @@ fn emit_c_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  ret emit_c_decl_list(source, tokens, ast, ast_count, list, out, pos, out_cap)
+  let p i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, list, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_c_decl_list(source, tokens, ast, ast_count, list, out, p, out_cap)
 end
 
 fn emit_c(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
