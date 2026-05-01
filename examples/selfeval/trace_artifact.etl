@@ -1,0 +1,26 @@
+external function etl_print_i32(value integer)
+external function etl_write_file(path byte[256], buf byte[256], len integer) integer
+
+function main() integer
+  let path byte[256] = "build/selfeval/trace_artifact.csv"
+  let trace byte[256] = "tick,state\n0,0\n1,1\n2,3\n3,6\n4,10\n5,15\n"
+
+  let pos integer = 0
+  let vel integer = 1
+  let tick integer = 0
+  while tick < 5
+    etl_print_i32(tick)
+    etl_print_i32(pos)
+    pos = pos + vel
+    vel = vel + 1
+    tick = tick + 1
+  end
+  etl_print_i32(tick)
+  etl_print_i32(pos)
+
+  if etl_write_file(path, trace, 37) < 0
+    return 1
+  end
+
+  return pos
+end
