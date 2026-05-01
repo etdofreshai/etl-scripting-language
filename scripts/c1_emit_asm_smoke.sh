@@ -28,7 +28,7 @@ fn main() i32
   if an < 0
     ret 2
   end
-  let emitted i32 = emit_asm(ast, an, out, 1024)
+  let emitted i32 = emit_asm(source, tokens, ast, an, out, 1024)
   if emitted < 0
     ret 3
   end

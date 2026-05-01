@@ -74,22 +74,36 @@ fn emit_asm_count_prior_lets(ast AstNode[512], list i32) i32
   ret count
 end
 
-fn emit_asm_find_local(ast AstNode[512], list i32, name_token i32) i32
-  let cur i32 = list
-  while cur >= 0
-    let stmt i32 = ast[cur].a
-    if ast[stmt].kind == AN_LET()
-      if ast[stmt].a == name_token
-        ret emit_asm_count_prior_lets(ast, ast[cur].b)
-      end
-      if ast[stmt].a < name_token
-        ret emit_asm_count_prior_lets(ast, ast[cur].b)
-      end
-    end
-    cur = ast[cur].b
+fn emit_asm_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
+  if left == right
+    ret true
   end
-  if emit_asm_count_prior_lets(ast, list) == 1
-    ret 0
+  if tokens[left].len != tokens[right].len
+    ret false
+  end
+  let i i32 = 0
+  while i < tokens[left].len
+    if source[tokens[left].start + i] != source[tokens[right].start + i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_asm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+  if list < 0
+    ret -1
+  end
+  let prior i32 = emit_asm_find_local(source, tokens, ast, ast[list].b, name_token)
+  if prior >= 0
+    ret prior
+  end
+  let stmt i32 = ast[list].a
+  if ast[stmt].kind == AN_LET()
+    if emit_asm_same_name(source, tokens, ast[stmt].a, name_token)
+      ret emit_asm_count_prior_lets(ast, ast[list].b)
+    end
   end
   ret -1
 end
@@ -110,8 +124,8 @@ fn emit_asm_append_stack_ref(out i8[1024], pos i32, out_cap i32, index i32) i32
   ret emit_asm_append_text(out, p, out_cap, tail, 6)
 end
 
-fn emit_asm_load_local(ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
-  let local i32 = emit_asm_find_local(ast, locals, name_token)
+fn emit_asm_load_local(source i8[256], tokens Token[128], ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+  let local i32 = emit_asm_find_local(source, tokens, ast, locals, name_token)
   if local < 0
     ret -1
   end
@@ -133,8 +147,8 @@ fn emit_asm_load_local(ast AstNode[512], locals i32, name_token i32, out i8[1024
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_store_local(ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
-  let local i32 = emit_asm_find_local(ast, locals, name_token)
+fn emit_asm_store_local(source i8[256], tokens Token[128], ast AstNode[512], locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+  let local i32 = emit_asm_find_local(source, tokens, ast, locals, name_token)
   if local < 0
     ret -1
   end
@@ -170,7 +184,34 @@ fn emit_asm_mov_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_setcc_result(out i8[1024], pos i32, out_cap i32, set_op i8[64], set_len i32) i32
+  let p i32 = pos
+  let cmp_t i8[64] = "    cmp %rcx, %rax"
+  let movzb_t i8[64] = "    movzbq %al, %rax"
+  p = emit_asm_append_text(out, p, out_cap, cmp_t, 18)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_text(out, p, out_cap, set_op, set_len)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_text(out, p, out_cap, movzb_t, 20)
+  if p < 0
+    ret -1
+  end
+  ret emit_asm_nl(out, p, out_cap)
+end
+
+fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -181,14 +222,40 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1
     ret emit_asm_mov_i32(out, pos, out_cap, ast[node].a)
   end
   if ast[node].kind == AN_NAME()
-    ret emit_asm_load_local(ast, locals, ast[node].a, out, pos, out_cap)
+    ret emit_asm_load_local(source, tokens, ast, locals, ast[node].a, out, pos, out_cap)
   end
   if ast[node].kind == AN_UNARY()
-    if ast[node].a != TK_MINUS()
+    let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+    if p < 0
       ret -1
     end
-    let p i32 = emit_asm_expr(ast, ast_count, ast[node].b, locals, out, pos, out_cap)
-    if p < 0
+    if ast[node].a == TK_NOT()
+      let cmp_t i8[64] = "    cmp $0, %rax"
+      p = emit_asm_append_text(out, p, out_cap, cmp_t, 16)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let set_t i8[64] = "    sete %al"
+      p = emit_asm_append_text(out, p, out_cap, set_t, 12)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let movzb_t i8[64] = "    movzbq %al, %rax"
+      p = emit_asm_append_text(out, p, out_cap, movzb_t, 20)
+      if p < 0
+        ret -1
+      end
+      ret emit_asm_nl(out, p, out_cap)
+    end
+    if ast[node].a != TK_MINUS()
       ret -1
     end
     let neg_t i8[64] = "    neg %rax"
@@ -199,7 +266,7 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1
     ret emit_asm_nl(out, p, out_cap)
   end
   if ast[node].kind == AN_BINARY()
-    let p i32 = emit_asm_expr(ast, ast_count, ast[node].c, locals, out, pos, out_cap)
+    let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -212,7 +279,7 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1
     if p < 0
       ret -1
     end
-    p = emit_asm_expr(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -288,6 +355,145 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1
               p = emit_asm_append_text(out, p, out_cap, mr2, 18)
             end
           else
+            let pop_t i8[64] = "    pop %rcx"
+            p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+            if p < 0
+              ret -1
+            end
+            p = emit_asm_nl(out, p, out_cap)
+            if p < 0
+              ret -1
+            end
+            if ast[node].a == TK_AND()
+              let cmp_l i8[64] = "    cmp $0, %rax"
+              p = emit_asm_append_text(out, p, out_cap, cmp_l, 16)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let set_l i8[64] = "    setne %al"
+              p = emit_asm_append_text(out, p, out_cap, set_l, 13)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let cmp_r i8[64] = "    cmp $0, %rcx"
+              p = emit_asm_append_text(out, p, out_cap, cmp_r, 16)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let set_r i8[64] = "    setne %cl"
+              p = emit_asm_append_text(out, p, out_cap, set_r, 13)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let and_t i8[64] = "    and %cl, %al"
+              p = emit_asm_append_text(out, p, out_cap, and_t, 16)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let movzb_t i8[64] = "    movzbq %al, %rax"
+              p = emit_asm_append_text(out, p, out_cap, movzb_t, 20)
+              if p < 0
+                ret -1
+              end
+              ret emit_asm_nl(out, p, out_cap)
+            end
+            if ast[node].a == TK_OR()
+              let cmp_l i8[64] = "    cmp $0, %rax"
+              p = emit_asm_append_text(out, p, out_cap, cmp_l, 16)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let set_l i8[64] = "    setne %al"
+              p = emit_asm_append_text(out, p, out_cap, set_l, 13)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let cmp_r i8[64] = "    cmp $0, %rcx"
+              p = emit_asm_append_text(out, p, out_cap, cmp_r, 16)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let set_r i8[64] = "    setne %cl"
+              p = emit_asm_append_text(out, p, out_cap, set_r, 13)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let or_t i8[64] = "    or %cl, %al"
+              p = emit_asm_append_text(out, p, out_cap, or_t, 15)
+              if p < 0
+                ret -1
+              end
+              p = emit_asm_nl(out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let movzb_t i8[64] = "    movzbq %al, %rax"
+              p = emit_asm_append_text(out, p, out_cap, movzb_t, 20)
+              if p < 0
+                ret -1
+              end
+              ret emit_asm_nl(out, p, out_cap)
+            end
+            if ast[node].a == TK_EQEQ()
+              let set_t i8[64] = "    sete %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 12)
+            end
+            if ast[node].a == TK_NEQ()
+              let set_t i8[64] = "    setne %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 13)
+            end
+            if ast[node].a == TK_LT()
+              let set_t i8[64] = "    setl %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 12)
+            end
+            if ast[node].a == TK_LTE()
+              let set_t i8[64] = "    setle %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 13)
+            end
+            if ast[node].a == TK_GT()
+              let set_t i8[64] = "    setg %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 12)
+            end
+            if ast[node].a == TK_GTE()
+              let set_t i8[64] = "    setge %al"
+              ret emit_asm_setcc_result(out, p, out_cap, set_t, 13)
+            end
             ret -1
           end
         end
@@ -301,17 +507,17 @@ fn emit_asm_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1
   ret -1
 end
 
-fn emit_asm_return(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_RET()
     ret -1
   end
-  ret emit_asm_expr(ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+  ret emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
 end
 
-fn emit_asm_let(ast AstNode[512], ast_count i32, node i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -321,14 +527,14 @@ fn emit_asm_let(ast AstNode[512], ast_count i32, node i32, prior_locals i32, vis
   if ast[node].c < 0
     ret -1
   end
-  let p i32 = emit_asm_expr(ast, ast_count, ast[node].c, prior_locals, out, pos, out_cap)
+  let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].c, prior_locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_asm_store_local(ast, visible_locals, ast[node].a, out, p, out_cap)
+  ret emit_asm_store_local(source, tokens, ast, visible_locals, ast[node].a, out, p, out_cap)
 end
 
-fn emit_asm_assign(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -338,11 +544,11 @@ fn emit_asm_assign(ast AstNode[512], ast_count i32, node i32, locals i32, out i8
   if ast[ast[node].a].kind != AN_NAME()
     ret -1
   end
-  let p i32 = emit_asm_expr(ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+  let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_asm_store_local(ast, locals, ast[ast[node].a].a, out, p, out_cap)
+  ret emit_asm_store_local(source, tokens, ast, locals, ast[ast[node].a].a, out, p, out_cap)
 end
 
 fn emit_asm_label(out i8[1024], pos i32, out_cap i32, prefix i8[64], len i32, id i32) i32
@@ -374,8 +580,8 @@ fn emit_asm_jump_label(out i8[1024], pos i32, out_cap i32, op i8[64], op_len i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_if(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
-  let p i32 = emit_asm_expr(ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -396,7 +602,7 @@ fn emit_asm_if(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
   if p < 0
     ret -1
   end
-  p = emit_asm_nested_block(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -409,7 +615,7 @@ fn emit_asm_if(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
     ret -1
   end
   if ast[node].c >= 0
-    p = emit_asm_nested_block(ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -417,7 +623,7 @@ fn emit_asm_if(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
   ret emit_asm_label(out, p, out_cap, end_p, 7, node)
 end
 
-fn emit_asm_while(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let loop_p i8[64] = ".Lwhile"
   let end_p i8[64] = ".Lendwhile"
   let je_t i8[64] = "    je "
@@ -426,7 +632,7 @@ fn emit_asm_while(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[
   if p < 0
     ret -1
   end
-  p = emit_asm_expr(ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -443,7 +649,7 @@ fn emit_asm_while(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[
   if p < 0
     ret -1
   end
-  p = emit_asm_nested_block(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_asm_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -454,7 +660,7 @@ fn emit_asm_while(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[
   ret emit_asm_label(out, p, out_cap, end_p, 10, node)
 end
 
-fn emit_asm_stmt_list(ast AstNode[512], ast_count i32, list i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -464,50 +670,50 @@ fn emit_asm_stmt_list(ast AstNode[512], ast_count i32, list i32, visible_locals 
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_asm_stmt_list(ast, ast_count, ast[list].b, visible_locals, out, pos, out_cap)
+  let p i32 = emit_asm_stmt_list(source, tokens, ast, ast_count, ast[list].b, visible_locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
-    ret emit_asm_let(ast, ast_count, stmt, ast[list].b, list, out, p, out_cap)
+    ret emit_asm_let(source, tokens, ast, ast_count, stmt, ast[list].b, list, out, p, out_cap)
   end
   if ast[stmt].kind == AN_ASSIGN()
-    ret emit_asm_assign(ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_asm_assign(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_RET()
-    ret emit_asm_return(ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_asm_return(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_IF()
-    ret emit_asm_if(ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_asm_if(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_WHILE()
-    ret emit_asm_while(ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_asm_while(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
   end
   ret -1
 end
 
-fn emit_asm_nested_block(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  ret emit_asm_stmt_list(ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+  ret emit_asm_stmt_list(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
 end
 
-fn emit_asm_block(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  ret emit_asm_stmt_list(ast, ast_count, ast[node].a, ast[node].a, out, pos, out_cap)
+  ret emit_asm_stmt_list(source, tokens, ast, ast_count, ast[node].a, ast[node].a, out, pos, out_cap)
 end
 
-fn emit_asm_function(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -593,7 +799,7 @@ fn emit_asm_function(ast AstNode[512], ast_count i32, node i32, out i8[1024], po
   if p < 0
     ret -1
   end
-  p = emit_asm_block(ast, ast_count, body, out, p, out_cap)
+  p = emit_asm_block(source, tokens, ast, ast_count, body, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -632,7 +838,7 @@ fn emit_asm_function(ast AstNode[512], ast_count i32, node i32, out i8[1024], po
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_program(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -652,15 +858,15 @@ fn emit_asm_program(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos
   if ast[list].b != -1
     ret -1
   end
-  ret emit_asm_function(ast, ast_count, ast[list].a, out, pos, out_cap)
+  ret emit_asm_function(source, tokens, ast, ast_count, ast[list].a, out, pos, out_cap)
 end
 
-fn emit_asm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
+fn emit_asm(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
   if ast_count <= 0
     ret EMIT_ERR_BAD_AST()
   end
   if out_cap <= 0
     ret EMIT_ERR_CAPACITY()
   end
-  ret emit_asm_program(ast, ast_count, ast_count - 1, out, 0, out_cap)
+  ret emit_asm_program(source, tokens, ast, ast_count, ast_count - 1, out, 0, out_cap)
 end

@@ -51,7 +51,7 @@ fn main() i32
   if sema(source, tokens, ast, ast_count) < 0
     ret 3
   end
-  let n i32 = emit_asm(ast, ast_count, out, 1024)
+  let n i32 = emit_asm(source, tokens, ast, ast_count, out, 1024)
   if n <= 0
     ret 4
   end
@@ -66,7 +66,11 @@ ETL
   cc -Wall -Werror "$c_out" -I runtime runtime/etl_runtime.c -o "$driver"
   "$driver"
 
-  as "$asm_out" -o "$obj_out"
+  if ! as "$asm_out" -o "$obj_out"; then
+    echo "c1_asm_return_smoke: FAIL $name - assembler rejected output" >&2
+    cat "$asm_out" >&2
+    exit 1
+  fi
   cc -no-pie "$obj_out" -o "$native"
 
   set +e
@@ -88,8 +92,24 @@ run_case ret_precedence "fn main() i32 ret 1 + 2 * 3 end" 7
 run_case ret_div_mod "fn main() i32 ret 20 / 4 + 9 % 4 end" 6
 run_case let_return "fn main() i32 let x i32 = 10 ret x end" 10
 run_case let_chain "fn main() i32 let x i32 = 5 let y i32 = x + 3 ret y end" 8
+run_case multi_local_names "fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end" 10
 run_case assign_return "fn main() i32 let x i32 = 1 x = x + 4 ret x end" 5
 run_case if_assign "fn main() i32 let x i32 = 1 if x x = 9 end ret x end" 9
+run_case if_true "fn main() i32 let x i32 = 1 if true x = 4 end ret x end" 4
+run_case if_cmp "fn main() i32 let x i32 = 2 let y i32 = 5 if x < y x = y end ret x end" 5
+run_case while_false "fn main() i32 let x i32 = 6 while false x = x + 1 end ret x end" 6
 run_case while_countdown "fn main() i32 let x i32 = 3 while x x = x - 1 end ret x end" 0
+run_case while_cmp "fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end" 4
+run_case cmp_eq "fn main() i32 ret 4 == 4 end" 1
+run_case cmp_neq "fn main() i32 ret 4 != 5 end" 1
+run_case cmp_lt "fn main() i32 ret 3 < 8 end" 1
+run_case cmp_lte "fn main() i32 ret 8 <= 8 end" 1
+run_case cmp_gt "fn main() i32 ret 9 > 2 end" 1
+run_case cmp_gte "fn main() i32 ret 9 >= 9 end" 1
+run_case cmp_false "fn main() i32 ret 9 < 2 end" 0
+run_case not_bool "fn main() i32 ret not false end" 1
+run_case and_bool "fn main() i32 ret true and false end" 0
+run_case or_bool "fn main() i32 ret false or true end" 1
+run_case logical_truthy "fn main() i32 ret 2 and 3 end" 1
 
 echo "c1_asm_return_smoke: ok"
