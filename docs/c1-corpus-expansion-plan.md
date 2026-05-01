@@ -174,11 +174,11 @@ expressions).
 > variable-index smoke has also landed
 > (`scripts/c1_source_to_c_array_var_index_smoke.sh`, commit 6df84e6), proving
 > c1 can emit `arr[i]` reads and writes where `i` is a local integer variable.
-> A narrow `byte` array indexed assignment smoke has also landed
-> (`scripts/c1_source_to_c_byte_array_assign_smoke.sh`, commit bd10575),
-> proving c1 can emit `int8_t values[N]` declarations, constant-index writes
-> (`values[0] = 10`), and variable-index reads (`values[i]`) for `byte` arrays.
-> The fixtures below expand coverage to larger arrays — which is not yet covered.
+> A narrow `i8` byte array indexed assignment smoke has also landed
+> (`scripts/c1_source_to_c_byte_array_assign_smoke.sh`, commit bd10575), proving
+> c1 can emit `int8_t values[N] = {0}` declarations with both constant-index and
+> variable-index assignment/readback for `i8` arrays. The fixtures below expand
+> coverage to larger arrays — which is not yet covered.
 
 #### `local_array_sum.etl`
 
@@ -230,12 +230,12 @@ end
 ```
 
 **Acceptance**: c0 exit 72, c1 exit 72. Proves `int8_t buf[8] = {0};`
-declarations and i8 array indexing. The narrow byte array assignment smoke
-(bd10575) covers `byte[N]` indexed writes and variable-index reads; this
-fixture extends to 8-element arrays.
+declarations and i8 array indexing. Narrow `i8` byte array indexed assignment
+works (bd10575); this fixture extends to 8-element `i8` arrays.
 
-**Unlocks**: 5f-ARRAYS chunk. The narrow `i32` and `byte` smokes cover a subset;
-larger arrays and broader patterns still require the full 5f-ARRAYS emitter work.
+**Unlocks**: 5f-ARRAYS chunk. The narrow `i32` constant-index, variable-index,
+and `i8` byte array smokes cover a subset; larger arrays still require the full
+5f-ARRAYS emitter work.
 
 ---
 
@@ -249,10 +249,11 @@ These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 > integer field writes (`p.left = 19`), and integer field reads (`p.left + p.right`)
 > for local struct variables with `i32` fields. A narrow struct array field smoke
 > has also landed (`scripts/c1_source_to_c_struct_array_smoke.sh`, commit 6c54423),
-> proving c1 can emit `Item items[2]` struct array declarations, field writes
-> (`items[0].value = 19`), and variable-index field reads (`items[i].value`).
+> proving c1 can emit local struct arrays (`Item items[2]`) with both constant-index
+> and variable-index field read/write (`items[0].value`, `items[i].value`).
 > The fixtures below expand coverage to struct parameters passed across function
-> boundaries — which is not yet covered.
+> boundaries and combined struct + array access patterns with larger arrays —
+> struct params and non-integer field types are not yet covered.
 
 #### `struct_decl.etl`
 
@@ -317,14 +318,13 @@ end
 
 **Acceptance**: c0 exit 200, c1 exit 200. Proves combined struct + array:
 `Item items[3]` declarations and `items[i].field` access patterns.
-The narrow struct array field smoke (6c54423) covers 2-element struct arrays
-with variable-index field access; this fixture extends to 3-element arrays
-as a regression guard.
+Narrow struct array field read/write with constant and variable index works
+(6c54423); this fixture extends to 3-element struct arrays.
 
 **Unlocks**: 5f-STRUCTS chunk. The narrow struct field and struct array smokes
-cover a subset (struct declarations + local i32 field read/write + struct arrays
-with variable-index field access); struct parameters, non-integer field types,
-and nested structs still require the full 5f-STRUCTS emitter work.
+cover a subset (struct declarations + local i32 field read/write + local struct
+array indexed field access); struct parameters, non-integer field types, and
+larger struct arrays still require the full 5f-STRUCTS emitter work.
 
 ---
 
