@@ -12,6 +12,10 @@ fixtures=(
   ret_arith_complex.etl
   ret_nested.etl
   ret_div_mod.etl
+  ret_complex.etl
+  let_simple.etl
+  let_arith.etl
+  let_chain.etl
 )
 
 pass=0
