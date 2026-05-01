@@ -106,10 +106,11 @@ and C emission for a growing subset.
 Emits x86-64 assembly for small `main` programs with integer return,
 arithmetic, local initialization, local assignment, simple `if`/`else`,
 simple `while`, all comparison operators, boolean literals, eager logical
-expressions (`and`, `or`, `not`), and local `i32` array declaration plus
-constant-index and variable-index read/write. No function parameters,
-`elif`, extern calls, byte arrays, byte strings, struct arrays, bounds
-checks, or array params/externs yet.
+expressions (`and`, `or`, `not`), local `i32` array declaration plus
+constant-index and variable-index read/write, and local `byte[N]`/`i8[N]`
+array indexed assignment/read via `movsbq`/`movb`. No function parameters,
+`elif`, extern calls, byte string literals, extern/param byte arrays,
+structs, struct arrays, bounds checks, or dynamic arrays yet.
 
 **Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
 
