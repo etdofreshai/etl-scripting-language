@@ -217,6 +217,14 @@ Passing `headless-ready` proves:
 - Closures or first-class functions
 - Reflection or runtime type information
 
+## Self-improvement loop
+
+`docs/self-improvement-roadmap.md` defines how the language progresses from the
+current headless-ready state to a self-improving loop: what the self-eval
+surface covers today, how each mechanism (console logs, trace artifacts, PPM
+screenshots, backend equivalence) should be used, and the contract for future
+AFK worker chunks.
+
 ## Guidance for future worker chunks
 
 ### Keeping the word list minimal
