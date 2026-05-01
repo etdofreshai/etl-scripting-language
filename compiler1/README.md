@@ -12,6 +12,9 @@ Currently a skeleton. Built by compiler-0; will grow toward self-hosting.
 | `parse.etl`  | Parser module (placeholder, not yet linked).     |
 | `sema.etl`   | Semantic analysis module (placeholder, not yet linked). |
 | `emit_c.etl` | C code emission module (placeholder, not yet linked). |
+| `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
+| `emit_asm.etl` | ASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
+| `emit_wasm.etl` | WASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
 
 ## Build command
 

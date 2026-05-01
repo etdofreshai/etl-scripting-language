@@ -40,6 +40,9 @@ make examples
 - Self-hosting is the critical path. Compiler-0 (Python) freezes once
   compiler-1 (in ETL) reaches a fixed point.
 - Backend order: C → WASM. Native ASM and mobile are deferred.
+  Multi-backend architecture documented in `docs/backend-plan.md`.
+  Scaffolds in `compiler1/backend_defs.etl`, `compiler1/emit_asm.etl`,
+  `compiler1/emit_wasm.etl`.
 - Graphics/audio/input/gamepad framework: **SDL3**. Final.
 - Headless visual testing: **SDL3 software renderer +
   `SDL_RenderReadPixels` → PNG**. No llvmpipe, no offscreen Vulkan.

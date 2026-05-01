@@ -1,0 +1,9 @@
+fn emit_wasm(ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
+  if ast_count <= 0
+    ret EMIT_ERR_BAD_AST()
+  end
+  if out_cap <= 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  ret EMIT_ERR_UNSUPPORTED()
+end
