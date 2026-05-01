@@ -103,6 +103,44 @@ fn emit_asm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[512
   ret true
 end
 
+fn emit_asm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  let tok i32 = ast[typ].a
+  if tok < 0
+    ret false
+  end
+  if tokens[tok].len == 2
+    let i8_text i8[64] = "i8"
+    let s i32 = tokens[tok].start
+    if source[s] == i8_text[0]
+      if source[s + 1] == i8_text[1]
+        ret true
+      end
+    end
+  end
+  if tokens[tok].len == 4
+    let byte_text i8[64] = "byte"
+    let s2 i32 = tokens[tok].start
+    let i i32 = 0
+    while i < 4
+      if source[s2 + i] != byte_text[i]
+        ret false
+      end
+      i = i + 1
+    end
+    ret true
+  end
+  ret false
+end
+
 fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNode[512], list i32) i32
   if list < 0
     ret 0
@@ -113,6 +151,9 @@ fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNo
     let typ i32 = ast[stmt].b
     if emit_asm_type_is_i32_array(source, tokens, ast, typ)
       ret bytes + ast[typ].b * 4
+    end
+    if emit_asm_type_is_byte_array(source, tokens, ast, typ)
+      ret bytes + ast[typ].b
     end
     ret bytes + 8
   end
@@ -169,7 +210,27 @@ fn emit_asm_find_local_offset(source i8[256], tokens Token[128], ast AstNode[512
       if emit_asm_type_is_i32_array(source, tokens, ast, typ)
         ret prior_bytes + ast[typ].b * 4
       end
+      if emit_asm_type_is_byte_array(source, tokens, ast, typ)
+        ret prior_bytes + ast[typ].b
+      end
       ret prior_bytes + 8
+    end
+  end
+  ret -1
+end
+
+fn emit_asm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+  if list < 0
+    ret -1
+  end
+  let prior i32 = emit_asm_find_local_type(source, tokens, ast, ast[list].b, name_token)
+  if prior >= 0
+    ret prior
+  end
+  let stmt i32 = ast[list].a
+  if ast[stmt].kind == AN_LET()
+    if emit_asm_same_name(source, tokens, ast[stmt].a, name_token)
+      ret ast[stmt].b
     end
   end
   ret -1
@@ -211,6 +272,30 @@ fn emit_asm_append_array_index_ref(out i8[1024], pos i32, out_cap i32, base_off 
   let minus i8[64] = "-"
   let mid i8[64] = "(%rbp,"
   let tail i8[64] = ",4)"
+  p = emit_asm_append_text(out, p, out_cap, minus, 1)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_i32(out, p, out_cap, base_off)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_text(out, p, out_cap, mid, 6)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_append_text(out, p, out_cap, index_reg, index_reg_len)
+  if p < 0
+    ret -1
+  end
+  ret emit_asm_append_text(out, p, out_cap, tail, 3)
+end
+
+fn emit_asm_append_byte_array_index_ref(out i8[1024], pos i32, out_cap i32, base_off i32, index_reg i8[64], index_reg_len i32) i32
+  let p i32 = pos
+  let minus i8[64] = "-"
+  let mid i8[64] = "(%rbp,"
+  let tail i8[64] = ",1)"
   p = emit_asm_append_text(out, p, out_cap, minus, 1)
   if p < 0
     ret -1
@@ -622,6 +707,11 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     if base_off < 0
       ret -1
     end
+    let elem_bytes i32 = 4
+    let typ i32 = emit_asm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+    if emit_asm_type_is_byte_array(source, tokens, ast, typ)
+      elem_bytes = 1
+    end
     let idx i32 = ast[node].b
     if idx < 0 or idx >= ast_count
       ret -1
@@ -630,11 +720,16 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     let head i8[64] = "    mov "
     let tail i8[64] = ", %rax"
     if ast[idx].kind == AN_INT()
-      p = emit_asm_append_text(out, p, out_cap, head, 8)
+      if elem_bytes == 1
+        let byte_head i8[64] = "    movsbq "
+        p = emit_asm_append_text(out, p, out_cap, byte_head, 11)
+      else
+        p = emit_asm_append_text(out, p, out_cap, head, 8)
+      end
       if p < 0
         ret -1
       end
-      p = emit_asm_append_stack_offset(out, p, out_cap, base_off - ast[idx].a * 4)
+      p = emit_asm_append_stack_offset(out, p, out_cap, base_off - ast[idx].a * elem_bytes)
       if p < 0
         ret -1
       end
@@ -648,12 +743,21 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     if p < 0
       ret -1
     end
-    p = emit_asm_append_text(out, p, out_cap, head, 8)
+    if elem_bytes == 1
+      let byte_head i8[64] = "    movsbq "
+      p = emit_asm_append_text(out, p, out_cap, byte_head, 11)
+    else
+      p = emit_asm_append_text(out, p, out_cap, head, 8)
+    end
     if p < 0
       ret -1
     end
     let rax_t i8[64] = "%rax"
-    p = emit_asm_append_array_index_ref(out, p, out_cap, base_off, rax_t, 4)
+    if elem_bytes == 1
+      p = emit_asm_append_byte_array_index_ref(out, p, out_cap, base_off, rax_t, 4)
+    else
+      p = emit_asm_append_array_index_ref(out, p, out_cap, base_off, rax_t, 4)
+    end
     if p < 0
       ret -1
     end
@@ -686,6 +790,9 @@ fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   if emit_asm_type_is_i32_array(source, tokens, ast, ast[node].b)
     ret pos
   end
+  if emit_asm_type_is_byte_array(source, tokens, ast, ast[node].b)
+    ret pos
+  end
   if ast[node].c < 0
     ret -1
   end
@@ -716,6 +823,11 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
     if base_off < 0
       ret -1
     end
+    let elem_bytes i32 = 4
+    let typ i32 = emit_asm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+    if emit_asm_type_is_byte_array(source, tokens, ast, typ)
+      elem_bytes = 1
+    end
     let idx i32 = ast[idx_node].b
     if idx < 0 or idx >= ast_count
       ret -1
@@ -727,11 +839,16 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
       if p < 0
         ret -1
       end
-      p = emit_asm_append_text(out, p, out_cap, mov_head, 14)
+      if elem_bytes == 1
+        let byte_mov_head i8[64] = "    mov %al, "
+        p = emit_asm_append_text(out, p, out_cap, byte_mov_head, 13)
+      else
+        p = emit_asm_append_text(out, p, out_cap, mov_head, 14)
+      end
       if p < 0
         ret -1
       end
-      p = emit_asm_append_stack_offset(out, p, out_cap, base_off - ast[idx].a * 4)
+      p = emit_asm_append_stack_offset(out, p, out_cap, base_off - ast[idx].a * elem_bytes)
       if p < 0
         ret -1
       end
@@ -763,12 +880,21 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
     if p < 0
       ret -1
     end
-    p = emit_asm_append_text(out, p, out_cap, mov_head, 14)
+    if elem_bytes == 1
+      let byte_mov_head i8[64] = "    mov %al, "
+      p = emit_asm_append_text(out, p, out_cap, byte_mov_head, 13)
+    else
+      p = emit_asm_append_text(out, p, out_cap, mov_head, 14)
+    end
     if p < 0
       ret -1
     end
     let rcx_t i8[64] = "%rcx"
-    p = emit_asm_append_array_index_ref(out, p, out_cap, base_off, rcx_t, 4)
+    if elem_bytes == 1
+      p = emit_asm_append_byte_array_index_ref(out, p, out_cap, base_off, rcx_t, 4)
+    else
+      p = emit_asm_append_array_index_ref(out, p, out_cap, base_off, rcx_t, 4)
+    end
     if p < 0
       ret -1
     end

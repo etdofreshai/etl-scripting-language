@@ -64,7 +64,11 @@ ETL
   scripts/build_etl.sh "$src" "$driver" >/dev/null
   "$driver"
 
-  as --64 -o "$obj_out" "$asm_out"
+  if ! as --64 -o "$obj_out" "$asm_out"; then
+    echo "c1_asm_array_smoke: FAIL $name - assembler failed" >&2
+    cat "$asm_out" >&2
+    exit 1
+  fi
   cc -no-pie "$obj_out" -o "$native"
 
   set +e
@@ -83,5 +87,7 @@ ETL
 run_case array_const_idx "fn main() i32 let values i32[3] values[0] = 7 values[1] = 35 ret values[0] + values[1] end" 42
 run_case array_var_idx "fn main() i32 let values i32[3] let i i32 = 1 values[i] = 42 ret values[i] end" 42
 run_case array_with_scalar "fn main() i32 let a i32[2] let x i32 = 10 a[0] = x a[1] = 32 ret a[0] + a[1] end" 42
+run_case byte_array_const_idx "fn main() i32 let values byte[4] values[0] = 10 values[1] = 32 ret values[0] + values[1] end" 42
+run_case i8_array_var_idx "fn main() i32 let values i8[4] let i i32 = 1 values[i] = 42 ret values[i] end" 42
 
 echo "c1_asm_array_smoke: ok"
