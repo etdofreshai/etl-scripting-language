@@ -167,6 +167,13 @@ end
 These require the 5f-ARRAYS emitter change (array declarations and index
 expressions).
 
+> **Status (2026-05-01):** A narrow `i32` local array indexing smoke has landed
+> (`scripts/c1_source_to_c_array_smoke.sh`, commit fa722e8). It proves c1 can
+> emit `int32_t arr[N] = {0}` declarations, constant-index writes (`arr[0] = 7`),
+> and constant-index reads (`arr[0] + arr[1]`) for `i32` arrays. The fixtures
+> below expand coverage to variable subscripts, larger arrays, and `i8` typed
+> arrays — none of which are covered yet.
+
 #### `local_array_sum.etl`
 
 ```etl
@@ -182,7 +189,9 @@ end
 
 **Acceptance**: c0 exit 100, c1 exit 100. Proves c1 emits
 `int32_t arr[4] = {0};` declarations and `arr[i]` index expressions for both
-reads and writes.
+reads and writes. The narrow `i32` constant-index smoke already covers the
+core mechanism (declare + write + read); this fixture extends to 4-element
+arrays with multi-read sum expressions.
 
 #### `local_array_loop.etl`
 
@@ -199,7 +208,7 @@ end
 ```
 
 **Acceptance**: c0 exit 49, c1 exit 49. Proves array indexing with variable
-subscripts inside loops.
+subscripts inside loops. **Not yet covered** by the existing constant-index smoke.
 
 #### `local_i8_array.etl`
 
@@ -213,9 +222,12 @@ end
 ```
 
 **Acceptance**: c0 exit 72, c1 exit 72. Proves `int8_t buf[8] = {0};`
-declarations and i8 array indexing.
+declarations and i8 array indexing. **Not yet covered** — the existing smoke
+tests only `i32` arrays.
 
-**Unlocks**: 5f-ARRAYS chunk.
+**Unlocks**: 5f-ARRAYS chunk. The narrow `i32` constant-index smoke covers a
+subset; variable subscripts and `i8` arrays still require the full 5f-ARRAYS
+emitter work.
 
 ---
 
