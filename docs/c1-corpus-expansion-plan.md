@@ -320,6 +320,14 @@ emitter work.
 These require the 5f-STRINGS emitter change (i8[] initialization from string
 literals).
 
+> **Status (2026-05-01):** A narrow local byte string array smoke has landed
+> (`scripts/c1_source_to_c_byte_string_smoke.sh`, commit ed3d8de). It proves c1
+> can emit `int8_t text[N]` declarations initialized from string literals and
+> constant-index reads (`text[0] + text[1] - text[2]`) for local `i8` arrays.
+> The fixtures below expand coverage to multi-read sum expressions and multiple
+> string-initialized locals coexisting — the multi-buffer coexistence test is
+> not yet covered.
+
 #### `string_local.etl`
 
 ```etl
@@ -330,7 +338,10 @@ end
 ```
 
 **Acceptance**: c0 exit 104 (ASCII 'h'), c1 exit 104. Proves c1 emits
-string-initialized `i8[]` locals with correct byte values.
+string-initialized `i8[]` locals with correct byte values. The narrow byte
+string smoke already covers the core mechanism (local `i8[N]="..."` declaration
++ constant-index read); this fixture extends to a 12-byte buffer with a longer
+string literal.
 
 #### `string_multi.etl`
 
@@ -343,9 +354,13 @@ end
 ```
 
 **Acceptance**: c0 exit 98 (ASCII 'b'), c1 exit 98. Proves multiple
-string-initialized locals coexist without buffer corruption.
+string-initialized locals coexist without buffer corruption. **Not yet covered**
+— the existing smoke tests only a single string-initialized local.
 
-**Unlocks**: 5f-STRINGS chunk.
+**Unlocks**: 5f-STRINGS chunk. The narrow local byte string smoke covers a
+subset (single `i8[N]="..."` local with constant-index reads); multiple string
+locals, variable-index string reads, and extern parameter string buffers still
+require the full 5f-STRINGS emitter work.
 
 ---
 
