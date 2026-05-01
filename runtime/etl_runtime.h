@@ -24,6 +24,7 @@ void etl_free(int8_t *p);
 bool etl_is_null(int8_t *p);
 int32_t etl_read_file(int8_t *path, int8_t *buf, int32_t cap);
 int32_t etl_write_file(int8_t *path, int8_t *buf, int32_t len);
+int32_t etl_write_file1024(int8_t *path, int8_t *buf, int32_t len);
 int32_t etl_bytes_equal(const int8_t *a, int32_t alen, const int8_t *b, int32_t blen);
 void etl_bytes_copy(int8_t *dst, const int8_t *src, int32_t len);
 int32_t etl_bytes_find(const int8_t *buf, int32_t len, int32_t b);
