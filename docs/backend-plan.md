@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, and local struct declaration with i32 field store/load; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, and local struct declaration with i32 field store/load; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -306,6 +306,17 @@ end` with `p.left = 19; p.right = 23; ret p.left + p.right`.
 Struct arrays, nested structs, non-i32 fields, function parameters,
 extern calls, bounds checks, and dynamic memory remain unsupported in
 WAT.
+
+### Chunk WASM-2D: WAT local fixed struct array indexed field store/load — **Done.**
+Local fixed arrays of structs with `i32`-only fields, constant-index
+and variable-index field store/load via computed base offset plus
+`i32.store offset=field`/`i32.load offset=field` proven by
+`scripts/c1_wat_struct_array_smoke.sh` (b7bfbd1, merged f5e020e).
+Smoke returns 42 via `type Item structure value integer end` with
+`items[0].value = 19; items[1].value = 20; i = 1; items[i].value =
+items[i].value + 3; ret items[0].value + items[i].value`. Nested
+structs, non-i32 fields, function parameters, extern calls, bounds
+checks, and dynamic memory remain unsupported in WAT.
 
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).

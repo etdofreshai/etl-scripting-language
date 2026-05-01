@@ -29,7 +29,7 @@ make examples
 | 3c    | done     | 3b47fa0        |
 | 4a    | done     | d8f76aa        |
 | 4b    | done     | 625c740        |
-| 5     | in progress (extern calls + 18-case backend subset + narrow i32 array indexing smoke + narrow i32 variable-index array smoke + narrow local integer struct field smoke + narrow local byte string array smoke + narrow local byte array indexed assignment smoke + narrow local struct array field smoke + narrow byte string extern C pointer param smoke + WAT i32 array indexing smoke + WAT byte/i8 array indexed assignment/read smoke + WAT byte/i8 string literal array init smoke + WAT local i32 struct field store/load smoke + ASM i32 array indexing smoke + ASM byte/i8 array indexed assignment/read smoke + ASM byte/i8 string literal array init smoke + ASM local i32 struct field store/load smoke) | -        |
+| 5     | in progress (extern calls + 18-case backend subset + narrow i32 array indexing smoke + narrow i32 variable-index array smoke + narrow local integer struct field smoke + narrow local byte string array smoke + narrow local byte array indexed assignment smoke + narrow local struct array field smoke + narrow byte string extern C pointer param smoke + WAT i32 array indexing smoke + WAT byte/i8 array indexed assignment/read smoke + WAT byte/i8 string literal array init smoke + WAT local i32 struct field store/load smoke + WAT local struct array field store/load smoke + ASM i32 array indexing smoke + ASM byte/i8 array indexed assignment/read smoke + ASM byte/i8 string literal array init smoke + ASM local i32 struct field store/load smoke) | -        |
 | 6     | not started | -            |
 | 7     | not started | -            |
 | 8     | not started | -            |
