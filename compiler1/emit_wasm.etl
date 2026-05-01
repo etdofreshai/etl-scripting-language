@@ -1163,15 +1163,96 @@ fn emit_wasm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], a
   ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
 end
 
+fn emit_wasm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
+  if list < 0 or list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b < 0
+    ret list
+  end
+  ret emit_wasm_oldest_elif_list(ast, ast_count, ast[list].b)
+end
+
+fn emit_wasm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i32) i32
+  if list < 0
+    ret -1
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if ast[list].b == current
+    ret list
+  end
+  ret emit_wasm_next_elif_list(ast, ast_count, ast[list].b, current)
+end
+
+fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if current < 0 or current >= ast_count
+    ret -1
+  end
+  if ast[current].kind != AN_LIST()
+    ret -1
+  end
+  let enode i32 = ast[current].a
+  if enode < 0 or enode >= ast_count
+    ret -1
+  end
+  if ast[enode].kind != AN_ELIF()
+    ret -1
+  end
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[enode].a, locals, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let head i8[64] = "    if\n"
+  p = emit_wasm_append_text(out, p, out_cap, head, 7)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[enode].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let next i32 = emit_wasm_next_elif_list(ast, ast_count, all_elifs, current)
+  if next >= 0 or else_body >= 0
+    let els i8[64] = "    else\n"
+    p = emit_wasm_append_text(out, p, out_cap, els, 9)
+    if p < 0
+      ret -1
+    end
+    if next >= 0
+      p = emit_wasm_elif_chain_from(source, tokens, ast, ast_count, all_elifs, next, else_body, locals, out, p, out_cap)
+    else
+      p = emit_wasm_nested_block(source, tokens, ast, ast_count, else_body, locals, out, p, out_cap)
+    end
+    if p < 0
+      ret -1
+    end
+  end
+  let tail i8[64] = "    end\n"
+  ret emit_wasm_append_text(out, p, out_cap, tail, 8)
+end
+
+fn emit_wasm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  let first i32 = emit_wasm_oldest_elif_list(ast, ast_count, elifs)
+  if first < 0
+    ret -1
+  end
+  ret emit_wasm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, locals, out, pos, out_cap)
+end
+
 fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
   let elifs i32 = ast[ast[node].b].c
-  if elifs >= 0
-    ret -1
-  end
   let head i8[64] = "    if\n"
   p = emit_wasm_append_text(out, p, out_cap, head, 7)
   if p < 0
@@ -1181,13 +1262,17 @@ fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   if p < 0
     ret -1
   end
-  if ast[node].c >= 0
+  if elifs >= 0 or ast[node].c >= 0
     let els i8[64] = "    else\n"
     p = emit_wasm_append_text(out, p, out_cap, els, 9)
     if p < 0
       ret -1
     end
-    p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    if elifs >= 0
+      p = emit_wasm_elif_chain(source, tokens, ast, ast_count, elifs, ast[node].c, locals, out, p, out_cap)
+    else
+      p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    end
     if p < 0
       ret -1
     end
