@@ -82,7 +82,7 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, and local struct declaration with i32 field store/load; assembled and linked by smoke tests. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -293,9 +293,19 @@ Local struct declarations with `i32`-only fields, field store via
 `scripts/c1_asm_struct_field_smoke.sh` (f2d7ba9, merged 87fc689).
 Smoke returns 42 via `type Pair structure left integer right integer
 end` with `p.left = 19; p.right = 23; ret p.left + p.right`.
-Struct arrays, nested structs, non-i32 fields, function parameters,
-extern calls, bounds checks, and dynamic memory remain unsupported in
-ASM.
+Nested structs, non-i32 fields, function parameters, extern calls,
+bounds checks, and dynamic memory remain unsupported in ASM.
+
+### Chunk ASM-3E: x86-64 local fixed struct array indexed field store/load — **Done.**
+Local fixed arrays of structs with `i32`-only fields, constant-index
+and variable-index field store/load via `imul` struct-size scaling and
+RBP-relative indexed addressing (`-offset(%rbp,%reg,1)`) proven by
+`scripts/c1_asm_struct_array_smoke.sh` (dd4d3b0, merged 04f1f67).
+Smoke returns 42 via `type Item structure left integer right integer
+end` with `items[0].left = 19; items[i].right = 23; ret
+items[0].left + items[i].right`. Nested structs, non-i32 fields,
+function parameters, extern calls, bounds checks, and dynamic memory
+remain unsupported in ASM.
 
 ### Chunk WASM-2C: WAT local i32 struct field store/load — **Done.**
 Local struct declarations with `i32`-only fields, field store via
