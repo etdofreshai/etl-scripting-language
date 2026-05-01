@@ -124,22 +124,22 @@ non-i32 struct fields, bounds checks, or dynamic arrays yet.
 **Status: Active WAT subset.**
 
 Emits WAT text for `main` programs with integer/boolean return, arithmetic,
-all comparisons, logical operators, `let` locals, assignment, `if`/`else`,
+all comparisons, logical operators, `let` locals, assignment, `if`/`elif`/`else`,
 `while` loops, boolean literals, local `i32` array declaration plus
 constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
 array indexed assignment/read via `i32.store8`/`i32.load8_s`, local
 `i8[N]` string literal initialization with constant-index reads, local
 struct declarations with `i32`-only field store/load via
 `i32.store`/`i32.load` with offset, and local fixed struct array indexed
-field store/load. No function parameters, `elif`,
+field store/load. No function parameters,
 extern calls, runtime strings, pointer decay, extern/param byte arrays,
 nested structs, non-i32 struct fields, bounds checks, or
 dynamic arrays yet. Text validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
 integer return, arithmetic, local initialization, local assignment, simple
-`if`/`else`, simple `while`, comparison, eager logical expressions, local
-`i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write,
+`if`/`elif`/`else`, simple `while`, comparison, eager logical expressions,
+local `i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write,
 local `i8[N]` string literal initialization with constant-index reads,
 local i32 struct field store/load, and local fixed struct array indexed
 field store/load.
