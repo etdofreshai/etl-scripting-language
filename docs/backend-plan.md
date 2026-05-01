@@ -82,8 +82,8 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly for small `main` programs; assembled and linked by opt-in smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text for small `main` programs; opt-in smoke validates text and executes only when WAT/WASM tools are installed. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, and `while`; assembled and linked by smoke tests. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, and boolean literals; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -114,7 +114,7 @@ bootstrap path and must remain fully functional at all times.
 **Ownership**: The C backend emitter (`compiler1/emit_c.etl`) is owned by the
 compiler-1 Phase 5 effort. Other workers should not modify it.
 
-## ASM backend (future)
+## ASM backend (active subset)
 
 ### Target: x86-64 System V / Linux initially
 
@@ -150,7 +150,7 @@ This can be delegated as an independent chunk **after** compiler-1 reaches
 self-hosting fixed point (Phase 5f). The ASM emitter must not be linked into
 the main compiler-1 build until it is fully tested.
 
-## WASM backend (future)
+## WASM backend (active WAT subset)
 
 ### Target: WASM MVP (no SIMD, no threads)
 
@@ -214,11 +214,11 @@ Premature IR abstraction is a known risk.
 |-----------------------------------|----------------------------------------------|
 | `docs/backend-plan.md`            | This document. Architecture + delegation.    |
 | `compiler1/backend_defs.etl`      | Shared backend constants (error codes).       |
-| `compiler1/emit_asm.etl`          | ASM backend scaffold (placeholder).           |
-| `compiler1/emit_wasm.etl`         | WASM backend scaffold (placeholder).          |
+| `compiler1/emit_asm.etl`          | ASM backend emitter (locals, arithmetic, control flow). |
+| `compiler1/emit_wasm.etl`         | WAT/WASM backend emitter (locals, arithmetic, control flow). |
 | `scripts/backend_plan_smoke.sh`   | Verifies scaffolds compile via compiler-0.    |
-| `scripts/c1_emit_asm_smoke.sh`    | ASM backend skip-safe smoke (TODO).           |
-| `scripts/c1_emit_wasm_smoke.sh`   | WASM backend skip-safe smoke (TODO).          |
+| `scripts/c1_emit_asm_smoke.sh`    | ASM backend smoke (arithmetic expression).    |
+| `scripts/c1_wat_return_smoke.sh`  | WAT/WASM return-value and extended smoke.     |
 | `Makefile`                        | `make backend-plan` target.                   |
 
 ## Verification
@@ -232,44 +232,32 @@ make selfhost       # Unchanged — compiler-1 pipeline must pass
 
 ## Recommended next chunks
 
-These chunks can be delegated to independent workers in the future:
+### Chunk ASM-1: x86-64 return-only emitter — **Done.**
 
-### Chunk ASM-1: x86-64 return-only emitter
-- Implement `emit_asm_program` and `emit_asm_function` for programs
-  containing only `fn main() i32 ret N end` (single integer return).
-- Verify: assembled and linked binary exits with code N.
-- File: `compiler1/emit_asm.etl` (replace scaffold).
-- Depends on: Phase 5f (self-hosting fixed point).
+### Chunk ASM-2: x86-64 arithmetic expressions — **Done.**
 
-### Chunk ASM-2: x86-64 arithmetic expressions
-- Extend ASM emitter to handle `AN_BINARY` and `AN_UNARY` expressions
-  in return statements using x86-64 register operations.
-- Verify: `fn main() i32 ret 1 + 2 * 3 end` → exit 7.
-- Depends on: Chunk ASM-1.
+### Chunk ASM-3: x86-64 locals and control flow — **Done.**
+Locals, assignment, `if`/`else`, and `while` implemented. Note: `elif` not
+yet supported. No multi-function or parameter support yet.
 
-### Chunk ASM-3: x86-64 locals and control flow
-- Add local variable support (stack slots), `let`, assignment,
-  `if`/`elif`/`else`, `while`.
-- Verify: compile and run `fib(10) == 55` via ASM backend.
-- Depends on: Chunk ASM-2.
+### Chunk WASM-1: WAT return-only emitter — **Done.**
 
-### Chunk WASM-1: WAT return-only emitter
-- Implement `emit_wat_module` and `emit_wat_function` for programs
-  containing only `fn main() i32 ret N end`.
-- Verify: `wat2wasm` produces valid binary, runtime executes with
-  correct exit code.
-- Depends on: Phase 6 complete (per standing decision).
-
-### Chunk WASM-2: WAT arithmetic and locals
-- Extend WASM emitter for expressions, locals, control flow.
-- Verify: compile and run corpus via WASM backend.
-- Depends on: Chunk WASM-1.
+### Chunk WASM-2: WAT arithmetic and locals — **Done.**
+Locals, assignment, `if`/`else`, `while`, boolean literals, comparisons,
+and logical operators all implemented and smoke-tested.
 
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).
 - Build a lowering pass: AST → IR.
 - Verify: IR output round-trips through C backend unchanged.
 - Depends on: Phase 5f and at least one non-C backend at Chunk *-2.
+
+### Future chunks
+- ASM-4: function parameters and multi-function support.
+- ASM-5: `elif` chains.
+- WASM-3: function parameters and multi-function support.
+- WASM-4: `elif` chains.
+- These can be delegated to independent workers.
 
 ## Build integration
 
@@ -306,7 +294,7 @@ must match before being considered functional.
 
 ```wat
 (module
-  (func (export "main") (result i32)
+  (func (export "_start") (result i32)
     i32.const 1
     i32.const 2
     i32.const 9
