@@ -455,6 +455,67 @@ fn emit_wasm_local_decl(out i8[1024], pos i32, out_cap i32, index i32) i32
   ret emit_wasm_append_text(out, p, out_cap, tail, 6)
 end
 
+fn emit_wasm_store_const_byte(out i8[1024], pos i32, out_cap i32, addr i32, value i32) i32
+  let p i32 = pos
+  let const_head i8[64] = "    i32.const "
+  p = emit_wasm_append_text(out, p, out_cap, const_head, 14)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_i32(out, p, out_cap, addr)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_text(out, p, out_cap, const_head, 14)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_i32(out, p, out_cap, value)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let store_t i8[64] = "    i32.store8 align=1\n"
+  ret emit_wasm_append_text(out, p, out_cap, store_t, 23)
+end
+
+fn emit_wasm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNode[512], typ i32, string_node i32, base i32, out i8[1024], pos i32, out_cap i32) i32
+  if typ < 0
+    ret -1
+  end
+  if string_node < 0
+    ret pos
+  end
+  if ast[string_node].kind != AN_STRING()
+    ret -1
+  end
+  let tok i32 = ast[string_node].a
+  if tok < 0
+    ret -1
+  end
+  let p i32 = pos
+  let i i32 = 0
+  let literal_len i32 = tokens[tok].len - 2
+  while i < literal_len
+    if i >= ast[typ].b
+      ret -1
+    end
+    p = emit_wasm_store_const_byte(out, p, out_cap, base + i, source[tokens[tok].start + 1 + i])
+    if p < 0
+      ret -1
+    end
+    i = i + 1
+  end
+  ret p
+end
+
 fn emit_wasm_local_decls(ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
@@ -525,7 +586,20 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     if p < 0
       ret -1
     end
-    ret emit_wasm_nl(out, p, out_cap)
+    p = emit_wasm_nl(out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      if emit_wasm_type_is_byte_array(source, tokens, ast, typ) == false
+        ret -1
+      end
+      p = emit_wasm_init_byte_array_string(source, tokens, ast, typ, ast[node].c, base, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+    end
+    ret p
   end
   if ast[node].c < 0
     ret -1
