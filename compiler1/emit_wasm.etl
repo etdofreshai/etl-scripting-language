@@ -75,6 +75,56 @@ fn emit_wasm_expr(ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i
     let nl i8[64] = "\n"
     ret emit_wasm_append_text(out, p, out_cap, nl, 1)
   end
+
+  if ast[node].kind == AN_UNARY()
+    if ast[node].a != TK_MINUS()
+      ret -1
+    end
+    let p i32 = emit_wasm_expr(ast, ast_count, ast[node].b, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    let zero_t i8[64] = "    i32.const 0\n"
+    p = emit_wasm_append_text(out, p, out_cap, zero_t, 16)
+    if p < 0
+      ret -1
+    end
+    let sub_t i8[64] = "    i32.sub\n"
+    ret emit_wasm_append_text(out, p, out_cap, sub_t, 12)
+  end
+
+  if ast[node].kind == AN_BINARY()
+    let p i32 = emit_wasm_expr(ast, ast_count, ast[node].b, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    p = emit_wasm_expr(ast, ast_count, ast[node].c, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    if ast[node].a == TK_PLUS()
+      let op_t i8[64] = "    i32.add\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 12)
+    end
+    if ast[node].a == TK_MINUS()
+      let op_t i8[64] = "    i32.sub\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 12)
+    end
+    if ast[node].a == TK_STAR()
+      let op_t i8[64] = "    i32.mul\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 12)
+    end
+    if ast[node].a == TK_SLASH()
+      let op_t i8[64] = "    i32.div_s\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 14)
+    end
+    if ast[node].a == TK_PERCENT()
+      let op_t i8[64] = "    i32.rem_s\n"
+      ret emit_wasm_append_text(out, p, out_cap, op_t, 14)
+    end
+    ret -1
+  end
+
   ret -1
 end
 

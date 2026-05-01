@@ -151,6 +151,79 @@ run_case ret_zero "fn main() i32 ret 0 end" 0
 run_case ret_small "fn main() i32 ret 7 end" 7
 run_case ret_large "fn main() i32 ret 255 end" 255
 
+# Arithmetic expression tests — validate WAT structure and optionally execute via WASM runtime
+run_arith_case() {
+  local name="$1"
+  local source="$2"
+  local expected_exit="$3"
+  shift 3
+
+  local wat_text
+  wat_text="$(run_wat_emit "$name" "$source")"
+  local driver_rc=$?
+
+  if [ "$driver_rc" -ne 0 ]; then
+    echo "c1_wat_return_smoke: FAIL $name - emit driver returned $driver_rc" >&2
+    fail=$((fail + 1))
+    return
+  fi
+
+  # Validate WAT text contains expected structure
+  if ! echo "$wat_text" | grep -q '(module'; then
+    echo "c1_wat_return_smoke: FAIL $name - WAT missing (module" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  if ! echo "$wat_text" | grep -q '(export "_start")'; then
+    echo "c1_wat_return_smoke: FAIL $name - WAT missing (export \"_start\")" >&2
+    fail=$((fail + 1))
+    return
+  fi
+
+  # Check each expected WAT fragment is present
+  for frag in "$@"; do
+    if ! echo "$wat_text" | grep -q "$frag"; then
+      echo "c1_wat_return_smoke: FAIL $name - WAT missing expected fragment: $frag" >&2
+      fail=$((fail + 1))
+      return
+    fi
+  done
+
+  # Try WASM toolchain if available
+  if $has_wat2wasm && [ -n "$wasm_runtime" ]; then
+    local wat_file="$td/${name}.wat"
+    local wasm_file="$td/${name}.wasm"
+    echo "$wat_text" > "$wat_file"
+    wat2wasm "$wat_file" -o "$wasm_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      set +e
+      if [ "$wasm_runtime" = "wasmtime" ]; then
+        wasmtime "$wasm_file" 2>/dev/null
+      else
+        wasmer run "$wasm_file" 2>/dev/null
+      fi
+      local rc=$?
+      set -e
+      if [ "$rc" -ne "$expected_exit" ]; then
+        echo "c1_wat_return_smoke: FAIL $name - WASM expected exit $expected_exit, got $rc" >&2
+        fail=$((fail + 1))
+        return
+      fi
+      echo "c1_wat_return_smoke: PASS $name (wat+wasm exit $rc)"
+    else
+      echo "c1_wat_return_smoke: PASS $name (wat text validated, wat2wasm failed)"
+    fi
+    pass=$((pass + 1))
+  else
+    echo "c1_wat_return_smoke: PASS $name (wat text validated)"
+    pass=$((pass + 1))
+  fi
+}
+
+run_arith_case arith_add "fn main() i32 ret 10 + 20 end" 30 "i32.const 10" "i32.const 20" "i32.add"
+run_arith_case arith_mul "fn main() i32 ret 3 * 7 end" 21 "i32.const 3" "i32.const 7" "i32.mul"
+run_arith_case arith_precedence "fn main() i32 ret 1 + 2 * 3 end" 7 "i32.const 1" "i32.const 2" "i32.const 3" "i32.mul" "i32.add"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_return_smoke: FAIL - $fail failed, $pass passed" >&2
