@@ -424,9 +424,6 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     if emit_c_type_is_byte_array(source, tokens, ast, typ)
       p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
     else
-      if ast[typ].b > 0
-        ret -1
-      end
       if ast[node].c >= 0
         ret -1
       end
