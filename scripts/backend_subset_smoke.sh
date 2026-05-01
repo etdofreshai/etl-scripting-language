@@ -176,7 +176,19 @@ run_case() {
 
 run_case ret_literal "fn main() i32 ret 42 end" 42 "i32.const 42"
 run_case ret_arithmetic "fn main() i32 ret 1 + 2 * 3 end" 7 "i32.const 1" "i32.const 2" "i32.const 3" "i32.mul" "i32.add"
-run_case ret_comparison "fn main() i32 ret 2 < 3 end" 1 "i32.const 2" "i32.const 3" "i32.lt_s"
+run_case local_init_return "fn main() i32 let x i32 = 12 ret x end" 12 '(local \$v0 i32)' 'local.set \$v0' 'local.get \$v0'
+run_case local_assign_return "fn main() i32 let x i32 = 1 x = x + 8 ret x end" 9 'local.get \$v0' "i32.add" 'local.set \$v0'
+run_case multi_local_assign "fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end" 10 '(local \$v0 i32)' '(local \$v1 i32)' 'local.get \$v1' 'local.set \$v0'
+run_case if_then_local "fn main() i32 let x i32 = 1 if x x = 9 end ret x end" 9 "if" 'local.set \$v0' 'local.get \$v0'
+run_case if_else_local "fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end" 7 "if" "else" 'local.set \$v0'
+run_case while_count "fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end" 4 "block" "loop" "i32.lt_s" "br_if 1" "br 0"
+run_case cmp_eq "fn main() i32 ret 4 == 4 end" 1 "i32.const 4" "i32.eq"
+run_case cmp_neq "fn main() i32 ret 4 != 5 end" 1 "i32.const 4" "i32.const 5" "i32.ne"
+run_case cmp_lte "fn main() i32 ret 8 <= 8 end" 1 "i32.const 8" "i32.le_s"
+run_case cmp_gt "fn main() i32 ret 9 > 2 end" 1 "i32.const 9" "i32.const 2" "i32.gt_s"
+run_case cmp_gte "fn main() i32 ret 9 >= 9 end" 1 "i32.const 9" "i32.ge_s"
+run_case cmp_false "fn main() i32 ret 9 < 2 end" 0 "i32.const 9" "i32.const 2" "i32.lt_s"
 run_case ret_logical "fn main() i32 ret not false or 0 end" 1 "i32.const 0" "i32.eqz" "i32.or"
+run_case eager_and_truthy "fn main() i32 ret 2 and 3 end" 1 "i32.const 2" "i32.const 3" "i32.and"
 
-echo "backend_subset_smoke: ok (4 shared cases across C, ASM, and WAT)"
+echo "backend_subset_smoke: ok (18 shared cases across C, ASM, and WAT)"

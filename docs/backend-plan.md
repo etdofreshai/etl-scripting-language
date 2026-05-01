@@ -97,14 +97,19 @@ also executed.
 |--------------|----------------|---|-----|----------|-------|
 | Return literal | `fn main() i32 ret 42 end` | Run | Run | Validate, optionally run | Baseline `i32` return. |
 | Arithmetic return | `fn main() i32 ret 1 + 2 * 3 end` | Run | Run | Validate, optionally run | Covers precedence and `+`/`*`. |
-| Comparison return | `fn main() i32 ret 2 < 3 end` | Run | Run | Validate, optionally run | Boolean results use `0`/`1` exits. |
+| Local init/return | `fn main() i32 let x i32 = 12 ret x end` | Run | Run | Validate, optionally run | Covers local declaration, initialization, lookup, and return. |
+| Assignment | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | Run | Run | Validate, optionally run | Covers simple local reassignment. |
+| Simple if/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | No `elif`; WAT rejects `elif` today. |
+| Simple while | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
+| Comparison return | `fn main() i32 ret 8 <= 8 end` | Run | Run | Validate, optionally run | Covers equality and signed comparison operators. |
 | Logical return | `fn main() i32 ret not false or 0 end` | Run | Run | Validate, optionally run | Current logical lowering is truthy/eager, not short-circuiting. |
 
 Limitations: the shared matrix intentionally excludes functions with
-parameters, extern calls, arrays, structs, strings, and general I/O. Those are
-covered by the C path and broader smoke tests, but they are not shared backend
-contracts yet. Keep matrix programs small enough for the compiler-1 harness
-buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
+parameters, extern calls, arrays, structs, strings, `elif`, and general I/O.
+Those are covered by the C path and broader smoke tests, but they are not
+shared backend contracts yet. Keep matrix programs small enough for the
+compiler-1 harness buffers (`source i8[256]`, `tokens Token[128]`,
+`out i8[1024]`).
 
 ## C backend (current)
 

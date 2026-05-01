@@ -104,8 +104,9 @@ and C emission for a growing subset.
 **Status: Active smoke subset.**
 
 Emits x86-64 assembly for small `main` programs with integer return,
-arithmetic, comparison, and logical expressions. No locals, control flow,
-extern calls, or structs yet.
+arithmetic, local initialization, local assignment, simple `if`/`else`,
+simple `while`, comparison, and eager logical expressions. No parameters,
+extern calls, arrays, or structs yet.
 
 **Gate**: `make backend-asm` (skip-safe; exercises ASM emitter via compiler-1).
 
@@ -115,7 +116,9 @@ extern calls, or structs yet.
 
 Emits WAT text for small `main` programs. Text validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
-the smoke reports reduced coverage and still passes.
+the smoke reports reduced coverage and still passes. The active subset covers
+integer return, arithmetic, local initialization, local assignment, simple
+`if`/`else`, simple `while`, comparison, and eager logical expressions.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 
@@ -131,6 +134,10 @@ WAT is validated and optionally executed.
 |---|---|---|---|
 | Return literal | Run | Run | Validate, optionally run |
 | Arithmetic return | Run | Run | Validate, optionally run |
+| Local init/return | Run | Run | Validate, optionally run |
+| Assignment | Run | Run | Validate, optionally run |
+| Simple if/else | Run | Run | Validate, optionally run |
+| Simple while | Run | Run | Validate, optionally run |
 | Comparison return | Run | Run | Validate, optionally run |
 | Logical return | Run | Run | Validate, optionally run |
 
