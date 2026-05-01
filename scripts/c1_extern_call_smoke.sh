@@ -20,12 +20,26 @@ if [ ! -s "$emitted" ]; then
   exit 1
 fi
 
-cc -std=c11 -Wall -Wextra -Werror "$emitted" runtime/etl_runtime.c -I runtime -o "$td/c1_extern_call"
+cat > "$td/identity_i32.c" <<'C'
+int etl_identity_i32(int value) {
+  return value;
+}
+C
+cc -std=c11 -Wall -Wextra -Werror "$emitted" "$td/identity_i32.c" runtime/etl_runtime.c -I runtime -o "$td/c1_extern_call"
+
+set +e
 stdout="$("$td/c1_extern_call")"
+status=$?
+set -e
 
 if [ "$stdout" != "42" ]; then
   echo "c1_extern_call_smoke: FAIL - expected stdout 42, got: $stdout" >&2
   exit 1
 fi
 
-echo "c1_extern_call_smoke: ok (compiler-1 emitted extern call C and printed 42)"
+if [ "$status" -ne 42 ]; then
+  echo "c1_extern_call_smoke: FAIL - expected exit 42 from return-valued extern call, got: $status" >&2
+  exit 1
+fi
+
+echo "c1_extern_call_smoke: ok (compiler-1 emitted void and return-valued extern call C)"
