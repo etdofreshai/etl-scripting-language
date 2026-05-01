@@ -197,6 +197,12 @@ run_array_case i8_array_var_idx \
   42 \
   "i32.store8 align=1" "i32.load8_s align=1"
 
+# Local i8 array initialized from string literal, then indexed
+run_array_case i8_array_string_literal_idx \
+  "fn main() i32 let text i8[4] = \"abc\" ret text[0] + text[1] - text[2] end" \
+  96 \
+  "i32.store8 align=1" "i32.const 97" "i32.const 98" "i32.const 99" "i32.load8_s offset=0" "i32.load8_s offset=1" "i32.load8_s offset=2"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_array_smoke: FAIL - $fail failed, $pass passed" >&2
