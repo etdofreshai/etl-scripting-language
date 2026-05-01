@@ -105,16 +105,20 @@ and C emission for a growing subset.
 
 Emits x86-64 assembly for small `main` programs with integer return,
 arithmetic, local initialization, local assignment, simple `if`/`else`,
-simple `while`, comparison, and eager logical expressions. No parameters,
-extern calls, arrays, or structs yet.
+simple `while`, all comparison operators, boolean literals, and eager logical
+expressions (`and`, `or`, `not`). No function parameters, `elif`, extern
+calls, arrays, structs, or strings yet.
 
-**Gate**: `make backend-asm` (skip-safe; exercises ASM emitter via compiler-1).
+**Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
 
 ### Tier 4: WAT/WASM backend
 
 **Status: Active WAT subset.**
 
-Emits WAT text for small `main` programs. Text validation always runs.
+Emits WAT text for `main` programs with integer/boolean return, arithmetic,
+all comparisons, logical operators, `let` locals, assignment, `if`/`else`,
+`while` loops, and boolean literals. No function parameters, `elif`, extern
+calls, structs, or strings yet. Text validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
 integer return, arithmetic, local initialization, local assignment, simple
@@ -181,8 +185,8 @@ and verifies exit codes, stdout golden files, and determinism.
 3. **backend-plan** — backend-plan smoke + ASM backend smoke.
 4. **backend-subset** — shared C/ASM/WAT matrix across supported subset.
 5. **backend-wasm** — WAT/WASM return-value smoke.
-6. **selfeval-all** — deterministic headless self-eval + software framebuffer
-   + skip-safe SDL3 graphics.
+6. **selfeval-all** — deterministic headless self-eval + trace artifacts
+   + software framebuffer + skip-safe SDL3 graphics.
 
 Passing `headless-ready` proves:
 
@@ -191,6 +195,7 @@ Passing `headless-ready` proves:
 - All three compiler-1 backends produce consistent output for the shared
   subset.
 - Self-eval programs produce deterministic, golden-matched output.
+- Trace artifacts are byte-for-byte deterministic with verified SHA-256.
 - The portable software framebuffer renders deterministic pixel output.
 - SDL3 graphics are skip-safe: they run when available, skip cleanly when not.
 
