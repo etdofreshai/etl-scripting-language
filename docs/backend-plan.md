@@ -82,7 +82,7 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, and `while`; assembled and linked by smoke tests. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, and local `i32` array declaration plus constant-index and variable-index read/write; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, and local `i32` array declaration plus indexed read/write; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -251,6 +251,13 @@ make selfhost       # Unchanged — compiler-1 pipeline must pass
 ### Chunk ASM-3: x86-64 locals and control flow — **Done.**
 Locals, assignment, `if`/`else`, and `while` implemented. Note: `elif` not
 yet supported. No multi-function or parameter support yet.
+
+### Chunk ASM-3B: x86-64 i32 array indexing — **Done.**
+Local `i32` array declarations with constant-index read/write and
+variable-index read/write proven by `scripts/c1_asm_array_smoke.sh`
+(1a906f4, merged 981623a). Scalar-after-array stack layout verified.
+Byte arrays, byte strings, struct arrays, bounds checks, and array
+params/externs remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 
