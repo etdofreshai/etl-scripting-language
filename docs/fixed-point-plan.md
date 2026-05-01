@@ -82,6 +82,11 @@ Specifically, c1 can emit:
   (`typedef struct { ... } Pair;`, `Pair p;`, `p.left = 19`, `p.left + p.right`)
   — proven by `scripts/c1_source_to_c_struct_field_smoke.sh` (902b736). Struct
   parameters, struct arrays, and non-integer field types are not yet covered.
+- Narrow `i8[N]` local string literal initialization with constant-index reads
+  (`int8_t text[4] = {'a','b','c',0};`, `text[0] + text[1] - text[2]`) — proven
+  by `scripts/c1_source_to_c_byte_string_smoke.sh` (ed3d8de). Variable-index
+  string reads, multiple string buffers coexisting, and extern parameter string
+  buffers are not yet covered.
 
 ### What c1 cannot emit yet (self-compilation blockers)
 
@@ -96,7 +101,7 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Struct declarations | c1 has no struct emission | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); struct params, arrays, and non-i32 fields do not |
 | Struct field access | c1 has no `.field` expression emission | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); cross-function struct params and struct arrays do not |
 | Index expressions | c1 has no `arr[i]` expression emission | All buffer access uses indexing. Constant-index `i32` arrays work (fa722e8); variable subscripts do not |
-| String literal data | c1 cannot emit C string data or char arrays | `let prefix i8[64] = "v"` etc. |
+| String literal data | c1 cannot emit C string data or char arrays | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads, multiple string buffers, and extern param string buffers do not |
 | Extern fn with typed params | c1 emits all extern params as `int` | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32` |
 | Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
 

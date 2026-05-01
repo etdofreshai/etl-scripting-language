@@ -29,7 +29,7 @@ make examples
 | 3c    | done     | 3b47fa0        |
 | 4a    | done     | d8f76aa        |
 | 4b    | done     | 625c740        |
-| 5     | in progress (extern calls + 18-case backend subset + narrow i32 array indexing smoke + narrow local integer struct field smoke) | -        |
+| 5     | in progress (extern calls + 18-case backend subset + narrow i32 array indexing smoke + narrow local integer struct field smoke + narrow local byte string array smoke) | -        |
 | 6     | not started | -            |
 | 7     | not started | -            |
 | 8     | not started | -            |
@@ -94,8 +94,8 @@ parallelizes.
 - 5b: lexer in ETL (DONE at a74d1e9)
 - 5c: parser in ETL (DONE at a74d1e9)
 - 5d: sema in ETL (DONE at ba0b94b)
-- 5e: C emitter in ETL (smoke DONE; void + return-valued extern calls DONE; narrow i32 array indexing DONE at fa722e8; narrow local integer struct field smoke DONE at 902b736)
-- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next; narrow struct field smoke landed for local integer fields; struct params, struct arrays, and non-integer field types remain)
+- 5e: C emitter in ETL (smoke DONE; void + return-valued extern calls DONE; narrow i32 array indexing DONE at fa722e8; narrow local integer struct field smoke DONE at 902b736; narrow local byte string array smoke DONE at ed3d8de)
+- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next; narrow byte string smoke landed for local i8[N]="..." with constant-index reads; variable-index, multi-buffer, and extern param string features remain)
 - 5g: c1→c2 fixed-point; freeze c0
 
 See `docs/fixed-point-plan.md` for the detailed fixed-point milestone
