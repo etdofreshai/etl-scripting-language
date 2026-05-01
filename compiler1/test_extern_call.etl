@@ -1,11 +1,11 @@
 extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
 
 fn main() i32
-  let source i8[256] = "external function etl_print_i32(value integer) function main() integer etl_print_i32(42) return 0 end"
+  let source i8[256] = "external function etl_print_i32(value integer) external function etl_identity_i32(value integer) integer function main() integer let value integer = etl_identity_i32(41) etl_print_i32(value + 1) return etl_identity_i32(value + 1) end"
   let tokens Token[128]
   let ast AstNode[512]
   let out i8[1024]
-  let n i32 = lex(source, 101, tokens, 128)
+  let n i32 = lex(source, 233, tokens, 128)
   if n < 0
     ret 1
   end
