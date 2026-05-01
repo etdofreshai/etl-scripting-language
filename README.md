@@ -67,6 +67,17 @@ Run both gates with:
 make check
 ```
 
+Run the current headless-server readiness gate with:
+
+```bash
+make headless-ready
+```
+
+This runs the baseline checks, compiler-1 self-host smoke, backend plan,
+shared backend subset, WAT/WASM smoke, and full headless self-evaluation.
+See `docs/selfeval.md` for the exact readiness contract and optional
+tooling notes.
+
 ## semantic checks
 
 Compiler-0 now validates the tiny v0 subset before C emission:
