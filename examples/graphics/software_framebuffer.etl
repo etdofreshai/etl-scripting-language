@@ -1,0 +1,54 @@
+extern fn etl_gfx_create(width i32, height i32) i32
+extern fn etl_gfx_destroy()
+extern fn etl_gfx_clear(r i32, g i32, b i32) i32
+extern fn etl_gfx_set_pixel(x i32, y i32, r i32, g i32, b i32) i32
+extern fn etl_gfx_write_ppm(path i8[256]) i32
+extern fn etl_gfx_get_pixel(x i32, y i32) i32
+extern fn etl_print_i32(value i32)
+
+fn main() i32
+  let path i8[256] = "build/graphics/software_framebuffer.ppm"
+
+  if etl_gfx_create(4, 4) < 0
+    ret 1
+  end
+
+  if etl_gfx_clear(10, 20, 30) < 0
+    etl_gfx_destroy()
+    ret 2
+  end
+
+  if etl_gfx_set_pixel(0, 0, 255, 0, 0) < 0
+    etl_gfx_destroy()
+    ret 3
+  end
+
+  if etl_gfx_set_pixel(1, 1, 0, 255, 0) < 0
+    etl_gfx_destroy()
+    ret 4
+  end
+
+  if etl_gfx_set_pixel(2, 2, 0, 0, 255) < 0
+    etl_gfx_destroy()
+    ret 5
+  end
+
+  if etl_gfx_set_pixel(3, 3, 255, 255, 255) < 0
+    etl_gfx_destroy()
+    ret 6
+  end
+
+  etl_print_i32(etl_gfx_get_pixel(0, 0))
+  etl_print_i32(etl_gfx_get_pixel(1, 1))
+  etl_print_i32(etl_gfx_get_pixel(2, 2))
+  etl_print_i32(etl_gfx_get_pixel(3, 3))
+  etl_print_i32(etl_gfx_get_pixel(3, 0))
+
+  if etl_gfx_write_ppm(path) < 0
+    etl_gfx_destroy()
+    ret 7
+  end
+
+  etl_gfx_destroy()
+  ret 0
+end

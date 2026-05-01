@@ -19,13 +19,16 @@ compiler-0, runs each twice, and checks:
     make selfeval-all
 
 Runs headless self-evaluation **plus** headless graphics smoke in a single
-pass. Graphics checks are **skip-safe**: if SDL3 is absent, the target
-reports SKIP for graphics and still passes. When SDL3 is present, the
-target additionally:
+pass. The pure-C software framebuffer check always runs because it has no
+external dependency. SDL3 checks are **skip-safe**: if SDL3 is absent, the
+target reports SKIP for SDL3 graphics and still passes. The target:
 
+- Runs the software framebuffer smoke via `scripts/software_graphics_smoke.sh`.
+- Checks `build/graphics/software_framebuffer.ppm`.
+- Compares deterministic pixel values and the PPM SHA-256 checksum.
 - Runs the pixel_fill graphics smoke via `scripts/sdl3_headless_smoke.sh`.
-- Checks for the PPM artifact at `build/graphics/pixel_fill.ppm`.
-- Computes and prints the SHA-256 of the PPM (seed for future golden hashes).
+- When SDL3 is available, checks `build/graphics/pixel_fill.ppm` and prints
+  its SHA-256.
 
 This target is the recommended entry point for CI: it exercises the full
 selfeval contract and automatically exercises graphics when SDL3 becomes
@@ -44,17 +47,17 @@ headless-server-ready surface. It runs, in order:
 4. `backend-subset` — shared C, ASM, and WAT cases across the supported
    backend subset.
 5. `backend-wasm` — WAT/WASM return-value smoke.
-6. `selfeval-all` — deterministic headless self-eval plus skip-safe
-   headless graphics.
+6. `selfeval-all` — deterministic headless self-eval plus software and
+   skip-safe SDL3 graphics.
 
 Passing this gate proves that the repository's current non-interactive
 compiler, backend, runtime, and self-evaluation paths are ready to run on a
 headless server with the tools available in that environment.
 
-The gate is intentionally still opt-in and does not claim full SDL3 graphics
-execution unless SDL3 development libraries are installed. Without SDL3,
-graphics reports SKIP and the gate still passes. WAT/WASM runtime execution
-is also tool-dependent: when `wat2wasm` plus `wasmtime` or `wasmer` are
+The gate always proves the portable software framebuffer path. It does not
+claim SDL3 graphics execution unless SDL3 development libraries are installed.
+Without SDL3, SDL3 graphics reports SKIP and the gate still passes. WAT/WASM
+runtime execution is also tool-dependent: when `wat2wasm` plus `wasmtime` or `wasmer` are
 available, the smoke scripts execute generated WASM; otherwise they validate
 the emitted WAT text and report the reduced coverage.
 
@@ -75,29 +78,29 @@ golden file documents what each line represents.
 
 ### Graphics artifact extension
 
-When SDL3 rendering is available, the selfeval contract extends to include
-rendered artifacts alongside the tick/state logs:
+Graphics selfeval extends the contract to include rendered artifacts alongside
+the tick/state logs. The software framebuffer path is always available; SDL3
+uses the same API and artifact format when installed.
 
 | Artifact          | Path pattern                        | Description                                         |
 |-------------------|-------------------------------------|-----------------------------------------------------|
 | **Tick log**      | `.expected` golden file             | Per-tick numeric output (current `.expected` files) |
 | **State snapshot**| stdout                              | Struct dump at key ticks (struct i32 fields)        |
 | **PPM screenshot**| `build/graphics/<program>.ppm`      | Rendered frame as binary PPM                         |
-| **Pixel hash**    | `build/graphics/<program>.sha256`   | SHA-256 of raw framebuffer bytes for exact compare   |
+| **Pixel hash**    | script-side expected SHA-256        | SHA-256 of PPM bytes for exact compare               |
 
-The verification flow when SDL3 is present:
+The verification flow:
 
 1. Compile ETL program to C via compiler-0 (or compiler-1).
-2. Link with `etl_runtime.c` + `etl_graphics_sdl3.c` + SDL3.
+2. Link with `etl_runtime.c` plus one graphics backend.
 3. Run headlessly; program emits tick logs to stdout and writes PPM.
 4. Harness compares stdout against golden `.expected` file.
-5. Harness computes SHA-256 of each PPM and compares against `.sha256` sidecar.
+5. Harness computes SHA-256 of each PPM and compares against the expected hash.
 6. Determinism check: run twice, require identical stdout **and** pixel hashes.
 
-When SDL3 is absent, steps 2–6 are skipped. The harness reports SKIP for
-graphics artifacts and passes as long as the tick/state log verification
-succeeds. This ensures CI is green today while the artifact contract is
-ready for automatic activation when SDL3 is installed.
+When SDL3 is absent, only the SDL3 backend is skipped. The software framebuffer
+backend still verifies graphics artifacts, so CI can catch deterministic pixel
+regressions without graphics libraries.
 
 ### Deterministic ticks to pixels mapping
 
@@ -123,4 +126,4 @@ sidecar is required.
 3. Capture golden output in `examples/selfeval/<filename>.expected`.
 4. Run `make headless-selfeval` to verify.
 5. If the program uses graphics, also run `make selfeval-all` to verify
-   PPM artifact generation (requires SDL3).
+   software PPM artifact generation and optional SDL3 coverage.

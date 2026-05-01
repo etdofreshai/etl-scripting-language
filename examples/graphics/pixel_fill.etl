@@ -7,6 +7,8 @@ extern fn etl_gfx_get_pixel(x i32, y i32) i32
 extern fn etl_print_i32(value i32)
 
 fn main() i32
+  let path i8[256] = "build/graphics/pixel_fill.ppm"
+
   if etl_gfx_create(8, 8) < 0
     ret 1
   end
@@ -24,7 +26,7 @@ fn main() i32
   let center i32 = etl_gfx_get_pixel(4, 4)
   etl_print_i32(center)
 
-  if etl_gfx_write_ppm("build/graphics/pixel_fill.ppm") < 0
+  if etl_gfx_write_ppm(path) < 0
     etl_gfx_destroy()
     ret 4
   end
