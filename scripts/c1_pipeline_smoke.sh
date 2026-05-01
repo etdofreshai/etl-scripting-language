@@ -45,6 +45,9 @@ scripts/c1_source_to_c_byte_array_assign_smoke.sh
 echo "c1_pipeline: run byte-string source-to-C smoke"
 scripts/c1_source_to_c_byte_string_smoke.sh
 
+echo "c1_pipeline: run byte-string variable-index source-to-C smoke"
+scripts/c1_source_to_c_byte_string_var_index_smoke.sh
+
 echo "c1_pipeline: run struct-field source-to-C smoke"
 scripts/c1_source_to_c_struct_field_smoke.sh
 
