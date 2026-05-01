@@ -108,10 +108,12 @@ arithmetic, local initialization, local assignment, simple `if`/`else`,
 simple `while`, all comparison operators, boolean literals, eager logical
 expressions (`and`, `or`, `not`), local `i32` array declaration plus
 constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
-array indexed assignment/read via `movsbq`/`movb`, and local `byte[N]`/`i8[N]`
-string literal initialization with constant-index reads. No function parameters,
-`elif`, extern calls, runtime strings, pointer decay, extern/param byte arrays,
-structs, struct arrays, bounds checks, or dynamic arrays yet.
+array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]`
+string literal initialization with constant-index reads, and local struct
+declarations with `i32`-only field store/load via `mov` with RBP offsets.
+No function parameters, `elif`, extern calls, runtime strings, pointer
+decay, extern/param byte arrays, struct arrays, nested structs,
+non-i32 struct fields, bounds checks, or dynamic arrays yet.
 
 **Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
 
