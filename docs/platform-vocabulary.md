@@ -121,16 +121,18 @@ structs, struct arrays, bounds checks, or dynamic arrays yet.
 Emits WAT text for `main` programs with integer/boolean return, arithmetic,
 all comparisons, logical operators, `let` locals, assignment, `if`/`else`,
 `while` loops, boolean literals, local `i32` array declaration plus
-constant-index and variable-index read/write, and local `byte[N]`/`i8[N]`
-array indexed assignment/read via `i32.store8`/`i32.load8_s`. No function
-parameters, `elif`, extern calls, byte string literals, extern/param byte
-arrays, structs, struct arrays, bounds checks, or dynamic arrays yet. Text
+constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
+array indexed assignment/read via `i32.store8`/`i32.load8_s`, and local
+`i8[N]` string literal initialization with constant-index reads. No function
+parameters, `elif`, extern calls, runtime strings, pointer decay, extern/param
+byte arrays, structs, struct arrays, bounds checks, or dynamic arrays yet. Text
 validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
 integer return, arithmetic, local initialization, local assignment, simple
 `if`/`else`, simple `while`, comparison, eager logical expressions, local
-`i32` array indexing, and local `byte[N]`/`i8[N]` array indexed read/write.
+`i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write, and
+local `i8[N]` string literal initialization with constant-index reads.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 
