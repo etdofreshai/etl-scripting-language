@@ -89,6 +89,16 @@ Specifically, c1 can emit:
   by `scripts/c1_source_to_c_byte_string_smoke.sh` (ed3d8de). Variable-index
   string reads, multiple string buffers coexisting, and extern parameter string
   buffers are not yet covered.
+- Narrow `byte[N]` local array indexed assignment and variable-index reads
+  (`int8_t values[4];`, `values[0] = 10`, `values[i]`) — proven by
+  `scripts/c1_source_to_c_byte_array_assign_smoke.sh` (bd10575). Returns 42.
+  Broad byte strings, extern param byte arrays, and bounds checks are not yet
+  covered.
+- Narrow local struct array field assignment and variable-index field reads
+  (`Item items[2];`, `items[0].value = 19`, `items[i].value`) — proven by
+  `scripts/c1_source_to_c_struct_array_smoke.sh` (6c54423). Returns 42.
+  Struct params/returns, nested structs, arrays-in-struct fields, and
+  non-integer field types are not yet covered.
 
 ### What c1 cannot emit yet (self-compilation blockers)
 
@@ -99,11 +109,11 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Multi-function emission | c1 hardcodes `int main(void)`; cannot emit named functions | c1 source has ~60+ named functions |
 | Function parameters | c1 requires zero parameters; c1 source uses parameters everywhere | Every emit_c_*, lex, parse function takes params |
 | Typed locals (not just int) | c1 emits all locals as `int`; c1 uses `i8[]`, `bool`, structs | Token/AstNode structs, i8 arrays, bool locals |
-| Array locals | c1 cannot emit `int32_t arr[128] = {0}` declarations | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); non-`i32` arrays do not |
-| Struct declarations | c1 has no struct emission | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); struct params, arrays, and non-i32 fields do not |
-| Struct field access | c1 has no `.field` expression emission | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); cross-function struct params and struct arrays do not |
+| Array locals | c1 cannot emit `int32_t arr[128] = {0}` declarations | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `byte` indexed assignment works (bd10575); non-`i32`/`i8` arrays do not |
+| Struct declarations | c1 has no struct emission | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow struct array field access works (6c54423); struct params and non-i32 fields do not |
+| Struct field access | c1 has no `.field` expression emission | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access works (6c54423); cross-function struct params do not |
 | Index expressions | c1 has no `arr[i]` expression emission | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); non-`i32` index expressions do not |
-| String literal data | c1 cannot emit C string data or char arrays | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads, multiple string buffers, and extern param string buffers do not |
+| String literal data | c1 cannot emit C string data or char arrays | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); narrow `byte[N]` indexed assignment with variable-index reads works (bd10575); variable-index string reads, multiple string buffers, and extern param string buffers do not |
 | Extern fn with typed params | c1 emits all extern params as `int` | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32` |
 | Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
 
