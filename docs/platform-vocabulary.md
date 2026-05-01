@@ -132,18 +132,20 @@ integer return, arithmetic, local initialization, local assignment, simple
 
 Runs a small corpus through all three compiler-1 backends (C, ASM, WAT/WASM)
 and verifies consistent behavior. C and ASM produce native executables;
-WAT is validated and optionally executed.
+WAT is validated and optionally executed. The current matrix contains 18 test
+cases covering return, arithmetic, locals, assignment, control flow,
+all six comparison operators, and eager logical operators.
 
 | Source shape | C | ASM | WAT/WASM |
 |---|---|---|---|
 | Return literal | Run | Run | Validate, optionally run |
 | Arithmetic return | Run | Run | Validate, optionally run |
 | Local init/return | Run | Run | Validate, optionally run |
-| Assignment | Run | Run | Validate, optionally run |
-| Simple if/else | Run | Run | Validate, optionally run |
-| Simple while | Run | Run | Validate, optionally run |
-| Comparison return | Run | Run | Validate, optionally run |
-| Logical return | Run | Run | Validate, optionally run |
+| Assignment (single, multi-local) | Run | Run | Validate, optionally run |
+| If-then, if/else | Run | Run | Validate, optionally run |
+| While | Run | Run | Validate, optionally run |
+| Comparisons (6 operators) | Run | Run | Validate, optionally run |
+| Logical (`and`, `or`, `not`) | Run | Run | Validate, optionally run |
 
 **Gate**: `make backend-subset`.
 

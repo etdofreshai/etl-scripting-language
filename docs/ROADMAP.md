@@ -29,7 +29,7 @@ make examples
 | 3c    | done     | 3b47fa0        |
 | 4a    | done     | d8f76aa        |
 | 4b    | done     | 625c740        |
-| 5     | in progress (c1 lexer/parser/sema/emitter smokes landed) | -        |
+| 5     | in progress (extern calls + 18-case backend subset active) | -        |
 | 6     | not started | -            |
 | 7     | not started | -            |
 | 8     | not started | -            |
@@ -75,9 +75,10 @@ make examples
 | 5  | **Compiler-1 in ETL**                                                 | `make selfhost` (c0→c1, c1→c2, behavior-equiv corpus)| 10–16  |
 
 > **Phase 5 status: IN PROGRESS.** `compiler1/` now has lexer, parser,
-> semantic validation, and a minimal C emitter smoke. `make selfhost`
-> runs `scripts/c1_pipeline_smoke.sh`, which composes the available
-> compiler-1 stage smokes before the original compiler-1 skeleton smoke.
+> semantic validation, C emission with void and return-valued extern call
+> support, and an 18-case shared C/ASM/WAT backend subset. `make selfhost`
+> runs the full compiler-1 pipeline; `make headless-ready` is the
+> integration gate.
 | 6  | SDL3 shim + headless screenshot harness + Conway's Life               | `make visual` (Life golden matches)                 | 6–8    |
 | 7  | App ladder: calculator → breakout → snake → asteroids → pong → CLI    | `make examples`                                     | 18–24  |
 | 8  | C-backend hardening + Linux/macOS/Windows CI matrix                   | matrix green                                        | 4–6    |
@@ -93,7 +94,7 @@ parallelizes.
 - 5b: lexer in ETL (DONE at a74d1e9)
 - 5c: parser in ETL (DONE at a74d1e9)
 - 5d: sema in ETL (DONE at ba0b94b)
-- 5e: C emitter in ETL (initial smoke DONE)
+- 5e: C emitter in ETL (smoke DONE; void + return-valued extern calls DONE)
 - 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next)
 - 5g: c1→c2 fixed-point; freeze c0
 
