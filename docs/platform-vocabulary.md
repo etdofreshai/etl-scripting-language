@@ -104,16 +104,16 @@ and C emission for a growing subset.
 **Status: Active smoke subset.**
 
 Emits x86-64 assembly for small `main` programs with integer return,
-arithmetic, local initialization, local assignment, simple `if`/`else`,
-simple `while`, all comparison operators, boolean literals, eager logical
-expressions (`and`, `or`, `not`), local `i32` array declaration plus
-constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
+arithmetic, local initialization, local assignment, `if`/`elif`/`else`
+chains, `while` loops, all comparison operators, boolean literals, eager
+logical expressions (`and`, `or`, `not`), local `i32` array declaration
+plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
 array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]`
 string literal initialization with constant-index reads, and local struct
 declarations with `i32`-only field store/load via `mov` with RBP offsets,
 and local fixed struct array indexed field store/load via computed base
 offset with `imul` struct-size scaling.
-No function parameters, `elif`, extern calls, runtime strings, pointer
+No function parameters, extern calls, runtime strings, pointer
 decay, extern/param byte arrays, nested structs,
 non-i32 struct fields, bounds checks, or dynamic arrays yet.
 
