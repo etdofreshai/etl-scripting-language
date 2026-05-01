@@ -14,6 +14,23 @@ compiler-0, runs each twice, and checks:
 2. **stdout** matches the corresponding `.expected` golden file.
 3. **Determinism** — both runs produce identical output.
 
+## Combined target (selfeval-all)
+
+    make selfeval-all
+
+Runs headless self-evaluation **plus** headless graphics smoke in a single
+pass. Graphics checks are **skip-safe**: if SDL3 is absent, the target
+reports SKIP for graphics and still passes. When SDL3 is present, the
+target additionally:
+
+- Runs the pixel_fill graphics smoke via `scripts/sdl3_headless_smoke.sh`.
+- Checks for the PPM artifact at `build/graphics/pixel_fill.ppm`.
+- Computes and prints the SHA-256 of the PPM (seed for future golden hashes).
+
+This target is the recommended entry point for CI: it exercises the full
+selfeval contract and automatically exercises graphics when SDL3 becomes
+available, without requiring any CI configuration changes.
+
 ## Contract
 
 Each self-eval program MUST:
@@ -29,21 +46,47 @@ Output is one value per line via `etl_print_i32`. Programs emit pairs of
 (tick, state) during simulation, then a final (tick, state) pair. The
 golden file documents what each line represents.
 
-### Future graphics extension
+### Graphics artifact extension
 
-When SDL3 rendering is added, the contract will grow to include:
+When SDL3 rendering is available, the selfeval contract extends to include
+rendered artifacts alongside the tick/state logs:
 
-| Artifact          | Description                                         |
-|-------------------|-----------------------------------------------------|
-| **Tick log**      | Per-tick numeric output (current `.expected` files) |
-| **State snapshot**| Struct dump at key ticks (struct i32 fields)        |
-| **Screenshot**    | Rendered frame written to an artifact path           |
-| **Pixel hash**    | SHA-256 of raw framebuffer bytes for exact compare   |
+| Artifact          | Path pattern                        | Description                                         |
+|-------------------|-------------------------------------|-----------------------------------------------------|
+| **Tick log**      | `.expected` golden file             | Per-tick numeric output (current `.expected` files) |
+| **State snapshot**| stdout                              | Struct dump at key ticks (struct i32 fields)        |
+| **PPM screenshot**| `build/graphics/<program>.ppm`      | Rendered frame as binary PPM                         |
+| **Pixel hash**    | `build/graphics/<program>.sha256`   | SHA-256 of raw framebuffer bytes for exact compare   |
 
-Screenshot paths will follow the convention
-`build/selfeval/<program>/<tick>.png`.  Pixel hashes will be stored in
-a sidecar `<tick>.sha256` file.  The verification script will compare
-hashes rather than binary pixel data to keep golden files compact.
+The verification flow when SDL3 is present:
+
+1. Compile ETL program to C via compiler-0 (or compiler-1).
+2. Link with `etl_runtime.c` + `etl_graphics_sdl3.c` + SDL3.
+3. Run headlessly; program emits tick logs to stdout and writes PPM.
+4. Harness compares stdout against golden `.expected` file.
+5. Harness computes SHA-256 of each PPM and compares against `.sha256` sidecar.
+6. Determinism check: run twice, require identical stdout **and** pixel hashes.
+
+When SDL3 is absent, steps 2–6 are skipped. The harness reports SKIP for
+graphics artifacts and passes as long as the tick/state log verification
+succeeds. This ensures CI is green today while the artifact contract is
+ready for automatic activation when SDL3 is installed.
+
+### Deterministic ticks to pixels mapping
+
+The selfeval programs emit structured (tick, state) pairs on stdout.
+When a graphics self-eval program also renders frames, each tick's state
+deterministically produces a corresponding PPM screenshot. This creates a
+verifiable chain:
+
+```
+tick N → state S(N) → render(S(N)) → framebuffer F(N) → PPM + sha256
+```
+
+Because both the numeric state and the framebuffer are deterministic,
+future pixel/hash comparison can detect rendering regressions without
+needing to store large binary golden files — only the compact SHA-256
+sidecar is required.
 
 ## Adding new self-eval programs
 
@@ -52,3 +95,5 @@ hashes rather than binary pixel data to keep golden files compact.
    `filename.etl  <expected_exit>  <description>`
 3. Capture golden output in `examples/selfeval/<filename>.expected`.
 4. Run `make headless-selfeval` to verify.
+5. If the program uses graphics, also run `make selfeval-all` to verify
+   PPM artifact generation (requires SDL3).
