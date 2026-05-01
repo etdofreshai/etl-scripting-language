@@ -131,6 +131,10 @@ improve its own output, and the self-eval harness verifies correctness.
 - 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff.
 - 5g: c1→c2 fixed-point; freeze c0.
 
+See `docs/fixed-point-plan.md` for the detailed fixed-point milestone
+definition, self-compilation chain, prerequisite gaps, worker chunk
+sequencing, and verification gates.
+
 ### Phase 6 (not started): Graphics and visual testing
 
 **Gate**: `make visual` (Conway's Life golden matches).
