@@ -31,6 +31,33 @@ This target is the recommended entry point for CI: it exercises the full
 selfeval contract and automatically exercises graphics when SDL3 becomes
 available, without requiring any CI configuration changes.
 
+## Headless readiness gate
+
+    make headless-ready
+
+`headless-ready` is the one-command gate for the current
+headless-server-ready surface. It runs, in order:
+
+1. `check` — compiler-0 tests, smoke coverage, and runtime tests.
+2. `selfhost` — compiler-1 pipeline and self-host equivalence smoke.
+3. `backend-plan` — backend plan smoke plus ASM backend smoke.
+4. `backend-subset` — shared C, ASM, and WAT cases across the supported
+   backend subset.
+5. `backend-wasm` — WAT/WASM return-value smoke.
+6. `selfeval-all` — deterministic headless self-eval plus skip-safe
+   headless graphics.
+
+Passing this gate proves that the repository's current non-interactive
+compiler, backend, runtime, and self-evaluation paths are ready to run on a
+headless server with the tools available in that environment.
+
+The gate is intentionally still opt-in and does not claim full SDL3 graphics
+execution unless SDL3 development libraries are installed. Without SDL3,
+graphics reports SKIP and the gate still passes. WAT/WASM runtime execution
+is also tool-dependent: when `wat2wasm` plus `wasmtime` or `wasmer` are
+available, the smoke scripts execute generated WASM; otherwise they validate
+the emitted WAT text and report the reduced coverage.
+
 ## Contract
 
 Each self-eval program MUST:
