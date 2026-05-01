@@ -98,12 +98,76 @@ fn emit_c_append_local_name(out i8[1024], pos i32, out_cap i32, index i32) i32
   ret emit_c_append_i32(out, p, out_cap, index)
 end
 
+fn emit_c_binary_op(i32_op i32, out i8[1024], pos i32, out_cap i32) i32
+  if i32_op == TK_PLUS()
+    let op_text i8[64] = " + "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_MINUS()
+    let op_text i8[64] = " - "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_STAR()
+    let op_text i8[64] = " * "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_SLASH()
+    let op_text i8[64] = " / "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_PERCENT()
+    let op_text i8[64] = " % "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_EQEQ()
+    let op_text i8[64] = " == "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  if i32_op == TK_NEQ()
+    let op_text i8[64] = " != "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  if i32_op == TK_LT()
+    let op_text i8[64] = " < "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_LTE()
+    let op_text i8[64] = " <= "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  if i32_op == TK_GT()
+    let op_text i8[64] = " > "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 3)
+  end
+  if i32_op == TK_GTE()
+    let op_text i8[64] = " >= "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  if i32_op == TK_AND()
+    let op_text i8[64] = " && "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  if i32_op == TK_OR()
+    let op_text i8[64] = " || "
+    ret emit_c_append_text(out, pos, out_cap, op_text, 4)
+  end
+  ret -1
+end
+
 fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind == AN_INT()
     ret emit_c_append_i32(out, pos, out_cap, ast[node].a)
+  end
+  if ast[node].kind == AN_BOOL()
+    if ast[node].a != 0
+      let true_text i8[64] = "1"
+      ret emit_c_append_text(out, pos, out_cap, true_text, 1)
+    end
+    let false_text i8[64] = "0"
+    ret emit_c_append_text(out, pos, out_cap, false_text, 1)
   end
   if ast[node].kind == AN_NAME()
     let local i32 = emit_c_find_local(ast, locals, ast[node].a)
@@ -113,15 +177,34 @@ fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
     ret emit_c_append_local_name(out, pos, out_cap, local)
   end
   if ast[node].kind == AN_UNARY()
-    if ast[node].a != TK_MINUS()
-      ret -1
+    if ast[node].a == TK_NOT()
+      let not_text i8[64] = "!("
+      let close_text i8[64] = ")"
+      let p i32 = emit_c_append_text(out, pos, out_cap, not_text, 2)
+      if p < 0
+        ret -1
+      end
+      p = emit_c_expr(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      ret emit_c_append_text(out, p, out_cap, close_text, 1)
+    else
+      if ast[node].a != TK_MINUS()
+        ret -1
+      end
     end
-    let minus i8[64] = "-"
-    let p i32 = emit_c_append_text(out, pos, out_cap, minus, 1)
+    let minus i8[64] = "-("
+    let close_text i8[64] = ")"
+    let p i32 = emit_c_append_text(out, pos, out_cap, minus, 2)
     if p < 0
       ret -1
     end
-    ret emit_c_expr(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_c_expr(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    ret emit_c_append_text(out, p, out_cap, close_text, 1)
   end
   if ast[node].kind == AN_BINARY()
     let lparen i8[64] = "("
@@ -134,62 +217,7 @@ fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
     if p < 0
       ret -1
     end
-    let op_text i8[64] = " + "
-    if ast[node].a == TK_PLUS()
-      p = emit_c_append_text(out, p, out_cap, op_text, 3)
-    else
-      if ast[node].a == TK_MINUS()
-        let sub_text i8[64] = " - "
-        p = emit_c_append_text(out, p, out_cap, sub_text, 3)
-      else
-        if ast[node].a == TK_STAR()
-          let mul_text i8[64] = " * "
-          p = emit_c_append_text(out, p, out_cap, mul_text, 3)
-        else
-          if ast[node].a == TK_SLASH()
-            let div_text i8[64] = " / "
-            p = emit_c_append_text(out, p, out_cap, div_text, 3)
-          else
-            if ast[node].a == TK_PERCENT()
-              let mod_text i8[64] = " % "
-              p = emit_c_append_text(out, p, out_cap, mod_text, 3)
-            else
-              if ast[node].a == TK_EQEQ()
-                let eqeq_text i8[64] = " == "
-                p = emit_c_append_text(out, p, out_cap, eqeq_text, 4)
-              else
-                if ast[node].a == TK_NEQ()
-                  let neq_text i8[64] = " != "
-                  p = emit_c_append_text(out, p, out_cap, neq_text, 4)
-                else
-                  if ast[node].a == TK_LT()
-                    let lt_text i8[64] = " < "
-                    p = emit_c_append_text(out, p, out_cap, lt_text, 3)
-                  else
-                    if ast[node].a == TK_LTE()
-                      let lte_text i8[64] = " <= "
-                      p = emit_c_append_text(out, p, out_cap, lte_text, 4)
-                    else
-                      if ast[node].a == TK_GT()
-                        let gt_text i8[64] = " > "
-                        p = emit_c_append_text(out, p, out_cap, gt_text, 3)
-                      else
-                        if ast[node].a == TK_GTE()
-                          let gte_text i8[64] = " >= "
-                          p = emit_c_append_text(out, p, out_cap, gte_text, 4)
-                        else
-                          ret -1
-                        end
-                      end
-                    end
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
-    end
+    p = emit_c_binary_op(ast[node].a, out, p, out_cap)
     if p < 0
       ret -1
     end
