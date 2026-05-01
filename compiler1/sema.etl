@@ -78,6 +78,27 @@ fn sema_type_is_i32(source i8[256], tokens Token[128], ast AstNode[512], typ i32
   ret false
 end
 
+fn sema_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  let i8_name i8[16] = "i8"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i8_name, 2)
+    ret true
+  end
+  let byte_name i8[16] = "byte"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, byte_name, 4)
+    ret true
+  end
+  ret false
+end
+
 fn sema_find_extern(source i8[256], tokens Token[128], extern_names i32[64], extern_count i32, name i32) i32
   let i i32 = 0
   while i < extern_count
@@ -370,6 +391,11 @@ fn sema_validate_stmt_ex(source i8[256], tokens Token[128], ast AstNode[512], st
     if ast[stmt].c >= 0
       if sema_validate_expr_ex(source, tokens, ast, ast[stmt].c, scope, cs, extern_names, extern_argc, extern_ret, extern_count) < 0
         ret SEMA_ERROR()
+      end
+      if ast[ast[stmt].c].kind == AN_STRING()
+        if sema_type_is_byte_array(source, tokens, ast, ast[stmt].b) == false
+          ret sema_report(SE_INCOMPAT_TYPE(), ast[stmt].token)
+        end
       end
       if sema_expr_type_ctx(source, tokens, ast, ast[stmt].c, extern_names, extern_argc, extern_ret, extern_count) == TY_VOID()
         ret sema_report(SE_INCOMPAT_TYPE(), ast[stmt].token)

@@ -70,6 +70,45 @@ fn emit_c_append_token_text(source i8[256], tokens Token[128], token i32, out i8
   ret p
 end
 
+fn emit_c_type_is_i32(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  let i32_name i8[16] = "i32"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3)
+    ret true
+  end
+  let integer_name i8[16] = "integer"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7)
+    ret true
+  end
+  ret false
+end
+
+fn emit_c_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  let i8_name i8[16] = "i8"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i8_name, 2)
+    ret true
+  end
+  let byte_name i8[16] = "byte"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, byte_name, 4)
+    ret true
+  end
+  ret false
+end
+
 fn emit_c_count_prior_lets(ast AstNode[512], list i32) i32
   if list < 0
     ret 0
@@ -370,38 +409,38 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret -1
   end
   let decl_text i8[64] = "  int "
+  let byte_decl_text i8[64] = "  signed char "
   let struct_text i8[64] = "  struct "
   let eq_text i8[64] = " = "
   let semi_text i8[64] = ";\n"
   let p i32 = pos
   let is_i32 i32 = 0
-  let i32_name i8[16] = "i32"
-  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3)
-    is_i32 = 1
-  end
-  let integer_name i8[16] = "integer"
-  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7)
+  if emit_c_type_is_i32(source, tokens, ast, typ)
     is_i32 = 1
   end
   if is_i32 != 0
     p = emit_c_append_text(out, p, out_cap, decl_text, 6)
   else
-    if ast[typ].b > 0
-      ret -1
+    if emit_c_type_is_byte_array(source, tokens, ast, typ)
+      p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
+    else
+      if ast[typ].b > 0
+        ret -1
+      end
+      if ast[node].c >= 0
+        ret -1
+      end
+      p = emit_c_append_text(out, p, out_cap, struct_text, 9)
+      if p < 0
+        ret -1
+      end
+      p = emit_c_append_token_text(source, tokens, ast[typ].a, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let space i8[64] = " "
+      p = emit_c_append_text(out, p, out_cap, space, 1)
     end
-    if ast[node].c >= 0
-      ret -1
-    end
-    p = emit_c_append_text(out, p, out_cap, struct_text, 9)
-    if p < 0
-      ret -1
-    end
-    p = emit_c_append_token_text(source, tokens, ast[typ].a, out, p, out_cap)
-    if p < 0
-      ret -1
-    end
-    let space i8[64] = " "
-    p = emit_c_append_text(out, p, out_cap, space, 1)
   end
   if p < 0
     ret -1
@@ -411,9 +450,6 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret -1
   end
   if ast[typ].b > 0
-    if ast[node].c >= 0
-      ret -1
-    end
     let lbr i8[64] = "["
     let rbr i8[64] = "]"
     p = emit_c_append_text(out, p, out_cap, lbr, 1)
@@ -427,6 +463,19 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     p = emit_c_append_text(out, p, out_cap, rbr, 1)
     if p < 0
       ret -1
+    end
+    if ast[node].c >= 0
+      if ast[ast[node].c].kind != AN_STRING()
+        ret -1
+      end
+      p = emit_c_append_text(out, p, out_cap, eq_text, 3)
+      if p < 0
+        ret -1
+      end
+      p = emit_c_append_token_text(source, tokens, ast[ast[node].c].a, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
     end
     ret emit_c_append_text(out, p, out_cap, semi_text, 2)
   end
