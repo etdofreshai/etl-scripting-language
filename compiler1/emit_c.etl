@@ -226,10 +226,10 @@ fn emit_c_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
   end
   if ast[node].kind == AN_NAME()
     let local i32 = emit_c_find_local(source, tokens, ast, locals, ast[node].a)
-    if local < 0
-      ret -1
+    if local >= 0
+      ret emit_c_append_local_name(out, pos, out_cap, local)
     end
-    ret emit_c_append_local_name(out, pos, out_cap, local)
+    ret emit_c_append_token_text(source, tokens, ast[node].a, out, pos, out_cap)
   end
   if ast[node].kind == AN_CALL()
     let open i8[64] = "("
@@ -612,6 +612,36 @@ fn emit_c_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   ret emit_c_stmt_list(source, tokens, ast, ast_count, list, list, out, pos, out_cap)
 end
 
+fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_c_param_list(source, tokens, ast, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let int_text i8[64] = "int "
+  let comma i8[64] = ", "
+  if ast[list].b >= 0
+    p = emit_c_append_text(out, p, out_cap, comma, 2)
+    if p < 0
+      ret -1
+    end
+  end
+  p = emit_c_append_text(out, p, out_cap, int_text, 4)
+  if p < 0
+    ret -1
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind != AN_PARAM()
+    ret -1
+  end
+  ret emit_c_append_token_text(source, tokens, ast[param].a, out, p, out_cap)
+end
+
 fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
@@ -626,9 +656,6 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if ast[params].kind != AN_BLOCK()
     ret -1
   end
-  if ast[params].b != 0
-    ret -1
-  end
   let body i32 = ast[node].c
   if body < 0 or body >= ast_count
     ret -1
@@ -640,9 +667,32 @@ fn emit_c_function(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if ast[ret_type].kind != AN_TYPE()
     ret -1
   end
-  let head i8[64] = "int main(void) {\n"
   let tail i8[64] = "}\n"
-  let p i32 = emit_c_append_text(out, pos, out_cap, head, 17)
+  let int_head i8[64] = "int "
+  let p i32 = emit_c_append_text(out, pos, out_cap, int_head, 4)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let open i8[64] = "("
+  p = emit_c_append_text(out, p, out_cap, open, 1)
+  if p < 0
+    ret -1
+  end
+  if ast[params].b == 0
+    let void_arg i8[64] = "void"
+    p = emit_c_append_text(out, p, out_cap, void_arg, 4)
+  else
+    p = emit_c_param_list(source, tokens, ast, ast[params].a, out, p, out_cap)
+  end
+  if p < 0
+    ret -1
+  end
+  let close_head i8[64] = ") {\n"
+  p = emit_c_append_text(out, p, out_cap, close_head, 4)
   if p < 0
     ret -1
   end

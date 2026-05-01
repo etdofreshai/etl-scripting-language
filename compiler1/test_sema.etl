@@ -513,6 +513,42 @@ fn test_source_extern_void_call_let_rejected() i32
   ret 0
 end
 
+fn test_source_user_i32_call_expr() i32
+  let source i8[256] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc(41) end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 69, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 1
+  end
+  if sema(source, tokens, ast, an) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_source_user_wrong_arg_count() i32
+  let source i8[256] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc() end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 67, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 1
+  end
+  if sema(source, tokens, ast, an) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
 fn main() i32
   let source i8[256] = "fn main() i32 ret 42 end"
   let tokens Token[128]
@@ -599,6 +635,12 @@ fn main() i32
   end
   if test_source_extern_void_call_let_rejected() != 0
     ret 28
+  end
+  if test_source_user_i32_call_expr() != 0
+    ret 29
+  end
+  if test_source_user_wrong_arg_count() != 0
+    ret 30
   end
   ret 9
 end
