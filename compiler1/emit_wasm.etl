@@ -146,6 +146,61 @@ fn emit_wasm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[51
   ret true
 end
 
+fn emit_wasm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  let tok i32 = ast[typ].a
+  if tok < 0
+    ret false
+  end
+  if tokens[tok].len == 2
+    let i8_text i8[64] = "i8"
+    let s i32 = tokens[tok].start
+    if source[s] == i8_text[0]
+      if source[s + 1] == i8_text[1]
+        ret true
+      end
+    end
+  end
+  if tokens[tok].len == 4
+    let byte_text i8[64] = "byte"
+    let s2 i32 = tokens[tok].start
+    let i i32 = 0
+    while i < 4
+      if source[s2 + i] != byte_text[i]
+        ret false
+      end
+      i = i + 1
+    end
+    ret true
+  end
+  ret false
+end
+
+fn emit_wasm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+  if list < 0
+    ret -1
+  end
+  let prior i32 = emit_wasm_find_local_type(source, tokens, ast, ast[list].b, name_token)
+  if prior >= 0
+    ret prior
+  end
+  let stmt i32 = ast[list].a
+  if ast[stmt].kind == AN_LET()
+    if emit_wasm_same_name(source, tokens, ast[stmt].a, name_token)
+      ret ast[stmt].b
+    end
+  end
+  ret -1
+end
+
 fn emit_wasm_count_prior_array_bytes(source i8[256], tokens Token[128], ast AstNode[512], list i32) i32
   if list < 0
     ret 0
@@ -156,6 +211,9 @@ fn emit_wasm_count_prior_array_bytes(source i8[256], tokens Token[128], ast AstN
     let typ i32 = ast[stmt].b
     if emit_wasm_type_is_i32_array(source, tokens, ast, typ)
       ret bytes + ast[typ].b * 4
+    end
+    if emit_wasm_type_is_byte_array(source, tokens, ast, typ)
+      ret bytes + ast[typ].b
     end
   end
   ret bytes
@@ -317,14 +375,29 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     if p < 0
       ret -1
     end
+    let elem_bytes i32 = 4
+    let array_node i32 = ast[node].a
+    if array_node >= 0 and array_node < ast_count
+      if ast[array_node].kind == AN_NAME()
+        let typ i32 = emit_wasm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+        if emit_wasm_type_is_byte_array(source, tokens, ast, typ)
+          elem_bytes = 1
+        end
+      end
+    end
     let idx i32 = ast[node].b
     if idx < 0 or idx >= ast_count
       ret -1
     end
     if ast[idx].kind == AN_INT()
-      let offset i32 = ast[idx].a * 4
-      let load_head i8[64] = "    i32.load offset="
-      p = emit_wasm_append_text(out, p, out_cap, load_head, 20)
+      let offset i32 = ast[idx].a * elem_bytes
+      if elem_bytes == 1
+        let byte_load_head i8[64] = "    i32.load8_s offset="
+        p = emit_wasm_append_text(out, p, out_cap, byte_load_head, 23)
+      else
+        let load_head i8[64] = "    i32.load offset="
+        p = emit_wasm_append_text(out, p, out_cap, load_head, 20)
+      end
       if p < 0
         ret -1
       end
@@ -333,16 +406,32 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
         ret -1
       end
       let align i8[64] = " align=4\n"
+      if elem_bytes == 1
+        let byte_align i8[64] = " align=1\n"
+        ret emit_wasm_append_text(out, p, out_cap, byte_align, 9)
+      end
       ret emit_wasm_append_text(out, p, out_cap, align, 9)
     end
     p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
-    let mul_add i8[64] = "    i32.const 4\n    i32.mul\n    i32.add\n"
-    p = emit_wasm_append_text(out, p, out_cap, mul_add, 40)
-    if p < 0
-      ret -1
+    if elem_bytes != 1
+      let mul_add i8[64] = "    i32.const 4\n    i32.mul\n    i32.add\n"
+      p = emit_wasm_append_text(out, p, out_cap, mul_add, 40)
+      if p < 0
+        ret -1
+      end
+    else
+      let add_t i8[64] = "    i32.add\n"
+      p = emit_wasm_append_text(out, p, out_cap, add_t, 12)
+      if p < 0
+        ret -1
+      end
+    end
+    if elem_bytes == 1
+      let byte_load_dyn i8[64] = "    i32.load8_s align=1\n"
+      ret emit_wasm_append_text(out, p, out_cap, byte_load_dyn, 24)
     end
     let load_dyn i8[64] = "    i32.load align=4\n"
     ret emit_wasm_append_text(out, p, out_cap, load_dyn, 21)
@@ -407,7 +496,7 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     ret -1
   end
   let typ i32 = ast[node].b
-  if emit_wasm_type_is_i32_array(source, tokens, ast, typ)
+  if emit_wasm_type_is_i32_array(source, tokens, ast, typ) or emit_wasm_type_is_byte_array(source, tokens, ast, typ)
     let base i32 = emit_wasm_count_prior_array_bytes(source, tokens, ast, prior_locals)
     let p i32 = pos
     let const_head i8[64] = "    i32.const "
@@ -474,6 +563,16 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
     if p < 0
       ret -1
     end
+    let elem_bytes i32 = 4
+    let array_node i32 = ast[idx_node].a
+    if array_node >= 0 and array_node < ast_count
+      if ast[array_node].kind == AN_NAME()
+        let typ i32 = emit_wasm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+        if emit_wasm_type_is_byte_array(source, tokens, ast, typ)
+          elem_bytes = 1
+        end
+      end
+    end
     let idx i32 = ast[idx_node].b
     if idx < 0 or idx >= ast_count
       ret -1
@@ -483,9 +582,14 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
       if p < 0
         ret -1
       end
-      let offset i32 = ast[idx].a * 4
-      let store_head i8[64] = "    i32.store offset="
-      p = emit_wasm_append_text(out, p, out_cap, store_head, 21)
+      let offset i32 = ast[idx].a * elem_bytes
+      if elem_bytes == 1
+        let byte_store_head i8[64] = "    i32.store8 offset="
+        p = emit_wasm_append_text(out, p, out_cap, byte_store_head, 22)
+      else
+        let store_head i8[64] = "    i32.store offset="
+        p = emit_wasm_append_text(out, p, out_cap, store_head, 21)
+      end
       if p < 0
         ret -1
       end
@@ -494,20 +598,36 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
         ret -1
       end
       let align i8[64] = " align=4\n"
+      if elem_bytes == 1
+        let byte_align i8[64] = " align=1\n"
+        ret emit_wasm_append_text(out, p, out_cap, byte_align, 9)
+      end
       ret emit_wasm_append_text(out, p, out_cap, align, 9)
     end
     p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
-    let mul_add i8[64] = "    i32.const 4\n    i32.mul\n    i32.add\n"
-    p = emit_wasm_append_text(out, p, out_cap, mul_add, 40)
-    if p < 0
-      ret -1
+    if elem_bytes != 1
+      let mul_add i8[64] = "    i32.const 4\n    i32.mul\n    i32.add\n"
+      p = emit_wasm_append_text(out, p, out_cap, mul_add, 40)
+      if p < 0
+        ret -1
+      end
+    else
+      let add_t i8[64] = "    i32.add\n"
+      p = emit_wasm_append_text(out, p, out_cap, add_t, 12)
+      if p < 0
+        ret -1
+      end
     end
     p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
     if p < 0
       ret -1
+    end
+    if elem_bytes == 1
+      let byte_store_dyn i8[64] = "    i32.store8 align=1\n"
+      ret emit_wasm_append_text(out, p, out_cap, byte_store_dyn, 23)
     end
     let store_dyn i8[64] = "    i32.store align=4\n"
     ret emit_wasm_append_text(out, p, out_cap, store_dyn, 22)

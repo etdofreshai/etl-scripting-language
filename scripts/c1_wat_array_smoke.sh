@@ -185,6 +185,18 @@ run_array_case array_with_scalars \
   42 \
   "i32.store offset=0" "i32.store offset=4" "i32.load offset=0" "i32.load offset=4"
 
+# Local byte array constant-index write + read
+run_array_case byte_array_const_idx \
+  "fn main() i32 let values byte[4] values[0] = 10 values[1] = 32 ret values[0] + values[1] end" \
+  42 \
+  "i32.store8 offset=0" "i32.store8 offset=1" "i32.load8_s offset=0" "i32.load8_s offset=1" "i32.add"
+
+# Local i8 array variable-index write + read
+run_array_case i8_array_var_idx \
+  "fn main() i32 let values i8[4] let i i32 = 1 values[i] = 42 ret values[i] end" \
+  42 \
+  "i32.store8 align=1" "i32.load8_s align=1"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_array_smoke: FAIL - $fail failed, $pass passed" >&2
