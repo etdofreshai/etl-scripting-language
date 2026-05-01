@@ -28,8 +28,21 @@ fn sema_report(code i32, token i32) i32
   ret SEMA_ERROR()
 end
 
-fn sema_same_name(ast AstNode[512], left i32, right i32) bool
-  ret left == right
+fn sema_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
+  if left == right
+    ret true
+  end
+  if tokens[left].len != tokens[right].len
+    ret false
+  end
+  let i i32 = 0
+  while i < tokens[left].len
+    if source[tokens[left].start + i] != source[tokens[right].start + i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
 end
 
 fn sema_check_list(ast AstNode[512], node i32) i32
@@ -42,11 +55,11 @@ fn sema_check_list(ast AstNode[512], node i32) i32
   ret SEMA_OK()
 end
 
-fn sema_scope_add(scope i32[64], name i32) i32
+fn sema_scope_add(source i8[256], tokens Token[128], scope i32[64], name i32) i32
   let count i32 = scope[0]
   let i i32 = 1
   while i <= count
-    if scope[i] == name
+    if sema_same_name(source, tokens, scope[i], name)
       ret SEMA_ERROR()
     end
     i = i + 1
@@ -56,11 +69,11 @@ fn sema_scope_add(scope i32[64], name i32) i32
   ret SEMA_OK()
 end
 
-fn sema_scope_has(scope i32[64], name i32) bool
+fn sema_scope_has(source i8[256], tokens Token[128], scope i32[64], name i32) bool
   let count i32 = scope[0]
   let i i32 = 1
   while i <= count
-    if scope[i] == name
+    if sema_same_name(source, tokens, scope[i], name)
       ret true
     end
     i = i + 1
@@ -98,7 +111,7 @@ fn sema_expr_type(ast AstNode[512], expr i32) i32
   ret TY_I32()
 end
 
-fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
+fn sema_validate_expr(source i8[256], tokens Token[128], ast AstNode[512], expr i32, scope i32[64], cs i32) i32
   if expr < 0
     ret SEMA_OK()
   end
@@ -117,7 +130,7 @@ fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
   end
   if kind == AN_NAME()
     if cs == 1
-      if sema_scope_has(scope, ast[expr].a) == false
+      if sema_scope_has(source, tokens, scope, ast[expr].a) == false
         ret sema_report(SE_UNDECLARED(), ast[expr].token)
       end
     end
@@ -129,7 +142,7 @@ fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
       if sema_check_list(ast, args) < 0
         ret SEMA_ERROR()
       end
-      if sema_validate_expr(ast, ast[args].a, scope, cs) < 0
+      if sema_validate_expr(source, tokens, ast, ast[args].a, scope, cs) < 0
         ret SEMA_ERROR()
       end
       args = ast[args].b
@@ -137,19 +150,19 @@ fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
     ret SEMA_OK()
   end
   if kind == AN_INDEX()
-    if sema_validate_expr(ast, ast[expr].a, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[expr].a, scope, cs) < 0
       ret SEMA_ERROR()
     end
-    ret sema_validate_expr(ast, ast[expr].b, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[expr].b, scope, cs)
   end
   if kind == AN_FIELD_ACCESS()
-    ret sema_validate_expr(ast, ast[expr].a, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[expr].a, scope, cs)
   end
   if kind == AN_BINARY()
-    if sema_validate_expr(ast, ast[expr].b, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[expr].b, scope, cs) < 0
       ret SEMA_ERROR()
     end
-    if sema_validate_expr(ast, ast[expr].c, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[expr].c, scope, cs) < 0
       ret SEMA_ERROR()
     end
     let op i32 = ast[expr].a
@@ -173,12 +186,12 @@ fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
     ret SEMA_OK()
   end
   if kind == AN_UNARY()
-    ret sema_validate_expr(ast, ast[expr].b, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[expr].b, scope, cs)
   end
   ret sema_report(SE_BAD_AST(), ast[expr].token)
 end
 
-fn sema_check_block_locals(ast AstNode[512], block i32) i32
+fn sema_check_block_locals(source i8[256], tokens Token[128], ast AstNode[512], block i32) i32
   let outer i32 = ast[block].a
   while outer >= 0
     if sema_check_list(ast, outer) < 0
@@ -193,7 +206,7 @@ fn sema_check_block_locals(ast AstNode[512], block i32) i32
         end
         let other i32 = ast[inner].a
         if ast[other].kind == AN_LET()
-          if sema_same_name(ast, ast[stmt].a, ast[other].a)
+          if sema_same_name(source, tokens, ast[stmt].a, ast[other].a)
             ret sema_report(SE_DUP_LOCAL(), ast[stmt].token)
           end
         end
@@ -205,16 +218,16 @@ fn sema_check_block_locals(ast AstNode[512], block i32) i32
   ret SEMA_OK()
 end
 
-fn sema_validate_stmt(ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i32) i32
+fn sema_validate_stmt(source i8[256], tokens Token[128], ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i32) i32
   let kind i32 = ast[stmt].kind
   if kind == AN_LET()
     if ast[stmt].c >= 0
-      if sema_validate_expr(ast, ast[stmt].c, scope, cs) < 0
+      if sema_validate_expr(source, tokens, ast, ast[stmt].c, scope, cs) < 0
         ret SEMA_ERROR()
       end
     end
     if cs == 1
-      if sema_scope_add(scope, ast[stmt].a) < 0
+      if sema_scope_add(source, tokens, scope, ast[stmt].a) < 0
         ret SEMA_ERROR()
       end
     end
@@ -224,36 +237,36 @@ fn sema_validate_stmt(ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i
     let target i32 = ast[stmt].a
     if cs == 1
       if ast[target].kind == AN_NAME()
-        if sema_scope_has(scope, ast[target].a) == false
+        if sema_scope_has(source, tokens, scope, ast[target].a) == false
           ret sema_report(SE_ASSIGN_UNDECLARED(), ast[stmt].token)
         end
       end
     end
-    if sema_validate_expr(ast, ast[stmt].a, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[stmt].a, scope, cs) < 0
       ret SEMA_ERROR()
     end
-    ret sema_validate_expr(ast, ast[stmt].b, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[stmt].b, scope, cs)
   end
   if kind == AN_RET()
     if in_fn == 0
       ret sema_report(SE_RET_OUTSIDE_FN(), ast[stmt].token)
     end
-    ret sema_validate_expr(ast, ast[stmt].a, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[stmt].a, scope, cs)
   end
   if kind == AN_EXPR_STMT()
     if ast[ast[stmt].a].kind != AN_CALL()
       ret sema_report(SE_EXPR_STMT_NOT_CALL(), ast[stmt].token)
     end
-    ret sema_validate_expr(ast, ast[stmt].a, scope, cs)
+    ret sema_validate_expr(source, tokens, ast, ast[stmt].a, scope, cs)
   end
   if kind == AN_IF()
-    if sema_validate_expr(ast, ast[stmt].a, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[stmt].a, scope, cs) < 0
       ret SEMA_ERROR()
     end
     if sema_expr_type(ast, ast[stmt].a) == TY_STRING()
       ret sema_report(SE_COND_TYPE(), ast[stmt].token)
     end
-    if sema_validate_block(ast, ast[stmt].b, in_fn, scope, cs) < 0
+    if sema_validate_block(source, tokens, ast, ast[stmt].b, in_fn, scope, cs) < 0
       ret SEMA_ERROR()
     end
     let elifs i32 = ast[ast[stmt].b].c
@@ -265,58 +278,61 @@ fn sema_validate_stmt(ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i
       if ast[enode].kind != AN_ELIF()
         ret sema_report(SE_BAD_AST(), ast[enode].token)
       end
-      if sema_validate_expr(ast, ast[enode].a, scope, cs) < 0
+      if sema_validate_expr(source, tokens, ast, ast[enode].a, scope, cs) < 0
         ret SEMA_ERROR()
       end
       if sema_expr_type(ast, ast[enode].a) == TY_STRING()
         ret sema_report(SE_COND_TYPE(), ast[enode].token)
       end
-      if sema_validate_block(ast, ast[enode].b, in_fn, scope, cs) < 0
+      if sema_validate_block(source, tokens, ast, ast[enode].b, in_fn, scope, cs) < 0
         ret SEMA_ERROR()
       end
       elifs = ast[elifs].b
     end
     if ast[stmt].c >= 0
-      ret sema_validate_block(ast, ast[stmt].c, in_fn, scope, cs)
+      ret sema_validate_block(source, tokens, ast, ast[stmt].c, in_fn, scope, cs)
     end
     ret SEMA_OK()
   end
   if kind == AN_WHILE()
-    if sema_validate_expr(ast, ast[stmt].a, scope, cs) < 0
+    if sema_validate_expr(source, tokens, ast, ast[stmt].a, scope, cs) < 0
       ret SEMA_ERROR()
     end
     if sema_expr_type(ast, ast[stmt].a) == TY_STRING()
       ret sema_report(SE_COND_TYPE(), ast[stmt].token)
     end
-    ret sema_validate_block(ast, ast[stmt].b, in_fn, scope, cs)
+    ret sema_validate_block(source, tokens, ast, ast[stmt].b, in_fn, scope, cs)
   end
   ret sema_report(SE_BAD_AST(), ast[stmt].token)
 end
 
-fn sema_validate_block(ast AstNode[512], block i32, in_fn i32, scope i32[64], cs i32) i32
+fn sema_validate_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], item i32, in_fn i32, scope i32[64], cs i32) i32
+  if item < 0
+    ret SEMA_OK()
+  end
+  if sema_check_list(ast, item) < 0
+    ret SEMA_ERROR()
+  end
+  if sema_validate_stmt_list(source, tokens, ast, ast[item].b, in_fn, scope, cs) < 0
+    ret SEMA_ERROR()
+  end
+  ret sema_validate_stmt(source, tokens, ast, ast[item].a, in_fn, scope, cs)
+end
+
+fn sema_validate_block(source i8[256], tokens Token[128], ast AstNode[512], block i32, in_fn i32, scope i32[64], cs i32) i32
   if block < 0
     ret sema_report(SE_BAD_AST(), 0)
   end
   if ast[block].kind != AN_BLOCK()
     ret sema_report(SE_BAD_AST(), ast[block].token)
   end
-  if sema_check_block_locals(ast, block) < 0
+  if sema_check_block_locals(source, tokens, ast, block) < 0
     ret SEMA_ERROR()
   end
-  let item i32 = ast[block].a
-  while item >= 0
-    if sema_check_list(ast, item) < 0
-      ret SEMA_ERROR()
-    end
-    if sema_validate_stmt(ast, ast[item].a, in_fn, scope, cs) < 0
-      ret SEMA_ERROR()
-    end
-    item = ast[item].b
-  end
-  ret SEMA_OK()
+  ret sema_validate_stmt_list(source, tokens, ast, ast[block].a, in_fn, scope, cs)
 end
 
-fn sema_check_params(ast AstNode[512], params i32) i32
+fn sema_check_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
   if params < 0
     ret sema_report(SE_BAD_AST(), 0)
   end
@@ -341,7 +357,7 @@ fn sema_check_params(ast AstNode[512], params i32) i32
       if ast[other].kind != AN_PARAM()
         ret sema_report(SE_BAD_AST(), ast[other].token)
       end
-      if sema_same_name(ast, ast[param].a, ast[other].a)
+      if sema_same_name(source, tokens, ast[param].a, ast[other].a)
         ret sema_report(SE_DUP_PARAM(), ast[param].token)
       end
       inner = ast[inner].b
@@ -351,18 +367,18 @@ fn sema_check_params(ast AstNode[512], params i32) i32
   ret SEMA_OK()
 end
 
-fn sema_validate_decl(ast AstNode[512], decl i32) i32
+fn sema_validate_decl(source i8[256], tokens Token[128], ast AstNode[512], decl i32) i32
   let kind i32 = ast[decl].kind
   if kind == AN_FN()
-    if sema_check_params(ast, ast[decl].b) < 0
+    if sema_check_params(source, tokens, ast, ast[decl].b) < 0
       ret SEMA_ERROR()
     end
     let scope i32[64]
     scope[0] = 0
-    ret sema_validate_block(ast, ast[decl].c, 1, scope, 0)
+    ret sema_validate_block(source, tokens, ast, ast[decl].c, 1, scope, 1)
   end
   if kind == AN_EXTERN_FN()
-    ret sema_check_params(ast, ast[decl].b)
+    ret sema_check_params(source, tokens, ast, ast[decl].b)
   end
   if kind == AN_STRUCT()
     ret SEMA_OK()
@@ -370,7 +386,7 @@ fn sema_validate_decl(ast AstNode[512], decl i32) i32
   ret sema_report(SE_BAD_AST(), ast[decl].token)
 end
 
-fn sema_check_top_dups(ast AstNode[512], program i32) i32
+fn sema_check_top_dups(source i8[256], tokens Token[128], ast AstNode[512], program i32) i32
   let outer i32 = ast[program].a
   while outer >= 0
     if sema_check_list(ast, outer) < 0
@@ -385,14 +401,14 @@ fn sema_check_top_dups(ast AstNode[512], program i32) i32
       let other i32 = ast[inner].a
       if ast[decl].kind == AN_FN() or ast[decl].kind == AN_EXTERN_FN()
         if ast[other].kind == AN_FN() or ast[other].kind == AN_EXTERN_FN()
-          if sema_same_name(ast, ast[decl].a, ast[other].a)
+          if sema_same_name(source, tokens, ast[decl].a, ast[other].a)
             ret sema_report(SE_DUP_FN(), ast[decl].token)
           end
         end
       end
       if ast[decl].kind == AN_STRUCT()
         if ast[other].kind == AN_STRUCT()
-          if sema_same_name(ast, ast[decl].a, ast[other].a)
+          if sema_same_name(source, tokens, ast[decl].a, ast[other].a)
             ret sema_report(SE_DUP_STRUCT(), ast[decl].token)
           end
         end
@@ -404,7 +420,7 @@ fn sema_check_top_dups(ast AstNode[512], program i32) i32
   ret SEMA_OK()
 end
 
-fn sema(ast AstNode[512], ast_count i32) i32
+fn sema(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32) i32
   if ast_count <= 0
     ret sema_report(SE_BAD_AST(), 0)
   end
@@ -412,7 +428,7 @@ fn sema(ast AstNode[512], ast_count i32) i32
   if ast[program].kind != AN_PROGRAM()
     ret sema_report(SE_BAD_AST(), ast[program].token)
   end
-  if sema_check_top_dups(ast, program) < 0
+  if sema_check_top_dups(source, tokens, ast, program) < 0
     ret SEMA_ERROR()
   end
   let item i32 = ast[program].a
@@ -420,7 +436,7 @@ fn sema(ast AstNode[512], ast_count i32) i32
     if sema_check_list(ast, item) < 0
       ret SEMA_ERROR()
     end
-    if sema_validate_decl(ast, ast[item].a) < 0
+    if sema_validate_decl(source, tokens, ast, ast[item].a) < 0
       ret SEMA_ERROR()
     end
     item = ast[item].b

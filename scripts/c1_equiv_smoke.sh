@@ -16,6 +16,7 @@ fixtures=(
   let_simple.etl
   let_arith.etl
   let_chain.etl
+  assign_local.etl
   ret_unary_minus.etl
   if_logical_and.etl
   if_logical_or.etl
@@ -60,10 +61,10 @@ fn main() i32
   if an < 0
     ret 2
   end
-  if sema(ast, an) < 0
+  if sema(source, tokens, ast, an) < 0
     ret 3
   end
-  let emitted i32 = emit_c(ast, an, out, 1024)
+  let emitted i32 = emit_c(source, tokens, ast, an, out, 1024)
   if emitted < 0
     ret 4
   end

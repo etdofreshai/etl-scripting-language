@@ -8,6 +8,8 @@ fn set_ast(ast AstNode[512], idx i32, kind i32, a i32, b i32, c i32, token i32) 
 end
 
 fn test_duplicate_fn_ast() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let same_name_token i32 = 10
   let unused_type i32 = -1
@@ -25,13 +27,15 @@ fn test_duplicate_fn_ast() i32
   if ok != 0
     ret 1
   end
-  if sema(ast, 9) != SEMA_ERROR()
+  if sema(source, tokens, ast, 9) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_duplicate_param_ast() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let fn_token i32 = 20
   let param_token i32 = 21
@@ -50,13 +54,15 @@ fn test_duplicate_param_ast() i32
   if ok != 0
     ret 1
   end
-  if sema(ast, 9) != SEMA_ERROR()
+  if sema(source, tokens, ast, 9) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_expr_stmt_not_call_ast() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let fn_token i32 = 30
   let expr_token i32 = 31
@@ -74,13 +80,15 @@ fn test_expr_stmt_not_call_ast() i32
   if ok != 0
     ret 1
   end
-  if sema(ast, 8) != SEMA_ERROR()
+  if sema(source, tokens, ast, 8) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_return_outside_fn_ast() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let ret_token i32 = 40
   let scope i32[64]
@@ -94,13 +102,15 @@ fn test_return_outside_fn_ast() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_block(ast, 3, 0, scope, 1) != SEMA_ERROR()
+  if sema_validate_block(source, tokens, ast, 3, 0, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_valid_if() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -115,13 +125,15 @@ fn test_valid_if() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 5, 1, scope, 1) != SEMA_OK()
+  if sema_validate_stmt(source, tokens, ast, 5, 1, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
 end
 
 fn test_invalid_if_condition() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -133,13 +145,15 @@ fn test_invalid_if_condition() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_valid_while() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -151,13 +165,15 @@ fn test_valid_while() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_OK()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
 end
 
 fn test_invalid_while_condition() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -169,13 +185,15 @@ fn test_invalid_while_condition() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_assign_undeclared() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -188,19 +206,21 @@ fn test_assign_undeclared() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_assign_declared() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
 
   let var_token i32 = 70
-  if sema_scope_add(scope, var_token) < 0
+  if sema_scope_add(source, tokens, scope, var_token) < 0
     ret 1
   end
 
@@ -211,13 +231,15 @@ fn test_assign_declared() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_OK()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
 end
 
 fn test_use_undeclared_name() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -232,13 +254,15 @@ fn test_use_undeclared_name() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+  if sema_validate_stmt(source, tokens, ast, 2, 1, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_let_then_use() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -252,20 +276,22 @@ fn test_let_then_use() i32
   ok = set_ast(ast, 4, AN_INT(), 2, 0, 0, 5)
   ok = set_ast(ast, 5, AN_BINARY(), TK_PLUS(), 3, 4, 6)
   ok = set_ast(ast, 6, AN_RET(), 5, 0, 0, 7)
-  ok = set_ast(ast, 7, AN_LIST(), 2, 8, 0, 9)
-  ok = set_ast(ast, 8, AN_LIST(), 6, -1, 0, 10)
+  ok = set_ast(ast, 7, AN_LIST(), 6, 8, 0, 9)
+  ok = set_ast(ast, 8, AN_LIST(), 2, -1, 0, 10)
   ok = set_ast(ast, 9, AN_BLOCK(), 7, 2, 0, 11)
 
   if ok != 0
     ret 1
   end
-  if sema_validate_block(ast, 9, 1, scope, 1) != SEMA_OK()
+  if sema_validate_block(source, tokens, ast, 9, 1, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
 end
 
 fn test_comparison_valid() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -277,13 +303,15 @@ fn test_comparison_valid() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_expr(ast, 2, scope, 1) != SEMA_OK()
+  if sema_validate_expr(source, tokens, ast, 2, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
 end
 
 fn test_comparison_incompat() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -295,13 +323,15 @@ fn test_comparison_incompat() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_expr(ast, 2, scope, 1) != SEMA_ERROR()
+  if sema_validate_expr(source, tokens, ast, 2, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_bool_op_string() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -313,13 +343,15 @@ fn test_bool_op_string() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_expr(ast, 2, scope, 1) != SEMA_ERROR()
+  if sema_validate_expr(source, tokens, ast, 2, scope, 1) != SEMA_ERROR()
     ret 1
   end
   ret 0
 end
 
 fn test_bool_op_valid() i32
+  let source i8[256]
+  let tokens Token[128]
   let ast AstNode[512]
   let scope i32[64]
   scope[0] = 0
@@ -331,7 +363,61 @@ fn test_bool_op_valid() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_expr(ast, 2, scope, 1) != SEMA_OK()
+  if sema_validate_expr(source, tokens, ast, 2, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_source_local_chain() i32
+  let source i8[256] = "fn main() i32 let x i32 = 10 let y i32 = x ret y end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 52, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 1
+  end
+  if sema(source, tokens, ast, an) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_source_assign_declared() i32
+  let source i8[256] = "fn main() i32 let x i32 = 10 x = 7 ret x end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 44, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 1
+  end
+  if sema(source, tokens, ast, an) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_source_undeclared_rejected() i32
+  let source i8[256] = "fn main() i32 ret missing end"
+  let tokens Token[128]
+  let ast AstNode[512]
+  let n i32 = lex(source, 29, tokens, 128)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 512)
+  if an < 0
+    ret 1
+  end
+  if sema(source, tokens, ast, an) != SEMA_ERROR()
     ret 1
   end
   ret 0
@@ -349,7 +435,7 @@ fn main() i32
   if an < 0
     ret 2
   end
-  if sema(ast, an) != SEMA_OK()
+  if sema(source, tokens, ast, an) != SEMA_OK()
     ret 3
   end
   if test_duplicate_fn_ast() != 0
@@ -399,6 +485,15 @@ fn main() i32
   end
   if test_bool_op_valid() != 0
     ret 20
+  end
+  if test_source_local_chain() != 0
+    ret 21
+  end
+  if test_source_assign_declared() != 0
+    ret 22
+  end
+  if test_source_undeclared_rejected() != 0
+    ret 23
   end
   ret 9
 end
