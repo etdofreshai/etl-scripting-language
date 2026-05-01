@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, and `while`; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, and boolean literals; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, and local `i32` array declaration plus indexed read/write; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -257,6 +257,12 @@ yet supported. No multi-function or parameter support yet.
 ### Chunk WASM-2: WAT arithmetic and locals — **Done.**
 Locals, assignment, `if`/`else`, `while`, boolean literals, comparisons,
 and logical operators all implemented and smoke-tested.
+
+### Chunk WASM-2B: WAT i32 array indexing — **Done.**
+Local `i32` array declarations with constant-index and variable-index
+read/write proven by `scripts/c1_wat_array_smoke.sh` (ea5408c, merged
+760a303). WAT byte arrays, byte strings, and struct arrays remain
+unsupported.
 
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).

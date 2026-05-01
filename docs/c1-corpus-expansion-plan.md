@@ -381,6 +381,13 @@ require the full 5f-STRINGS emitter work.
 
 These require the extern parameter type emission part of 5f-TYPES.
 
+> **Status (2026-05-01):** A narrow byte string extern C pointer param smoke has
+> landed (`scripts/c1_source_to_c_byte_string_extern_smoke.sh`, commit 8d72ca2).
+> It proves c1 can emit `signed char *` for fixed byte/i8 array extern parameters,
+> allowing local byte string buffers to be passed to an extern C helper. The
+> fixture below expands coverage to user-defined byte-array parameters and
+> non-byte-array extern param types — those are not yet covered.
+
 #### `extern_typed_write.etl`
 
 ```etl
