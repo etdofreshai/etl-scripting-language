@@ -5,16 +5,16 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (16 fixtures, all passing)
+## Current corpus (20 fixtures, all passing)
 
-The existing corpus exercises single-function programs with `i32` locals,
-integer arithmetic, comparisons, logical operators, `if`/`elif`/`else`,
-`while`, assignment, `return`, and extern/user function calls with arguments.
-See `scripts/c1_equiv_smoke.sh` for the full list.
+The existing corpus exercises single-function and multi-function programs with
+`i32` locals, integer arithmetic, comparisons, logical operators,
+`if`/`elif`/`else`, `while`, assignment, `return`, and extern/user function
+calls with arguments. See `scripts/c1_equiv_smoke.sh` for the full list.
 
-All 16 produce matching exit codes when compiled by c0 vs c1.
+All 20 produce matching exit codes when compiled by c0 vs c1.
 
-## What the current corpus does NOT cover
+## Fixed-point blocker coverage map
 
 The 10 self-compilation blockers from `fixed-point-plan.md` and which fixture
 category addresses each:
@@ -39,6 +39,11 @@ category addresses each:
 These fixtures test the two largest blockers. They use only `i32` types so
 no type-mapping changes are required.
 
+> **Status (2026-05-01):** Tier 1 fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. The `multi_fn_chain.etl` helper is named `twice` because `double` is
+> reserved by the compiler-0 C backend.
+
 #### `multi_fn_basic.etl`
 
 ```etl
@@ -57,7 +62,7 @@ other than `main` and a call to it.
 #### `multi_fn_chain.etl`
 
 ```etl
-fn double(x i32) i32
+fn twice(x i32) i32
   ret x * 2
 end
 
@@ -66,7 +71,7 @@ fn add_one(x i32) i32
 end
 
 fn main() i32
-  let v i32 = double(5)
+  let v i32 = twice(5)
   ret add_one(v)
 end
 ```

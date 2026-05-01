@@ -22,6 +22,10 @@ fixtures=(
   if_logical_or.etl
   if_logical_not.etl
   full_word_aliases.etl
+  multi_fn_basic.etl
+  multi_fn_chain.etl
+  fn_params_two.etl
+  fn_recursive.etl
 )
 
 pass=0
