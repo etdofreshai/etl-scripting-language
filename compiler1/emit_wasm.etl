@@ -57,6 +57,22 @@ fn emit_wasm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret p
 end
 
+fn emit_wasm_append_token_text(source i8[256], tokens Token[128], token i32, out i8[1024], pos i32, out_cap i32) i32
+  if token < 0
+    ret -1
+  end
+  let p i32 = pos
+  let i i32 = 0
+  while i < tokens[token].len
+    p = emit_wasm_append_byte(out, p, out_cap, source[tokens[token].start + i])
+    if p < 0
+      ret -1
+    end
+    i = i + 1
+  end
+  ret p
+end
+
 fn emit_wasm_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
   if left == right
     ret true
@@ -86,6 +102,30 @@ fn emit_wasm_count_prior_lets(ast AstNode[512], list i32) i32
   ret count
 end
 
+fn emit_wasm_count_prior_params(ast AstNode[512], list i32) i32
+  if list < 0
+    ret 0
+  end
+  ret emit_wasm_count_prior_params(ast, ast[list].b) + 1
+end
+
+fn emit_wasm_find_param(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+  if list < 0
+    ret -1
+  end
+  let prior i32 = emit_wasm_find_param(source, tokens, ast, ast[list].b, name_token)
+  if prior >= 0
+    ret prior
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind == AN_PARAM()
+    if emit_wasm_same_name(source, tokens, ast[param].a, name_token)
+      ret emit_wasm_count_prior_params(ast, ast[list].b)
+    end
+  end
+  ret -1
+end
+
 fn emit_wasm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
   if list < 0
     ret -1
@@ -101,6 +141,18 @@ fn emit_wasm_find_local(source i8[256], tokens Token[128], ast AstNode[512], lis
     end
   end
   ret -1
+end
+
+fn emit_wasm_find_value(source i8[256], tokens Token[128], ast AstNode[512], params i32, locals i32, name_token i32) i32
+  let param_index i32 = emit_wasm_find_param(source, tokens, ast, params, name_token)
+  if param_index >= 0
+    ret param_index
+  end
+  let local_index i32 = emit_wasm_find_local(source, tokens, ast, locals, name_token)
+  if local_index < 0
+    ret -1
+  end
+  ret emit_wasm_count_prior_params(ast, params) + local_index
 end
 
 fn emit_wasm_append_local_name(out i8[1024], pos i32, out_cap i32, index i32) i32
@@ -414,7 +466,21 @@ fn emit_wasm_count_prior_storage_bytes(source i8[256], tokens Token[128], ast As
   ret bytes
 end
 
-fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_call_args(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_wasm_call_args(source, tokens, ast, ast_count, ast[list].b, params, locals, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_wasm_expr(source, tokens, ast, ast_count, ast[list].a, params, locals, out, p, out_cap)
+end
+
+fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -445,7 +511,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     ret emit_wasm_nl(out, p, out_cap)
   end
   if ast[node].kind == AN_NAME()
-    let local i32 = emit_wasm_find_local(source, tokens, ast, locals, ast[node].a)
+    let local i32 = emit_wasm_find_value(source, tokens, ast, params, locals, ast[node].a)
     if local < 0
       ret -1
     end
@@ -462,9 +528,26 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     ret emit_wasm_nl(out, p, out_cap)
   end
 
+  if ast[node].kind == AN_CALL()
+    let p i32 = emit_wasm_call_args(source, tokens, ast, ast_count, ast[node].b, params, locals, out, pos, out_cap)
+    if p < 0
+      ret -1
+    end
+    let head i8[64] = "    call $"
+    p = emit_wasm_append_text(out, p, out_cap, head, 10)
+    if p < 0
+      ret -1
+    end
+    p = emit_wasm_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    ret emit_wasm_nl(out, p, out_cap)
+  end
+
   if ast[node].kind == AN_UNARY()
     if ast[node].a == TK_NOT()
-      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, pos, out_cap)
       if p < 0
         ret -1
       end
@@ -479,7 +562,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     if p < 0
       ret -1
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -488,7 +571,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   end
 
   if ast[node].kind == AN_BINARY()
-    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -498,7 +581,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
       if p < 0
         ret -1
       end
-      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, params, locals, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -514,7 +597,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
       let op_t i8[64] = "    i32.or\n"
       ret emit_wasm_append_text(out, p, out_cap, op_t, 11)
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -566,7 +649,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   end
 
   if ast[node].kind == AN_INDEX()
-    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -607,7 +690,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
       end
       ret emit_wasm_append_text(out, p, out_cap, align, 9)
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, idx, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -658,7 +741,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
       if field_offset < 0
         ret -1
       end
-      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, array_node, locals, out, pos, out_cap)
+      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, array_node, params, locals, out, pos, out_cap)
       if p < 0
         ret -1
       end
@@ -679,7 +762,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
         let align i8[64] = " align=4\n"
         ret emit_wasm_append_text(out, p, out_cap, align, 9)
       end
-      p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
+      p = emit_wasm_expr(source, tokens, ast, ast_count, idx, params, locals, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -721,7 +804,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     if offset < 0
       ret -1
     end
-    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, base_node, locals, out, pos, out_cap)
+    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, base_node, params, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -754,6 +837,34 @@ fn emit_wasm_local_decl(out i8[1024], pos i32, out_cap i32, index i32) i32
     ret -1
   end
   ret emit_wasm_append_text(out, p, out_cap, tail, 6)
+end
+
+fn emit_wasm_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_wasm_param_list(source, tokens, ast, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind != AN_PARAM()
+    ret -1
+  end
+  let head i8[64] = " (param "
+  p = emit_wasm_append_text(out, p, out_cap, head, 8)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_local_name(out, p, out_cap, emit_wasm_count_prior_params(ast, ast[list].b))
+  if p < 0
+    ret -1
+  end
+  let tail i8[64] = " i32)"
+  ret emit_wasm_append_text(out, p, out_cap, tail, 5)
 end
 
 fn emit_wasm_store_const_byte(out i8[1024], pos i32, out_cap i32, addr i32, value i32) i32
@@ -817,32 +928,32 @@ fn emit_wasm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNo
   ret p
 end
 
-fn emit_wasm_local_decls(ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_local_decls(ast AstNode[512], list i32, base i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_wasm_local_decls(ast, ast[list].b, out, pos, out_cap)
+  let p i32 = emit_wasm_local_decls(ast, ast[list].b, base, out, pos, out_cap)
   if p < 0
     ret -1
   end
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
-    ret emit_wasm_local_decl(out, p, out_cap, emit_wasm_count_prior_lets(ast, ast[list].b))
+    ret emit_wasm_local_decl(out, p, out_cap, base + emit_wasm_count_prior_lets(ast, ast[list].b))
   end
   ret p
 end
 
-fn emit_wasm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_RET()
     ret -1
   end
-  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -850,7 +961,7 @@ fn emit_wasm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_wasm_append_text(out, p, out_cap, ret_t, 11)
 end
 
-fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -882,7 +993,7 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
     if p < 0
       ret -1
     end
-    let local i32 = emit_wasm_find_local(source, tokens, ast, visible_locals, ast[node].a)
+    let local i32 = emit_wasm_find_value(source, tokens, ast, params, visible_locals, ast[node].a)
     if local < 0
       ret -1
     end
@@ -910,11 +1021,11 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
   if ast[node].c < 0
     ret -1
   end
-  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, prior_locals, out, pos, out_cap)
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].c, params, prior_locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  let local i32 = emit_wasm_find_local(source, tokens, ast, visible_locals, ast[node].a)
+  let local i32 = emit_wasm_find_value(source, tokens, ast, params, visible_locals, ast[node].a)
   if local < 0
     ret -1
   end
@@ -930,7 +1041,7 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
   ret emit_wasm_nl(out, p, out_cap)
 end
 
-fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -964,7 +1075,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
       if field_offset < 0
         ret -1
       end
-      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, array_node, locals, out, pos, out_cap)
+      let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, array_node, params, locals, out, pos, out_cap)
       if p < 0
         ret -1
       end
@@ -973,7 +1084,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
         ret -1
       end
       if ast[idx].kind == AN_INT()
-        p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+        p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
         if p < 0
           ret -1
         end
@@ -989,7 +1100,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
         let align i8[64] = " align=4\n"
         ret emit_wasm_append_text(out, p, out_cap, align, 9)
       end
-      p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
+      p = emit_wasm_expr(source, tokens, ast, ast_count, idx, params, locals, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -1007,7 +1118,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
       if p < 0
         ret -1
       end
-      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -1035,11 +1146,11 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
     if offset < 0
       ret -1
     end
-    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, base_node, locals, out, pos, out_cap)
+    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, base_node, params, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -1057,7 +1168,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   end
   if ast[ast[node].a].kind == AN_INDEX()
     let idx_node i32 = ast[node].a
-    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[idx_node].a, locals, out, pos, out_cap)
+    let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[idx_node].a, params, locals, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -1076,7 +1187,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
       ret -1
     end
     if ast[idx].kind == AN_INT()
-      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+      p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -1102,7 +1213,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
       end
       ret emit_wasm_append_text(out, p, out_cap, align, 9)
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, idx, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, idx, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -1119,7 +1230,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
         ret -1
       end
     end
-    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -1133,11 +1244,11 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   if ast[ast[node].a].kind != AN_NAME()
     ret -1
   end
-  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, pos, out_cap)
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  let local i32 = emit_wasm_find_local(source, tokens, ast, locals, ast[ast[node].a].a)
+  let local i32 = emit_wasm_find_value(source, tokens, ast, params, locals, ast[ast[node].a].a)
   if local < 0
     ret -1
   end
@@ -1153,14 +1264,14 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_wasm_nl(out, p, out_cap)
 end
 
-fn emit_wasm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+  ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
 end
 
 fn emit_wasm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
@@ -1192,7 +1303,7 @@ fn emit_wasm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i
   ret emit_wasm_next_elif_list(ast, ast_count, ast[list].b, current)
 end
 
-fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if current < 0 or current >= ast_count
     ret -1
   end
@@ -1206,7 +1317,7 @@ fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512]
   if ast[enode].kind != AN_ELIF()
     ret -1
   end
-  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[enode].a, locals, out, pos, out_cap)
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[enode].a, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -1215,7 +1326,7 @@ fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512]
   if p < 0
     ret -1
   end
-  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[enode].b, locals, out, p, out_cap)
+  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[enode].b, params, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -1227,9 +1338,9 @@ fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512]
       ret -1
     end
     if next >= 0
-      p = emit_wasm_elif_chain_from(source, tokens, ast, ast_count, all_elifs, next, else_body, locals, out, p, out_cap)
+      p = emit_wasm_elif_chain_from(source, tokens, ast, ast_count, all_elifs, next, else_body, params, locals, out, p, out_cap)
     else
-      p = emit_wasm_nested_block(source, tokens, ast, ast_count, else_body, locals, out, p, out_cap)
+      p = emit_wasm_nested_block(source, tokens, ast, ast_count, else_body, params, locals, out, p, out_cap)
     end
     if p < 0
       ret -1
@@ -1239,16 +1350,16 @@ fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512]
   ret emit_wasm_append_text(out, p, out_cap, tail, 8)
 end
 
-fn emit_wasm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let first i32 = emit_wasm_oldest_elif_list(ast, ast_count, elifs)
   if first < 0
     ret -1
   end
-  ret emit_wasm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, locals, out, pos, out_cap)
+  ret emit_wasm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, params, locals, out, pos, out_cap)
 end
 
-fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
-  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -1258,7 +1369,7 @@ fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   if p < 0
     ret -1
   end
-  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -1269,9 +1380,9 @@ fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
       ret -1
     end
     if elifs >= 0
-      p = emit_wasm_elif_chain(source, tokens, ast, ast_count, elifs, ast[node].c, locals, out, p, out_cap)
+      p = emit_wasm_elif_chain(source, tokens, ast, ast_count, elifs, ast[node].c, params, locals, out, p, out_cap)
     else
-      p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+      p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].c, params, locals, out, p, out_cap)
     end
     if p < 0
       ret -1
@@ -1281,14 +1392,14 @@ fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   ret emit_wasm_append_text(out, p, out_cap, tail, 8)
 end
 
-fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = pos
   let head i8[64] = "    block\n    loop\n"
   p = emit_wasm_append_text(out, p, out_cap, head, 19)
   if p < 0
     ret -1
   end
-  p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -1297,7 +1408,7 @@ fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if p < 0
     ret -1
   end
-  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_wasm_nested_block(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -1305,7 +1416,7 @@ fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   ret emit_wasm_append_text(out, p, out_cap, tail, 25)
 end
 
-fn emit_wasm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1315,41 +1426,41 @@ fn emit_wasm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[list].b, visible_locals, out, pos, out_cap)
+  let p i32 = emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[list].b, params, visible_locals, out, pos, out_cap)
   if p < 0
     ret -1
   end
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
-    ret emit_wasm_let(source, tokens, ast, ast_count, stmt, ast[list].b, list, out, p, out_cap)
+    ret emit_wasm_let(source, tokens, ast, ast_count, stmt, params, ast[list].b, list, out, p, out_cap)
   end
   if ast[stmt].kind == AN_ASSIGN()
-    ret emit_wasm_assign(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_wasm_assign(source, tokens, ast, ast_count, stmt, params, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_RET()
-    ret emit_wasm_return(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_wasm_return(source, tokens, ast, ast_count, stmt, params, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_IF()
-    ret emit_wasm_if(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_wasm_if(source, tokens, ast, ast_count, stmt, params, visible_locals, out, p, out_cap)
   end
   if ast[stmt].kind == AN_WHILE()
-    ret emit_wasm_while(source, tokens, ast, ast_count, stmt, visible_locals, out, p, out_cap)
+    ret emit_wasm_while(source, tokens, ast, ast_count, stmt, params, visible_locals, out, p, out_cap)
   end
   ret -1
 end
 
-fn emit_wasm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  let p i32 = emit_wasm_local_decls(ast, ast[node].a, out, pos, out_cap)
+  let p i32 = emit_wasm_local_decls(ast, ast[node].a, emit_wasm_count_prior_params(ast, params), out, pos, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, ast[node].a, out, p, out_cap)
+  ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, ast[node].a, out, p, out_cap)
 end
 
 fn emit_wasm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
@@ -1366,36 +1477,78 @@ fn emit_wasm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_c
   if ast[params].kind != AN_BLOCK()
     ret -1
   end
-  if ast[params].b != 0
-    ret -1
-  end
   let body i32 = ast[node].c
   if body < 0 or body >= ast_count
     ret -1
   end
 
   let p i32 = pos
-  let mod_head i8[64] = "(module\n"
-  let mem_decl i8[64] = "  (memory (export \"memory\") 1)\n"
-  let func_head i8[64] = "  (func (export \"_start\") (result i32)\n"
-  let footer i8[64] = "  )\n)\n"
-  p = emit_wasm_append_text(out, p, out_cap, mod_head, 8)
+  let func_head i8[64] = "  (func $"
+  p = emit_wasm_append_text(out, p, out_cap, func_head, 9)
   if p < 0
     ret -1
   end
-  p = emit_wasm_append_text(out, p, out_cap, mem_decl, 31)
+  p = emit_wasm_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
   if p < 0
     ret -1
   end
-  p = emit_wasm_append_text(out, p, out_cap, func_head, 39)
+  if ast[params].b == 0
+    if emit_wasm_same_name(source, tokens, ast[node].a, ast[node].a)
+      if tokens[ast[node].a].len == 4
+        let s i32 = tokens[ast[node].a].start
+        let main_text i8[64] = "main"
+        if source[s] == main_text[0] and source[s + 1] == main_text[1] and source[s + 2] == main_text[2] and source[s + 3] == main_text[3]
+          let export_t i8[64] = " (export \"_start\")"
+          p = emit_wasm_append_text(out, p, out_cap, export_t, 18)
+        end
+      end
+    end
+  end
   if p < 0
     ret -1
   end
-  p = emit_wasm_block(source, tokens, ast, ast_count, body, out, p, out_cap)
+  p = emit_wasm_param_list(source, tokens, ast, ast[params].a, out, p, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_wasm_append_text(out, p, out_cap, footer, 6)
+  let result_t i8[64] = " (result i32)\n"
+  p = emit_wasm_append_text(out, p, out_cap, result_t, 14)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_block(source, tokens, ast, ast_count, body, ast[params].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let footer i8[64] = "  )\n"
+  ret emit_wasm_append_text(out, p, out_cap, footer, 4)
+end
+
+fn emit_wasm_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_wasm_decl_list(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let decl i32 = ast[list].a
+  if decl < 0 or decl >= ast_count
+    ret -1
+  end
+  if ast[decl].kind == AN_STRUCT()
+    ret p
+  end
+  if ast[decl].kind != AN_FN()
+    ret -1
+  end
+  ret emit_wasm_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
 end
 
 fn emit_wasm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
@@ -1415,35 +1568,22 @@ fn emit_wasm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_co
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let item i32 = list
-  let fn_node i32 = -1
-  while item >= 0
-    if item >= ast_count
-      ret -1
-    end
-    if ast[item].kind != AN_LIST()
-      ret -1
-    end
-    let decl i32 = ast[item].a
-    if decl < 0 or decl >= ast_count
-      ret -1
-    end
-    if ast[decl].kind == AN_FN()
-      if fn_node >= 0
-        ret -1
-      end
-      fn_node = decl
-    else
-      if ast[decl].kind != AN_STRUCT()
-        ret -1
-      end
-    end
-    item = ast[item].b
-  end
-  if fn_node < 0
+  let mod_head i8[64] = "(module\n"
+  let mem_decl i8[64] = "  (memory (export \"memory\") 1)\n"
+  let mod_tail i8[64] = ")\n"
+  let p i32 = emit_wasm_append_text(out, pos, out_cap, mod_head, 8)
+  if p < 0
     ret -1
   end
-  ret emit_wasm_function(source, tokens, ast, ast_count, fn_node, out, pos, out_cap)
+  p = emit_wasm_append_text(out, p, out_cap, mem_decl, 31)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_decl_list(source, tokens, ast, ast_count, list, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_wasm_append_text(out, p, out_cap, mod_tail, 2)
 end
 
 fn emit_wasm(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
