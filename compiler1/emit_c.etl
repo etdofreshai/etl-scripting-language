@@ -154,7 +154,37 @@ fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
               let mod_text i8[64] = " % "
               p = emit_c_append_text(out, p, out_cap, mod_text, 3)
             else
-              ret -1
+              if ast[node].a == TK_EQEQ()
+                let eqeq_text i8[64] = " == "
+                p = emit_c_append_text(out, p, out_cap, eqeq_text, 4)
+              else
+                if ast[node].a == TK_NEQ()
+                  let neq_text i8[64] = " != "
+                  p = emit_c_append_text(out, p, out_cap, neq_text, 4)
+                else
+                  if ast[node].a == TK_LT()
+                    let lt_text i8[64] = " < "
+                    p = emit_c_append_text(out, p, out_cap, lt_text, 3)
+                  else
+                    if ast[node].a == TK_LTE()
+                      let lte_text i8[64] = " <= "
+                      p = emit_c_append_text(out, p, out_cap, lte_text, 4)
+                    else
+                      if ast[node].a == TK_GT()
+                        let gt_text i8[64] = " > "
+                        p = emit_c_append_text(out, p, out_cap, gt_text, 3)
+                      else
+                        if ast[node].a == TK_GTE()
+                          let gte_text i8[64] = " >= "
+                          p = emit_c_append_text(out, p, out_cap, gte_text, 4)
+                        else
+                          ret -1
+                        end
+                      end
+                    end
+                  end
+                end
+              end
             end
           end
         end
@@ -235,6 +265,171 @@ fn emit_c_let(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
 end
 
+fn emit_c_assign(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_ASSIGN()
+    ret -1
+  end
+  let indent i8[64] = "  "
+  let eq_text i8[64] = " = "
+  let semi_text i8[64] = ";\n"
+  let p i32 = emit_c_append_text(out, pos, out_cap, indent, 2)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_expr(ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_text(out, p, out_cap, eq_text, 3)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_expr(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+end
+
+fn emit_c_nested_block(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_BLOCK()
+    ret -1
+  end
+  ret emit_c_stmt_list(ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+end
+
+fn emit_c_elif_list(ast AstNode[512], ast_count i32, list i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_c_elif_list(ast, ast_count, ast[list].b, locals, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let enode i32 = ast[list].a
+  if enode < 0 or enode >= ast_count
+    ret -1
+  end
+  if ast[enode].kind != AN_ELIF()
+    ret -1
+  end
+  let head i8[64] = " else if ("
+  p = emit_c_append_text(out, p, out_cap, head, 10)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_expr(ast, ast_count, ast[enode].a, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let open i8[64] = ") {\n"
+  p = emit_c_append_text(out, p, out_cap, open, 4)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_nested_block(ast, ast_count, ast[enode].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let close i8[64] = "  }"
+  ret emit_c_append_text(out, p, out_cap, close, 3)
+end
+
+fn emit_c_if(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_IF()
+    ret -1
+  end
+  let head i8[64] = "  if ("
+  let p i32 = emit_c_append_text(out, pos, out_cap, head, 6)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_expr(ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let open i8[64] = ") {\n"
+  p = emit_c_append_text(out, p, out_cap, open, 4)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_nested_block(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let close i8[64] = "  }"
+  p = emit_c_append_text(out, p, out_cap, close, 3)
+  if p < 0
+    ret -1
+  end
+  let elifs i32 = ast[ast[node].b].c
+  p = emit_c_elif_list(ast, ast_count, elifs, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  if ast[node].c >= 0
+    let els i8[64] = " else {\n"
+    p = emit_c_append_text(out, p, out_cap, els, 8)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_nested_block(ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    if p < 0
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, close, 3)
+    if p < 0
+      ret -1
+    end
+  end
+  let nl i8[64] = "\n"
+  ret emit_c_append_text(out, p, out_cap, nl, 1)
+end
+
+fn emit_c_while(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_WHILE()
+    ret -1
+  end
+  let head i8[64] = "  while ("
+  let p i32 = emit_c_append_text(out, pos, out_cap, head, 9)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_expr(ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let open i8[64] = ") {\n"
+  p = emit_c_append_text(out, p, out_cap, open, 4)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_nested_block(ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let close i8[64] = "  }\n"
+  ret emit_c_append_text(out, p, out_cap, close, 4)
+end
+
 fn emit_c_stmt(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
@@ -244,6 +439,15 @@ fn emit_c_stmt(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
   end
   if ast[node].kind == AN_RET()
     ret emit_c_return(ast, ast_count, node, locals, out, pos, out_cap)
+  end
+  if ast[node].kind == AN_ASSIGN()
+    ret emit_c_assign(ast, ast_count, node, locals, out, pos, out_cap)
+  end
+  if ast[node].kind == AN_IF()
+    ret emit_c_if(ast, ast_count, node, locals, out, pos, out_cap)
+  end
+  if ast[node].kind == AN_WHILE()
+    ret emit_c_while(ast, ast_count, node, locals, out, pos, out_cap)
   end
   ret -1
 end

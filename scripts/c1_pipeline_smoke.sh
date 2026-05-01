@@ -27,6 +27,9 @@ else
   echo "c1_pipeline: SKIP scripts/c1_emit_c_smoke.sh (not present yet)"
 fi
 
+echo "c1_pipeline: run C emitter control-flow smoke"
+scripts/c1_emit_control_flow_smoke.sh
+
 echo "c1_pipeline: run source-to-C smoke"
 scripts/c1_source_to_c_smoke.sh
 
