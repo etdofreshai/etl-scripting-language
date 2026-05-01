@@ -82,7 +82,7 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, and local `i32` array declaration plus constant-index and variable-index read/write; assembled and linked by smoke tests. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, and local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, and local `i32` array declaration plus indexed read/write; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -256,8 +256,17 @@ yet supported. No multi-function or parameter support yet.
 Local `i32` array declarations with constant-index read/write and
 variable-index read/write proven by `scripts/c1_asm_array_smoke.sh`
 (1a906f4, merged 981623a). Scalar-after-array stack layout verified.
-Byte arrays, byte strings, struct arrays, bounds checks, and array
-params/externs remain unsupported in ASM.
+Byte string literals, extern/param byte arrays, structs, struct arrays,
+bounds checks, and dynamic arrays remain unsupported in ASM.
+
+### Chunk ASM-3C: x86-64 byte/i8 array indexing — **Done.**
+Local `byte[N]` and `i8[N]` array indexed assignment/read via `movsbq`
+(for sign-extending read) and `movb` (for byte-width write), using
+per-element 1-byte stride. Proven by `scripts/c1_asm_array_smoke.sh`
+(722e30c, merged a387729). Scalar-after-byte-array and
+byte-array-after-i32-array stack layouts verified. Byte string literals,
+extern/param byte arrays, structs, struct arrays, bounds checks, and
+dynamic arrays remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 
