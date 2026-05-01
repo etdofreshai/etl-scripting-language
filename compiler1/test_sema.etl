@@ -83,6 +83,8 @@ end
 fn test_return_outside_fn_ast() i32
   let ast AstNode[512]
   let ret_token i32 = 40
+  let scope i32[64]
+  scope[0] = 0
 
   let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, ret_token)
   ok = set_ast(ast, 1, AN_RET(), 0, 0, 0, ret_token)
@@ -92,7 +94,244 @@ fn test_return_outside_fn_ast() i32
   if ok != 0
     ret 1
   end
-  if sema_validate_block(ast, 3, 0) != SEMA_ERROR()
+  if sema_validate_block(ast, 3, 0, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_valid_if() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_INT(), 0, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_RET(), 1, 0, 0, 3)
+  ok = set_ast(ast, 3, AN_LIST(), 2, -1, 0, 4)
+  ok = set_ast(ast, 4, AN_BLOCK(), 3, 1, -1, 5)
+  ok = set_ast(ast, 5, AN_IF(), 0, 4, -1, 6)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 5, 1, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_invalid_if_condition() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_STRING(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_BLOCK(), -1, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_IF(), 0, 1, -1, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_valid_while() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_BLOCK(), -1, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_WHILE(), 0, 1, 0, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_invalid_while_condition() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_STRING(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_BLOCK(), -1, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_WHILE(), 0, 1, 0, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_assign_undeclared() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let var_token i32 = 50
+  let ok i32 = set_ast(ast, 0, AN_NAME(), var_token, 0, 0, var_token)
+  ok = set_ast(ast, 1, AN_INT(), 42, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_ASSIGN(), 0, 1, 0, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_assign_declared() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let var_token i32 = 70
+  if sema_scope_add(scope, var_token) < 0
+    ret 1
+  end
+
+  let ok i32 = set_ast(ast, 0, AN_NAME(), var_token, 0, 0, var_token)
+  ok = set_ast(ast, 1, AN_INT(), 42, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_ASSIGN(), 0, 1, 0, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_use_undeclared_name() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let undeclared_tok i32 = 60
+  let y_name_tok i32 = 61
+
+  let ok i32 = set_ast(ast, 0, AN_NAME(), undeclared_tok, 0, 0, undeclared_tok)
+  ok = set_ast(ast, 1, AN_TYPE(), 0, 0, 0, 62)
+  ok = set_ast(ast, 2, AN_LET(), y_name_tok, 1, 0, 63)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_stmt(ast, 2, 1, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_let_then_use() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let x_name_tok i32 = 80
+
+  let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_TYPE(), 0, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_LET(), x_name_tok, 1, 0, 3)
+  ok = set_ast(ast, 3, AN_NAME(), x_name_tok, 0, 0, x_name_tok)
+  ok = set_ast(ast, 4, AN_INT(), 2, 0, 0, 5)
+  ok = set_ast(ast, 5, AN_BINARY(), TK_PLUS(), 3, 4, 6)
+  ok = set_ast(ast, 6, AN_RET(), 5, 0, 0, 7)
+  ok = set_ast(ast, 7, AN_LIST(), 2, 8, 0, 9)
+  ok = set_ast(ast, 8, AN_LIST(), 6, -1, 0, 10)
+  ok = set_ast(ast, 9, AN_BLOCK(), 7, 2, 0, 11)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_block(ast, 9, 1, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_comparison_valid() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_INT(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_INT(), 2, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_BINARY(), TK_LT(), 0, 1, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_expr(ast, 2, scope, 1) != SEMA_OK()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_comparison_incompat() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_STRING(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_INT(), 42, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_BINARY(), TK_EQEQ(), 0, 1, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_expr(ast, 2, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_bool_op_string() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_STRING(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_BOOL(), 1, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_BINARY(), TK_AND(), 0, 1, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_expr(ast, 2, scope, 1) != SEMA_ERROR()
+    ret 1
+  end
+  ret 0
+end
+
+fn test_bool_op_valid() i32
+  let ast AstNode[512]
+  let scope i32[64]
+  scope[0] = 0
+
+  let ok i32 = set_ast(ast, 0, AN_BOOL(), 1, 0, 0, 1)
+  ok = set_ast(ast, 1, AN_BOOL(), 0, 0, 0, 2)
+  ok = set_ast(ast, 2, AN_BINARY(), TK_OR(), 0, 1, 3)
+
+  if ok != 0
+    ret 1
+  end
+  if sema_validate_expr(ast, 2, scope, 1) != SEMA_OK()
     ret 1
   end
   ret 0
@@ -124,6 +363,42 @@ fn main() i32
   end
   if test_return_outside_fn_ast() != 0
     ret 7
+  end
+  if test_valid_if() != 0
+    ret 8
+  end
+  if test_invalid_if_condition() != 0
+    ret 10
+  end
+  if test_valid_while() != 0
+    ret 11
+  end
+  if test_invalid_while_condition() != 0
+    ret 12
+  end
+  if test_assign_undeclared() != 0
+    ret 13
+  end
+  if test_assign_declared() != 0
+    ret 14
+  end
+  if test_use_undeclared_name() != 0
+    ret 15
+  end
+  if test_let_then_use() != 0
+    ret 16
+  end
+  if test_comparison_valid() != 0
+    ret 17
+  end
+  if test_comparison_incompat() != 0
+    ret 18
+  end
+  if test_bool_op_string() != 0
+    ret 19
+  end
+  if test_bool_op_valid() != 0
+    ret 20
   end
   ret 9
 end
