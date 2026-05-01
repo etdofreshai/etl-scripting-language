@@ -67,7 +67,7 @@ ETL
   "$driver"
 
   as "$asm_out" -o "$obj_out"
-  ld "$obj_out" -o "$native"
+  cc -no-pie "$obj_out" -o "$native"
 
   set +e
   "$native"
@@ -86,5 +86,10 @@ run_case ret_add "fn main() i32 ret 10 + 20 end" 30
 run_case ret_mul "fn main() i32 ret 3 * 7 end" 21
 run_case ret_precedence "fn main() i32 ret 1 + 2 * 3 end" 7
 run_case ret_div_mod "fn main() i32 ret 20 / 4 + 9 % 4 end" 6
+run_case let_return "fn main() i32 let x i32 = 10 ret x end" 10
+run_case let_chain "fn main() i32 let x i32 = 5 let y i32 = x + 3 ret y end" 8
+run_case assign_return "fn main() i32 let x i32 = 1 x = x + 4 ret x end" 5
+run_case if_assign "fn main() i32 let x i32 = 1 if x x = 9 end ret x end" 9
+run_case while_countdown "fn main() i32 let x i32 = 3 while x x = x - 1 end ret x end" 0
 
 echo "c1_asm_return_smoke: ok"
