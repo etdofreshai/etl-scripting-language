@@ -235,6 +235,14 @@ emitter work.
 
 These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 
+> **Status (2026-05-01):** A narrow local integer struct field C smoke has landed
+> (`scripts/c1_source_to_c_struct_field_smoke.sh`, commit 902b736). It proves c1
+> can emit `typedef struct { ... } Pair;` declarations, `Pair p;` struct locals,
+> integer field writes (`p.left = 19`), and integer field reads (`p.left + p.right`)
+> for local struct variables with `i32` fields. The fixtures below expand coverage
+> to struct parameters passed across function boundaries, struct arrays, and
+> combined struct + array access patterns — none of which are covered yet.
+
 #### `struct_decl.etl`
 
 ```etl
@@ -252,7 +260,9 @@ end
 ```
 
 **Acceptance**: c0 exit 7, c1 exit 7. Proves c1 emits `typedef struct { ... } Point;`
-and initializes struct locals.
+and initializes struct locals. The narrow local integer struct field smoke already
+covers the core mechanism (declare + write + read for i32 fields); this fixture
+adds a second distinct struct type as a regression guard.
 
 #### `field_access_fn.etl`
 
@@ -275,7 +285,8 @@ end
 ```
 
 **Acceptance**: c0 exit 42, c1 exit 42. Proves struct parameters and
-field access across function boundaries.
+field access across function boundaries. **Not yet covered** — the existing
+smoke only tests local struct fields within `main`.
 
 #### `struct_array.etl`
 
@@ -295,8 +306,12 @@ end
 
 **Acceptance**: c0 exit 200, c1 exit 200. Proves combined struct + array:
 `Item items[3]` declarations and `items[i].field` access patterns.
+**Not yet covered** — requires both struct and array emitter capabilities.
 
-**Unlocks**: 5f-STRUCTS chunk.
+**Unlocks**: 5f-STRUCTS chunk. The narrow local integer struct field smoke covers
+a subset (struct declarations + local i32 field read/write); struct parameters,
+struct arrays, and non-integer field types still require the full 5f-STRUCTS
+emitter work.
 
 ---
 
