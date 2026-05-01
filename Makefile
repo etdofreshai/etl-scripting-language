@@ -24,6 +24,7 @@ smoke:
 	scripts/corpus_smoke.sh
 	scripts/runtime_smoke.sh
 	scripts/file_smoke.sh
+	scripts/full_word_alias_smoke.sh
 	scripts/c1_lex_smoke.sh
 	scripts/c1_parse_smoke.sh
 	scripts/c1_sema_smoke.sh

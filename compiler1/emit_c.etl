@@ -169,6 +169,10 @@ fn emit_c_expr(ast AstNode[512], ast_count i32, node i32, locals i32, out i8[102
     let false_text i8[64] = "0"
     ret emit_c_append_text(out, pos, out_cap, false_text, 1)
   end
+  if ast[node].kind == AN_SIZEOF()
+    let size_text i8[64] = "4"
+    ret emit_c_append_text(out, pos, out_cap, size_text, 1)
+  end
   if ast[node].kind == AN_NAME()
     let local i32 = emit_c_find_local(ast, locals, ast[node].a)
     if local < 0

@@ -1,0 +1,4 @@
+function main() integer
+  let x integer = 40
+  return x + size(integer) - sizeof(integer) + 2
+end

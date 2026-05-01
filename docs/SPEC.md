@@ -14,8 +14,10 @@ ETL v0 is intentionally small. It is not the final language; it is the seed lang
 ## Tentative keywords
 
 ```text
-fn extern let if elif else while ret type use end true false and or not sizeof ptr
+function external let if elif else while return type use end true false and or not size pointer
 ```
+
+The legacy spellings `fn`, `extern`, `ret`, `struct`, `i32`, `i8`, `bool`, `ptr`, and `sizeof` remain accepted as compatibility aliases for `function`, `external`, `return`, `structure`, `integer`, `byte`, `boolean`, `pointer`, and `size`.
 
 ## Block syntax decision
 

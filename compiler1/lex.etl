@@ -37,6 +37,10 @@ fn keyword_kind(source i8[256], start i32, len i32) i32
   if span_eq(source, start, len, kw_fn, 2)
     ret TK_FN()
   end
+  let kw_function i8[16] = "function"
+  if span_eq(source, start, len, kw_function, 8)
+    ret TK_FN()
+  end
   let kw_let i8[16] = "let"
   if span_eq(source, start, len, kw_let, 3)
     ret TK_LET()
@@ -61,12 +65,20 @@ fn keyword_kind(source i8[256], start i32, len i32) i32
   if span_eq(source, start, len, kw_ret, 3)
     ret TK_RET()
   end
+  let kw_return i8[16] = "return"
+  if span_eq(source, start, len, kw_return, 6)
+    ret TK_RET()
+  end
   let kw_type i8[16] = "type"
   if span_eq(source, start, len, kw_type, 4)
     ret TK_TYPE()
   end
   let kw_struct i8[16] = "struct"
   if span_eq(source, start, len, kw_struct, 6)
+    ret TK_STRUCT()
+  end
+  let kw_structure i8[16] = "structure"
+  if span_eq(source, start, len, kw_structure, 9)
     ret TK_STRUCT()
   end
   let kw_end i8[16] = "end"
@@ -96,6 +108,18 @@ fn keyword_kind(source i8[256], start i32, len i32) i32
   let kw_extern i8[16] = "extern"
   if span_eq(source, start, len, kw_extern, 6)
     ret TK_EXTERN()
+  end
+  let kw_external i8[16] = "external"
+  if span_eq(source, start, len, kw_external, 8)
+    ret TK_EXTERN()
+  end
+  let kw_sizeof i8[16] = "sizeof"
+  if span_eq(source, start, len, kw_sizeof, 6)
+    ret TK_SIZEOF()
+  end
+  let kw_size i8[16] = "size"
+  if span_eq(source, start, len, kw_size, 4)
+    ret TK_SIZEOF()
   end
   ret TK_IDENT()
 end

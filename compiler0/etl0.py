@@ -5,7 +5,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof", "ptr"}
+KEYWORD_ALIASES = {"pointer": "ptr"}
+KEYWORDS = {"fn", "extern", "let", "if", "elif", "else", "while", "ret", "type", "use", "end", "true", "false", "and", "or", "not", "sizeof", "ptr", *KEYWORD_ALIASES}
+TYPE_ALIASES = {
+    "integer": "i32",
+    "byte": "i8",
+    "boolean": "bool",
+    "pointer": "ptr",
+}
 SINGLE = {
     "(": "LPAREN",
     ")": "RPAREN",
@@ -362,8 +369,9 @@ def lex(src: str) -> list[Token]:
                 i += 1
                 col += 1
             text = src[start:i]
-            kind = text.upper() if text in KEYWORDS else "IDENT"
-            tokens.append(Token(kind, text, line, start_col))
+            canonical = KEYWORD_ALIASES.get(text, text)
+            kind = canonical.upper() if text in KEYWORDS else "IDENT"
+            tokens.append(Token(kind, canonical if kind != "IDENT" else text, line, start_col))
             continue
         raise LexerError(f"unexpected character {ch!r} at {line}:{col}")
     tokens.append(Token("EOF", "", line, col))
@@ -393,6 +401,13 @@ class Parser:
         self.pos += 1
         return tok
 
+    def take_keyword(self, kind: str, alias: str) -> Token:
+        tok = self.peek()
+        if tok.kind == kind or (tok.kind == "IDENT" and tok.text == alias):
+            self.pos += 1
+            return tok
+        raise ParseError(f"expected {kind}, got {tok.kind} at {tok.line}:{tok.col}")
+
     def parse_program(self) -> Program:
         structs = []
         externs = []
@@ -400,7 +415,7 @@ class Parser:
         while self.peek().kind != "EOF":
             if self.peek().kind == "TYPE":
                 structs.append(self.parse_struct_decl())
-            elif self.peek().kind == "EXTERN":
+            elif self.peek().kind == "EXTERN" or (self.peek().kind == "IDENT" and self.peek().text == "external"):
                 externs.append(self.parse_extern_function())
             else:
                 funcs.append(self.parse_function())
@@ -410,7 +425,7 @@ class Parser:
         type_tok = self.take("TYPE")
         name = self.take("IDENT").text
         struct_tok = self.take("IDENT")
-        if struct_tok.text != "struct":
+        if struct_tok.text not in {"struct", "structure"}:
             raise ParseError(f"expected struct, got {struct_tok.text!r} at {struct_tok.line}:{struct_tok.col}")
         fields: list[Field] = []
         while self.peek().kind != "END":
@@ -422,7 +437,7 @@ class Parser:
         return StructDecl(name, fields, SourceLoc.from_token(type_tok))
 
     def parse_function(self) -> Function:
-        fn_tok = self.take("FN")
+        fn_tok = self.take_keyword("FN", "function")
         name = self.take("IDENT").text
         params = self.parse_params()
         return_type = self.parse_type()
@@ -431,8 +446,8 @@ class Parser:
         return Function(name, params, return_type, body, SourceLoc.from_token(fn_tok))
 
     def parse_extern_function(self) -> ExternFunction:
-        extern_tok = self.take("EXTERN")
-        self.take("FN")
+        extern_tok = self.take_keyword("EXTERN", "external")
+        self.take_keyword("FN", "function")
         name = self.take("IDENT").text
         params = self.parse_params()
         return_type = None
@@ -465,7 +480,7 @@ class Parser:
             raise ParseError(f"expected type, got {tok.kind} at {tok.line}:{tok.col}")
         type_tok = self.peek()
         self.pos += 1
-        base = type_tok.text
+        base = canonical_type_name(type_tok.text)
         if self.peek().kind != "LBRACKET":
             return base
         self.take("LBRACKET")
@@ -505,8 +520,8 @@ class Parser:
                 self.take("EQUAL")
                 expr = self.parse_expr()
             return Let(name, typ, expr, SourceLoc.from_token(let_tok))
-        if self.peek().kind == "RET":
-            ret_tok = self.take("RET")
+        if self.peek().kind == "RET" or (self.peek().kind == "IDENT" and self.peek().text == "return"):
+            ret_tok = self.take_keyword("RET", "return")
             return Ret(self.parse_expr(), SourceLoc.from_token(ret_tok))
         if self.peek().kind == "IF":
             if_tok = self.take("IF")
@@ -622,8 +637,8 @@ class Parser:
         if tok.kind == "STRING":
             string_tok = self.take("STRING")
             return StringLit(string_tok.text, SourceLoc.from_token(string_tok))
-        if tok.kind == "SIZEOF":
-            sizeof_tok = self.take("SIZEOF")
+        if tok.kind == "SIZEOF" or (tok.kind == "IDENT" and tok.text == "size" and self.tokens[self.pos + 1].kind == "LPAREN"):
+            sizeof_tok = self.take(tok.kind)
             self.take("LPAREN")
             if self.peek().kind not in {"IDENT", "PTR"}:
                 bad = self.peek()
@@ -683,6 +698,10 @@ class Parser:
 
 def parse(src: str) -> Program:
     return Parser(lex(src)).parse_program()
+
+
+def canonical_type_name(name: str) -> str:
+    return TYPE_ALIASES.get(name, name)
 
 
 SUPPORTED_TYPES = {"i32", "bool", "i8", "ptr"}

@@ -82,6 +82,9 @@ fn sema_expr_type(ast AstNode[512], expr i32) i32
   if kind == AN_STRING()
     ret TY_STRING()
   end
+  if kind == AN_SIZEOF()
+    ret TY_I32()
+  end
   if kind == AN_BINARY()
     let op i32 = ast[expr].a
     if op == TK_EQEQ() or op == TK_NEQ() or op == TK_LT() or op == TK_LTE() or op == TK_GT() or op == TK_GTE()
@@ -107,6 +110,9 @@ fn sema_validate_expr(ast AstNode[512], expr i32, scope i32[64], cs i32) i32
     ret SEMA_OK()
   end
   if kind == AN_BOOL()
+    ret SEMA_OK()
+  end
+  if kind == AN_SIZEOF()
     ret SEMA_OK()
   end
   if kind == AN_NAME()

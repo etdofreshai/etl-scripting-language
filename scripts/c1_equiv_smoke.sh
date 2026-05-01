@@ -20,6 +20,7 @@ fixtures=(
   if_logical_and.etl
   if_logical_or.etl
   if_logical_not.etl
+  full_word_aliases.etl
 )
 
 pass=0

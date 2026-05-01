@@ -54,6 +54,7 @@ fn TK_LT() i32 ret 34 end
 fn TK_LTE() i32 ret 35 end
 fn TK_GT() i32 ret 36 end
 fn TK_GTE() i32 ret 37 end
+fn TK_SIZEOF() i32 ret 38 end
 
 fn AN_PROGRAM() i32 ret 1 end
 fn AN_LIST() i32 ret 2 end
@@ -80,6 +81,7 @@ fn AN_INDEX() i32 ret 22 end
 fn AN_FIELD_ACCESS() i32 ret 23 end
 fn AN_BINARY() i32 ret 24 end
 fn AN_UNARY() i32 ret 25 end
+fn AN_SIZEOF() i32 ret 26 end
 
 fn main() i32
   let path i8[64] = "/dev/stdin"

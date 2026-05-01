@@ -55,7 +55,7 @@ fn p_parse_type(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   if p_take(tokens, st, TK_IDENT()) < 0
     ret -1
   end
-  let size i32 = -1
+  let arr_size i32 = -1
   if p_at(tokens, st, TK_LBRACKET())
     if p_take(tokens, st, TK_LBRACKET()) < 0
       ret -1
@@ -71,11 +71,11 @@ fn p_parse_type(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
       st[0].error = p_token(st)
       ret -1
     end
-    size = tokens[p_token(st)].int_value * sign
+    arr_size = tokens[p_token(st)].int_value * sign
     if p_take(tokens, st, TK_INT()) < 0
       ret -1
     end
-    if size <= 0
+    if arr_size <= 0
       st[0].error = tok
       ret -1
     end
@@ -83,7 +83,7 @@ fn p_parse_type(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
       ret -1
     end
   end
-  ret p_node(ast, st, AN_TYPE(), tok, size, 0, tok)
+  ret p_node(ast, st, AN_TYPE(), tok, arr_size, 0, tok)
 end
 
 fn p_parse_param_list(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
@@ -169,6 +169,22 @@ fn p_parse_primary(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
       ret -1
     end
     ret expr
+  end
+  if p_at(tokens, st, TK_SIZEOF())
+    if p_take(tokens, st, TK_SIZEOF()) < 0
+      ret -1
+    end
+    if p_take(tokens, st, TK_LPAREN()) < 0
+      ret -1
+    end
+    let typ i32 = p_parse_type(tokens, st, ast)
+    if typ < 0
+      ret -1
+    end
+    if p_take(tokens, st, TK_RPAREN()) < 0
+      ret -1
+    end
+    ret p_node(ast, st, AN_SIZEOF(), typ, 0, 0, tok)
   end
   if p_at(tokens, st, TK_IDENT())
     if p_take(tokens, st, TK_IDENT()) < 0
