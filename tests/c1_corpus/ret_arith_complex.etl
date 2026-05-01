@@ -1,0 +1,1 @@
+fn main() i32 ret 1 + 2 * (9 - 4) end

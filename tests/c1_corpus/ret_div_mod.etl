@@ -1,0 +1,1 @@
+fn main() i32 ret 17 / 3 + 17 % 3 end
