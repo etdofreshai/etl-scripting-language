@@ -70,7 +70,7 @@ Specifically, c1 can emit:
 - Function parameters for user-defined `i32`, scalar `bool`/`i8`/`byte`,
   narrow byte/i8 array, narrow by-value struct parameters, and extern scalar
   `bool`/`i8`/`byte` parameters
-- Local declarations with initialization (`let x i32 = expr`)
+- Local declarations with initialization (`let x i32 = expr`, typed `bool`/`i8` locals emit as C `bool`/`signed char`)
 - Assignment to locals (`x = expr`)
 - Integer, boolean, sizeof, and unary-minus literals
 - Binary arithmetic (`+`, `-`, `*`, `/`, `%`)
@@ -133,7 +133,7 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 |---|---|---|
 | Multi-function emission | Basic named function emission works, but only for the current narrow function subset | c1 source has ~60+ named functions; broader type coverage is still needed across those functions |
 | Function parameters | `i32`, scalar `bool`/`i8`/`byte`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
-| Typed locals (not just int) | c1 type mapping is still partial; scalar `bool`/`i8` and composed typed locals are not fully covered | Token/AstNode structs, i8 arrays, bool locals |
+| Typed locals (not just int) | Scalar `bool`/`i8` locals work (Tier 2 fixtures pass); composed typed locals (struct-typed, array-typed) are not yet covered | Token/AstNode structs, i8 arrays |
 | Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
 | Struct declarations | c1 emits narrow local i32-only structs and by-value struct parameters, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); narrow by-value struct params work (ec342d7); non-i32 fields and arrays in struct fields do not |
 | Struct field access | c1 emits local `.field`, local struct-array field access, and field access through by-value struct params, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); struct parameter field access works for the narrow C path (ec342d7); struct returns do not |
@@ -359,6 +359,8 @@ for self-compilation.
 **Estimated waves**: 2–3.
 
 ### Chunk 5f-TYPES: Typed local and extern parameter emission
+
+**Status**: Scalar typed local emission (`bool` → `bool`, `i8` → `int8_t`) landed; Tier 2 fixtures (`local_bool`, `local_bool_expr`, `local_i8`) pass in the default c1 equiv gate. Extern parameter type emission beyond scalar bool/i8/byte remains.
 
 **Scope**: Emit correct C types for locals and extern parameters.
 
