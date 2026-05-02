@@ -5,7 +5,7 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (23 fixtures, all passing)
+## Current corpus (26 fixtures, all passing)
 
 The existing corpus exercises single-function and multi-function programs
 with `i32` locals, integer arithmetic, comparisons, logical operators,
@@ -14,7 +14,7 @@ calls, user-defined calls with `i32` arguments, and local fixed `i32` array
 sum/loop indexing plus `i8` array indexing. See `scripts/c1_equiv_smoke.sh`
 for the full list.
 
-All 23 produce matching exit codes when compiled by c0 vs c1.
+All 26 produce matching exit codes when compiled by c0 vs c1.
 
 ## Fixed-point blocker coverage map
 
@@ -125,6 +125,11 @@ structs, and byte buffers.
 
 These require the 5f-TYPES emitter change (mapping ETL types to C types).
 
+> **Status (2026-05-02):** Tier 2 typed-local fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass with scalar `bool` and `i8` local declarations emitted as C
+> `bool` and `signed char`.
+
 #### `local_bool.etl`
 
 ```etl
@@ -161,12 +166,15 @@ comparison results and drive control flow.
 
 ```etl
 fn main() i32
-  let ch i8 = 65
+  let text i8[2] = "A"
+  let ch i8 = text[0]
   ret ch
 end
 ```
 
 **Acceptance**: c0 exit 65, c1 exit 65. Proves c1 emits `int8_t` locals.
+The fixture initializes the scalar from an `i8` buffer because c0 currently
+rejects assigning an uncast integer literal directly into an `i8` local.
 
 **Unlocks**: 5f-TYPES chunk.
 
@@ -452,8 +460,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 23 fixtures, including Tier 1 multi-function/`i32` params plus local i32/i8 array indexing | 23 + up to 9 later-tier fixtures |
-| `make selfhost` | c1 pipeline + 23-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 26 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, and local i32/i8 array indexing | 26 + up to 6 later-tier fixtures |
+| `make selfhost` | c1 pipeline + 26-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in

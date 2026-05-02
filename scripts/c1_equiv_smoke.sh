@@ -26,12 +26,18 @@ fixtures=(
   multi_fn_chain.etl
   fn_params_two.etl
   fn_recursive.etl
+  local_bool.etl
+  local_bool_expr.etl
+  local_i8.etl
   local_array_sum.etl
   local_array_loop.etl
   local_i8_array.etl
 )
 
 declare -A expected_exits=(
+  [local_bool.etl]=1
+  [local_bool_expr.etl]=99
+  [local_i8.etl]=65
   [local_i8_array.etl]=72
 )
 

@@ -470,6 +470,7 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret -1
   end
   let decl_text i8[64] = "  int "
+  let bool_decl_text i8[64] = "  bool "
   let byte_decl_text i8[64] = "  signed char "
   let struct_text i8[64] = "  struct "
   let eq_text i8[64] = " = "
@@ -482,22 +483,30 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
   if is_i32 != 0
     p = emit_c_append_text(out, p, out_cap, decl_text, 6)
   else
-    if emit_c_type_is_byte_array(source, tokens, ast, typ)
-      p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
+    if emit_c_type_is_bool(source, tokens, ast, typ)
+      p = emit_c_append_text(out, p, out_cap, bool_decl_text, 7)
     else
-      if ast[node].c >= 0
-        ret -1
+      if emit_c_type_is_i8_scalar(source, tokens, ast, typ)
+        p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
+      else
+        if emit_c_type_is_byte_array(source, tokens, ast, typ)
+          p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
+        else
+          if ast[node].c >= 0
+            ret -1
+          end
+          p = emit_c_append_text(out, p, out_cap, struct_text, 9)
+          if p < 0
+            ret -1
+          end
+          p = emit_c_append_token_text(source, tokens, ast[typ].a, out, p, out_cap)
+          if p < 0
+            ret -1
+          end
+          let space i8[64] = " "
+          p = emit_c_append_text(out, p, out_cap, space, 1)
+        end
       end
-      p = emit_c_append_text(out, p, out_cap, struct_text, 9)
-      if p < 0
-        ret -1
-      end
-      p = emit_c_append_token_text(source, tokens, ast[typ].a, out, p, out_cap)
-      if p < 0
-        ret -1
-      end
-      let space i8[64] = " "
-      p = emit_c_append_text(out, p, out_cap, space, 1)
     end
   end
   if p < 0
@@ -538,10 +547,17 @@ fn emit_c_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32
     ret emit_c_append_text(out, p, out_cap, semi_text, 2)
   end
   if is_i32 == 0
-    ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+    if emit_c_type_is_bool(source, tokens, ast, typ) == false
+      if emit_c_type_is_i8_scalar(source, tokens, ast, typ) == false
+        ret emit_c_append_text(out, p, out_cap, semi_text, 2)
+      end
+    end
   end
   if ast[node].c < 0
-    ret -1
+    if is_i32 != 0
+      ret -1
+    end
+    ret emit_c_append_text(out, p, out_cap, semi_text, 2)
   end
   p = emit_c_append_text(out, p, out_cap, eq_text, 3)
   if p < 0
