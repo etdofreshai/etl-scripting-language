@@ -12,7 +12,7 @@ stage harnesses and prove a small source-to-C path.
 | `lex.etl`    | Lexer module for the compiler-1 subset.          |
 | `parse.etl`  | Parser module for the compiler-1 subset.         |
 | `sema.etl`   | Semantic analysis module for compiler-1 AST validation. |
-| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, local arrays/structs, byte strings, extern byte buffers, narrow user-defined byte-array params, and narrow by-value struct params. |
+| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, local arrays/structs, byte strings, extern byte buffers, extern scalar bool/i8/byte params, narrow user-defined byte-array params, and narrow by-value struct params. |
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
 | `emit_asm.etl` | ASM backend emitter (x86-64 System V active smoke subset). Not linked into default build. |
 | `emit_wasm.etl` | WASM backend emitter (WAT text active subset). Not linked into default build. |
@@ -45,4 +45,5 @@ make selfhost
 This runs `scripts/c1_pipeline_smoke.sh`, `scripts/c1_equiv_smoke.sh`, and
 `scripts/c1_smoke.sh`. The broader `make check` smoke set includes focused
 source-to-C probes for arrays, structs, byte strings, extern byte buffers,
-scalar `bool`/`i8`/`byte` parameters, and user-defined byte-array parameters.
+scalar `bool`/`i8`/`byte` parameters, extern scalar `bool`/`i8`/`byte`
+parameter emission, and user-defined byte-array parameters.

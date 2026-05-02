@@ -67,7 +67,8 @@ Specifically, c1 can emit:
 - `extern fn` forward declarations (void and int return)
 - Multiple named functions with `i32` return values
 - Function parameters for user-defined `i32`, scalar `bool`/`i8`/`byte`,
-  narrow byte/i8 array, and narrow by-value struct parameters
+  narrow byte/i8 array, narrow by-value struct parameters, and extern scalar
+  `bool`/`i8`/`byte` parameters
 - Local declarations with initialization (`let x i32 = expr`)
 - Assignment to locals (`x = expr`)
 - Integer, boolean, sizeof, and unary-minus literals
@@ -105,7 +106,9 @@ Specifically, c1 can emit:
 - Narrow scalar `bool`, `i8`, and `byte` parameters for user-defined C
   functions — proven by `scripts/c1_source_to_c_scalar_param_smoke.sh`
   (3a5e395). These are C-backend user-function params only; extern scalar
-  typed params and non-i32 returns remain outside this slice.
+  `bool`/`i8`/`byte` parameter emission is now proven by
+  `scripts/c1_extern_scalar_param_smoke.sh` (9c71068); non-i32 returns
+  remain outside this slice.
 - Narrow by-value struct parameters for user-defined C functions — proven by
   `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7). The follow-up sema
   guard (6c3cf90) keeps this path restricted to declared struct names. Struct
@@ -135,7 +138,7 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Struct field access | c1 emits local `.field`, local struct-array field access, and field access through by-value struct params, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); struct parameter field access works for the narrow C path (ec342d7); struct returns do not |
 | Index expressions | c1 emits narrow `arr[i]` patterns, but not all array element types and contexts | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); narrow `i8` array indexing works; struct-array field indexing works; larger and parameter-backed indexing remain incomplete |
 | String literal data | c1 cannot yet cover all c1-scale string/buffer patterns | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads work; multiple string buffers coexist without corruption (proven by multi-buffer smoke) |
-| Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); non-byte-array extern param types do not |
+| Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); extern scalar `bool` emitted as C `bool` and scalar `i8`/`byte` emitted as C `signed char` works (9c71068); extern struct and non-scalar param types do not |
 | Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
 
 ### Phase 5f buffer scout (2026-05-02)
@@ -259,9 +262,10 @@ These are ordered by dependency; earlier items unblock later ones.
 
 2. **Function parameters beyond `i32`**: c1 now emits user-defined `i32`,
    scalar `bool`/`i8`/`byte`, narrow fixed byte/i8 array, and narrow by-value
-   struct parameters. Self-compilation still needs the remaining parameter
+   struct parameters. Extern scalar `bool`/`i8`/`byte` parameter emission is
+   now proven (9c71068). Self-compilation still needs the remaining parameter
    shapes, especially full struct/array/buffer composition and extern typed
-   parameters.
+   parameters beyond scalar bool/i8/byte.
 
 3. **Typed local emission**: c1 must emit `int32_t`, `int8_t`, `bool`, and
    struct-typed locals instead of always emitting `int`.
