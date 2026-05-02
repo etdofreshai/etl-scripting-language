@@ -1,0 +1,1 @@
+type Pair structure first i32 second i32 end fn sum_pair() i32 let v Pair v.first = 10 v.second = 32 ret v.first + v.second end fn main() i32 ret sum_pair() end

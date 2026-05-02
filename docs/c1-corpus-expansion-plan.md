@@ -5,7 +5,7 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (26 fixtures, all passing)
+## Current corpus (29 fixtures, all passing)
 
 The existing corpus exercises single-function and multi-function programs
 with `i32` locals, integer arithmetic, comparisons, logical operators,
@@ -14,7 +14,7 @@ calls, user-defined calls with `i32` arguments, and local fixed `i32` array
 sum/loop indexing plus `i8` array indexing. See `scripts/c1_equiv_smoke.sh`
 for the full list.
 
-All 26 produce matching exit codes when compiled by c0 vs c1.
+All 29 produce matching exit codes when compiled by c0 vs c1.
 
 ## Fixed-point blocker coverage map
 
@@ -278,7 +278,12 @@ and `i8` byte array smokes cover a subset; larger arrays still require the full
 
 These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 
-> **Status (2026-05-01):** A narrow local integer struct field C smoke has landed
+> **Status (2026-05-02):** Tier 4 struct fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass with local struct declarations, struct field access in a
+> helper function, and struct array field access in compiler-1 C equivalence.
+>
+> A narrow local integer struct field C smoke has landed
 > (`scripts/c1_source_to_c_struct_field_smoke.sh`, commit 902b736). It proves c1
 > can emit `typedef struct { ... } Pair;` declarations, `Pair p;` struct locals,
 > integer field writes (`p.left = 19`), and integer field reads (`p.left + p.right`)
@@ -317,26 +322,24 @@ adds a second distinct struct type as a regression guard.
 #### `field_access_fn.etl`
 
 ```etl
-struct Pair
-  first i32
-  second i32
-end
+type Pair structure first i32 second i32 end
 
-fn sum_pair(p Pair) i32
-  ret p.first + p.second
-end
-
-fn main() i32
+fn sum_pair() i32
   let v Pair
   v.first = 10
   v.second = 32
-  ret sum_pair(v)
+  ret v.first + v.second
+end
+
+fn main() i32
+  ret sum_pair()
 end
 ```
 
-**Acceptance**: c0 exit 42, c1 exit 42. Proves struct parameters and
-field access across function boundaries. The narrow smoke now covers this core
-mechanism; the fixture remains useful as corpus-scale regression coverage.
+**Acceptance**: c0 exit 42, c1 exit 42. Proves struct field access in a
+non-`main` function. The original struct-parameter form remains covered by the
+narrow c1 source-to-C smoke, but is not promoted here because c0 v0 rejects
+struct-typed parameters.
 
 #### `struct_array.etl`
 
@@ -362,8 +365,7 @@ Narrow struct array field read/write with constant and variable index works
 **Unlocks**: 5f-STRUCTS chunk. The narrow struct field and struct array smokes
 cover a subset (struct declarations + local i32 field read/write + local struct
 array indexed field access + narrow by-value struct params); non-integer field
-types, struct returns, and larger struct arrays still require the full
-5f-STRUCTS emitter work.
+types, struct returns, and corpus-gated struct parameters remain uncovered.
 
 ---
 
@@ -460,8 +462,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 26 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, and local i32/i8 array indexing | 26 + up to 6 later-tier fixtures |
-| `make selfhost` | c1 pipeline + 26-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 29 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, and Tier 4 structs | 29 + up to 3 later-tier fixtures |
+| `make selfhost` | c1 pipeline + 29-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
