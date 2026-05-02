@@ -134,12 +134,15 @@ array indexed assignment/read via `i32.store8`/`i32.load8_s`, local
 `i8[N]` string literal initialization with constant-index reads, local
 struct declarations with `i32`-only field store/load via
 `i32.store`/`i32.load` with offset, local fixed struct array indexed
-field store/load, and multiple user-defined `i32`-parameter/`i32`-return
+field store/load, multiple user-defined `i32`-parameter/`i32`-return
 helper functions with direct intra-module calls (`_start` exported as
-`main`). No extern/import calls,
-runtime strings, pointer decay, extern/param byte arrays,
+`main`), and source `extern fn` declarations with `i32`/`integer` params
+and `i32` return lowered to `(import "env" "name" (func $name ... (result i32)))`
+with `call $name`. No void-return extern import statements, runtime host
+execution, runtime strings, pointer decay, extern/param byte arrays,
 nested structs, non-i32 struct fields, non-i32 function parameters or
-returns, bounds checks, or
+returns, byte/string/pointer params, arrays/struct params/returns,
+varargs, imported memory, or broader ABI, bounds checks, or
 dynamic arrays yet. Text validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
@@ -148,8 +151,8 @@ integer return, arithmetic, local initialization, local assignment, simple
 local `i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write,
 local `i8[N]` string literal initialization with constant-index reads,
 local i32 struct field store/load, local fixed struct array indexed
-field store/load, and i32-parameter/i32-return helper function calls
-within a single module.
+field store/load, i32-parameter/i32-return helper function calls
+within a single module, and narrow i32 extern import/call emission.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 
