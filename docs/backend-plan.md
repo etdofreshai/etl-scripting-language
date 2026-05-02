@@ -277,8 +277,8 @@ base pointers, and reads use `movsbq`. Helper `byte[N]`/`i8[N]` array
 parameter indexed writes proven by `scripts/c1_asm_array_smoke.sh` (99c6493,
 merged 8db6ae1): `i8_array_param_write_idx` writes 42 into `buf[1]` and reads
 it back, returning native exit 42. Extern byte arrays, runtime strings,
-pointer decay beyond this helper-call slice, structs, struct arrays, bounds
-checks, and dynamic arrays remain unsupported in ASM.
+pointer decay beyond this helper-call slice, nested structs, non-i32 fields,
+bounds checks, and dynamic arrays remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 
