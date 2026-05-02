@@ -22,15 +22,15 @@ run_case() {
 extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
 
 fn main() i32
-  let source i8[256] = "$source"
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072] = "$source"
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let out i8[1024]
-  let n i32 = lex(source, $source_len, tokens, 128)
+  let n i32 = lex(source, $source_len, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 2
   end

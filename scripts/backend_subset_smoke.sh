@@ -16,10 +16,15 @@ build_emit_driver() {
   local driver_src="$td/${backend}_${name}_driver.etl"
   local driver_bin="$td/${backend}_${name}_driver"
   local escaped
+  local out_cap
   local source_len
 
   escaped="$(escape_for_etl_string "$source")"
   source_len="$(printf "%s" "$source" | wc -c)"
+  out_cap=1024
+  if [ "$backend" = "c" ]; then
+    out_cap=262144
+  fi
 
   sed '/^fn main()/,$d' compiler1/main.etl > "$driver_src"
   cat compiler1/lex.etl >> "$driver_src"
@@ -28,25 +33,25 @@ build_emit_driver() {
   cat compiler1/backend_defs.etl >> "$driver_src"
   cat "compiler1/emit_${backend}.etl" >> "$driver_src"
   cat >> "$driver_src" <<EOF_DRIVER
-extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+extern fn etl_write_file1024(path i8[64], buf i8[$out_cap], len i32) i32
 
 fn main() i32
-  let source i8[256] = "$escaped"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let out i8[1024]
-  let token_count i32 = lex(source, $source_len, tokens, 128)
+  let source i8[131072] = "$escaped"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let out i8[$out_cap]
+  let token_count i32 = lex(source, $source_len, tokens, 32768)
   if token_count < 0
     ret 1
   end
-  let ast_count i32 = parse(tokens, token_count, ast, 512)
+  let ast_count i32 = parse(tokens, token_count, ast, 32768)
   if ast_count < 0
     ret 2
   end
   if sema(source, tokens, ast, ast_count) < 0
     ret 3
   end
-  let emitted i32 = emit_${backend}(source, tokens, ast, ast_count, out, 1024)
+  let emitted i32 = emit_${backend}(source, tokens, ast, ast_count, out, $out_cap)
   if emitted <= 0
     ret 4
   end

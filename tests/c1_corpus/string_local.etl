@@ -1,0 +1,4 @@
+fn main() i32
+  let msg i8[12] = "hello world"
+  ret msg[0]
+end

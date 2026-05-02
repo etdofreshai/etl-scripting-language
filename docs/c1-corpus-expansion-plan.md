@@ -5,7 +5,7 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (29 fixtures, all passing)
+## Current corpus (31 fixtures, all passing)
 
 The existing corpus exercises single-function and multi-function programs
 with `i32` locals, integer arithmetic, comparisons, logical operators,
@@ -14,7 +14,7 @@ calls, user-defined calls with `i32` arguments, and local fixed `i32` array
 sum/loop indexing plus `i8` array indexing. See `scripts/c1_equiv_smoke.sh`
 for the full list.
 
-All 29 produce matching exit codes when compiled by c0 vs c1.
+All 31 produce matching exit codes when compiled by c0 vs c1.
 
 ## Fixed-point blocker coverage map
 
@@ -381,6 +381,11 @@ literals).
 > The fixtures below expand coverage to multi-read sum expressions and multiple
 > string-initialized locals coexisting; the multi-buffer coexistence smoke now
 > covers the latter path.
+>
+> **Status (2026-05-02):** Tier 5 local string fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass for a longer local string literal and for multiple
+> string-initialized local byte buffers.
 
 #### `string_local.etl`
 
@@ -397,19 +402,29 @@ string smoke already covers the core mechanism (local `i8[N]="..."` declaration
 + constant-index read); this fixture extends to a 12-byte buffer with a longer
 string literal.
 
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 104 via both c0 and c1).
+
 #### `string_multi.etl`
 
 ```etl
 fn main() i32
   let a i8[4] = "abc"
   let b i8[4] = "xyz"
+  if b[0] != 120
+    ret 1
+  end
   ret a[1]
 end
 ```
 
 **Acceptance**: c0 exit 98 (ASCII 'b'), c1 exit 98. Proves multiple
-string-initialized locals coexist without buffer corruption. Now covered by
-`scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
+string-initialized locals coexist without buffer corruption. The `b[0]` guard
+also keeps c0's `-Werror` C compile from rejecting an intentionally unused
+buffer. Now covered by `scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
+
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 98 via both c0 and c1).
 
 **Unlocks**: 5f-STRINGS chunk. The narrow local byte string smoke covers a
 subset (single `i8[N]="..."` local with constant-index reads); multiple string
@@ -462,8 +477,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 29 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, and Tier 4 structs | 29 + up to 3 later-tier fixtures |
-| `make selfhost` | c1 pipeline + 29-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 31 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, Tier 4 structs, and Tier 5 local strings | 31 + up to 1 later-tier fixture |
+| `make selfhost` | c1 pipeline + 31-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
