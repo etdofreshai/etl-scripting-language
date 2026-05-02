@@ -44,5 +44,5 @@ make selfhost
 
 This runs `scripts/c1_pipeline_smoke.sh`, `scripts/c1_equiv_smoke.sh`, and
 `scripts/c1_smoke.sh`. The broader `make check` smoke set includes focused
-source-to-C probes for arrays, structs, byte strings, extern byte buffers, and
-user-defined byte-array parameters.
+source-to-C probes for arrays, structs, byte strings, extern byte buffers,
+scalar `bool`/`i8`/`byte` parameters, and user-defined byte-array parameters.

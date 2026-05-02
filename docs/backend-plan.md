@@ -113,8 +113,9 @@ and eager logical operators (`and`, `or`, `not`).
 
 Limitations: the shared matrix intentionally excludes functions with
 parameters, extern calls, arrays, structs, strings, and general I/O. Basic
-multi-function programs and user-defined `i32` parameters are covered by the
-C path through `make selfhost-equiv`, but they are not shared C/ASM/WAT
+multi-function programs plus user-defined `i32`, scalar `bool`/`i8`/`byte`,
+byte-array, and by-value struct parameters are covered by focused C-path
+smokes, but they are not shared C/ASM/WAT
 contracts yet. Keep matrix programs small enough for the compiler-1 harness
 buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
 

@@ -66,7 +66,8 @@ end
 Specifically, c1 can emit:
 - `extern fn` forward declarations (void and int return)
 - Multiple named functions with `i32` return values
-- Function parameters for user-defined `i32` parameters
+- Function parameters for user-defined `i32`, scalar `bool`/`i8`/`byte`,
+  narrow byte/i8 array, and narrow by-value struct parameters
 - Local declarations with initialization (`let x i32 = expr`)
 - Assignment to locals (`x = expr`)
 - Integer, boolean, sizeof, and unary-minus literals
@@ -100,11 +101,14 @@ Specifically, c1 can emit:
   indexed field access — proven by `scripts/c1_source_to_c_struct_array_smoke.sh`
   (6c54423). Struct arrays with non-integer fields and nested struct-in-struct
   are not yet covered.
+- Narrow scalar `bool`, `i8`, and `byte` parameters for user-defined C
+  functions — proven by `scripts/c1_source_to_c_scalar_param_smoke.sh`
+  (3a5e395). These are C-backend user-function params only; extern scalar
+  typed params and non-i32 returns remain outside this slice.
 - Narrow by-value struct parameters for user-defined C functions — proven by
   `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7). The follow-up sema
-  guard (6c3cf90) keeps this path restricted to declared struct names, so scalar
-  `bool`/`i8` parameters are still not accepted by pretending they are structs.
-  Struct returns and extern struct parameters are not yet covered.
+  guard (6c3cf90) keeps this path restricted to declared struct names. Struct
+  returns and extern struct parameters are not yet covered.
 - Narrow fixed byte/i8 array extern parameters emitted as `signed char *`
   in extern function declarations — proven by
   `scripts/c1_source_to_c_byte_string_extern_smoke.sh` (8d72ca2). Local byte
@@ -123,7 +127,7 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Gap | Why it blocks self-compilation | Notes |
 |---|---|---|
 | Multi-function emission | Basic named function emission works, but only for the current narrow function subset | c1 source has ~60+ named functions; broader type coverage is still needed across those functions |
-| Function parameters | `i32`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
+| Function parameters | `i32`, scalar `bool`/`i8`/`byte`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
 | Typed locals (not just int) | c1 type mapping is still partial; scalar `bool`/`i8` and composed typed locals are not fully covered | Token/AstNode structs, i8 arrays, bool locals |
 | Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
 | Struct declarations | c1 emits narrow local i32-only structs and by-value struct parameters, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); narrow by-value struct params work (ec342d7); non-i32 fields and arrays in struct fields do not |
@@ -252,10 +256,11 @@ These are ordered by dependency; earlier items unblock later ones.
    needs that path to compose with arrays, structs, byte buffers, typed
    externs, and larger c1 source buffers across ~60+ named functions.
 
-2. **Function parameters beyond `i32`**: c1 now emits user-defined `i32`
-   parameters and narrow fixed byte/i8 array parameters. Self-compilation still
-   needs the remaining parameter shapes, especially struct-related parameters
-   and broader array/buffer composition.
+2. **Function parameters beyond `i32`**: c1 now emits user-defined `i32`,
+   scalar `bool`/`i8`/`byte`, narrow fixed byte/i8 array, and narrow by-value
+   struct parameters. Self-compilation still needs the remaining parameter
+   shapes, especially full struct/array/buffer composition and extern typed
+   parameters.
 
 3. **Typed local emission**: c1 must emit `int32_t`, `int8_t`, `bool`, and
    struct-typed locals instead of always emitting `int`.
