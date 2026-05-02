@@ -7,10 +7,11 @@ sequence (5f-CORPUS through 5f-STRINGS).
 
 ## Current corpus (20 fixtures, all passing)
 
-The existing corpus exercises single-function and multi-function programs with
-`i32` locals, integer arithmetic, comparisons, logical operators,
-`if`/`elif`/`else`, `while`, assignment, `return`, and extern/user function
-calls with arguments. See `scripts/c1_equiv_smoke.sh` for the full list.
+The existing corpus exercises single-function and multi-function programs
+with `i32` locals, integer arithmetic, comparisons, logical operators,
+`if`/`elif`/`else`, `while`, assignment, `return`, recursive user-defined
+calls, and user-defined calls with `i32` arguments. See
+`scripts/c1_equiv_smoke.sh` for the full list.
 
 All 20 produce matching exit codes when compiled by c0 vs c1.
 
@@ -21,8 +22,8 @@ category addresses each:
 
 | Blocker | Addressed by fixture tier |
 |---|---|
-| Multi-function emission | Tier 1: `multi_fn_*` |
-| Function parameters | Tier 1: `fn_params_*` |
+| Multi-function emission | Tier 1: `multi_fn_*` (in default gate) |
+| Function parameters | Tier 1: `fn_params_*` for `i32` params (in default gate) |
 | Typed locals (not just int) | Tier 2: `local_bool_*`, `local_i8_*` |
 | Array locals | Tier 3: `local_array_*` |
 | Struct declarations | Tier 4: `struct_decl_*` |
@@ -113,6 +114,9 @@ end
 function calls work through c1's emitter.
 
 **Unlocks**: 5f-MULTIFN and 5f-PARAMS chunks in fixed-point-plan.
+Basic `i32` multi-function and parameter coverage has landed; remaining
+self-compilation work is broader typed parameters and composition with arrays,
+structs, and byte buffers.
 
 ---
 
@@ -421,8 +425,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 16 fixtures, all single-function i32 | 16 + up to 19 new fixtures across all tiers |
-| `make selfhost` | c1 pipeline + 16-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 20 fixtures, including Tier 1 multi-function/`i32` params | 20 + up to 12 later-tier fixtures |
+| `make selfhost` | c1 pipeline + 20-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
@@ -453,7 +457,7 @@ implemented.
 
 | Category | Count | Running total |
 |---|---|---|
-| Existing corpus | 16 | 16 |
+| Existing pre-Tier-1 corpus | 16 | 16 |
 | Tier 1: Multi-function and parameters | 4 | 20 |
 | Tier 2: Typed locals | 3 | 23 |
 | Tier 3: Arrays and indexing | 3 | 26 |

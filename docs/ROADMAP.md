@@ -29,7 +29,7 @@ make examples
 | 3c    | done     | 3b47fa0        |
 | 4a    | done     | d8f76aa        |
 | 4b    | done     | 625c740        |
-| 5     | in progress (extern calls + 18-case backend subset + narrow i32 array indexing smoke + narrow i32 variable-index array smoke + narrow local integer struct field smoke + narrow local byte string array smoke + narrow local byte array indexed assignment smoke + narrow local struct array field smoke + narrow byte string extern C pointer param smoke + WAT i32 array indexing smoke + WAT byte/i8 array indexed assignment/read smoke + WAT byte/i8 string literal array init smoke + WAT local i32 struct field store/load smoke + WAT local struct array field store/load smoke + WAT elif chain smoke + ASM i32 array indexing smoke + ASM byte/i8 array indexed assignment/read smoke + ASM byte/i8 string literal array init smoke + ASM local i32 struct field store/load smoke + ASM local struct array field store/load smoke + ASM elif chain smoke) | -        |
+| 5     | in progress (extern calls + 20-fixture c1 equiv corpus with multi-function/i32 parameter/recursive calls + 18-case backend subset + narrow i32 array indexing smoke + narrow i32 variable-index array smoke + narrow local integer struct field smoke + narrow local byte string array smoke + narrow local byte string variable-index smoke + narrow local byte array indexed assignment smoke + narrow local struct array field smoke + narrow byte string extern C pointer param smoke + WAT i32 array indexing smoke + WAT byte/i8 array indexed assignment/read smoke + WAT byte/i8 string literal array init smoke + WAT local i32 struct field store/load smoke + WAT local struct array field store/load smoke + WAT elif chain smoke + ASM i32 array indexing smoke + ASM byte/i8 array indexed assignment/read smoke + ASM byte/i8 string literal array init smoke + ASM local i32 struct field store/load smoke + ASM local struct array field store/load smoke + ASM elif chain smoke) | -        |
 | 6     | not started | -            |
 | 7     | not started | -            |
 | 8     | not started | -            |
@@ -76,9 +76,10 @@ make examples
 
 > **Phase 5 status: IN PROGRESS.** `compiler1/` now has lexer, parser,
 > semantic validation, C emission with void and return-valued extern call
-> support, and an 18-case shared C/ASM/WAT backend subset. `make selfhost`
-> runs the full compiler-1 pipeline; `make headless-ready` is the
-> integration gate.
+> support, multi-function/user-call emission with `i32` parameters, a
+> 20-fixture c1 equiv corpus, and an 18-case shared C/ASM/WAT backend subset.
+> `make selfhost` runs the full compiler-1 pipeline; `make headless-ready` is
+> the integration gate.
 | 6  | SDL3 shim + headless screenshot harness + Conway's Life               | `make visual` (Life golden matches)                 | 6–8    |
 | 7  | App ladder: calculator → breakout → snake → asteroids → pong → CLI    | `make examples`                                     | 18–24  |
 | 8  | C-backend hardening + Linux/macOS/Windows CI matrix                   | matrix green                                        | 4–6    |
@@ -94,8 +95,8 @@ parallelizes.
 - 5b: lexer in ETL (DONE at a74d1e9)
 - 5c: parser in ETL (DONE at a74d1e9)
 - 5d: sema in ETL (DONE at ba0b94b)
-- 5e: C emitter in ETL (smoke DONE; void + return-valued extern calls DONE; narrow i32 array indexing DONE at fa722e8; narrow i32 variable-index array smoke DONE at 6df84e6; narrow local integer struct field smoke DONE at 902b736; narrow local byte string array smoke DONE at ed3d8de; narrow local byte array indexed assignment smoke DONE at bd10575; narrow local struct array field smoke DONE at 6c54423; narrow byte string extern C pointer param smoke DONE at 8d72ca2)
-- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (next; variable-index i32 arrays, byte array indexed assignment, struct array field read/write, and byte string extern C pointer params now proven; multi-buffer, user-defined byte-array params, and struct params/returns features remain)
+- 5e: C emitter in ETL (smoke DONE; void + return-valued extern calls DONE; multi-function/user-call emission with `i32` parameters DONE at 6ab989e; narrow i32 array indexing DONE at fa722e8; narrow i32 variable-index array smoke DONE at 6df84e6; narrow local integer struct field smoke DONE at 902b736; narrow local byte string array smoke DONE at ed3d8de; narrow local byte string variable-index smoke DONE; narrow local byte array indexed assignment smoke DONE at bd10575; narrow local struct array field smoke DONE at 6c54423; narrow byte string extern C pointer param smoke DONE at 8d72ca2)
+- 5f: c0→c1 builds c1; c1 compiles fixture corpus; behavior-equivalent diff (in progress; 20 c1 corpus fixtures now pass including multi-function, `i32` parameter, and recursive calls; variable-index i32 arrays, byte array indexed assignment, struct array field read/write, byte string variable-index reads, and byte string extern C pointer params now proven; typed locals beyond `i32`, multi-buffer strings, user-defined byte-array params, and struct params/returns features remain)
 - 5g: c1→c2 fixed-point; freeze c0
 
 See `docs/fixed-point-plan.md` for the detailed fixed-point milestone
