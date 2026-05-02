@@ -27,6 +27,7 @@ fixtures=(
   fn_params_two.etl
   fn_recursive.etl
   local_array_sum.etl
+  local_array_loop.etl
 )
 
 pass=0
