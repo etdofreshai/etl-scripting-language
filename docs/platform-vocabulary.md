@@ -96,7 +96,8 @@ full v0 language:
 Compiler-1 (`compiler1/*.etl`) written in ETL, compiled by compiler-0 to C,
 then to a native binary. Currently covers lexing, parsing, semantic analysis,
 and C emission for a growing subset, including user-defined `i32`,
-`bool`/`i8`/`byte`, narrow byte-array, and narrow by-value struct parameters.
+`bool`/`i8`/`byte`, narrow byte-array, narrow by-value struct parameters, and
+extern scalar `bool`/`i8`/`byte` parameter emission.
 
 **Gate**: `make selfhost` (c1-pipeline + selfhost-equiv + c1-smoke).
 

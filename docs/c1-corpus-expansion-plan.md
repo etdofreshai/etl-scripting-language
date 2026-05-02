@@ -404,8 +404,10 @@ These require the extern parameter type emission part of 5f-TYPES.
 > allowing local byte string buffers to be passed to an extern C helper. The
 > user-defined byte-array parameters are now covered by
 > `scripts/c1_source_to_c_byte_array_param_smoke.sh`; the fixture below expands
-> coverage to c1-scale extern typed parameters and non-byte-array extern param
-> types — those are not yet covered.
+> coverage to c1-scale extern typed parameters and non-scalar extern param
+> types — extern scalar `bool`/`i8`/`byte` parameter emission is now proven by
+> `scripts/c1_extern_scalar_param_smoke.sh` (9c71068); non-scalar extern param
+> types remain uncovered.
 
 #### `extern_typed_write.etl`
 
