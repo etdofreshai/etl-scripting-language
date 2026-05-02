@@ -112,10 +112,13 @@ array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]`
 string literal initialization with constant-index reads, and local struct
 declarations with `i32`-only field store/load via `mov` with RBP offsets,
 and local fixed struct array indexed field store/load via computed base
-offset with `imul` struct-size scaling.
-No function parameters, extern calls, runtime strings, pointer
-decay, extern/param byte arrays, nested structs,
-non-i32 struct fields, bounds checks, or dynamic arrays yet.
+offset with `imul` struct-size scaling. Also emits multiple user-defined
+helper functions with `i32`/`integer` parameters, i32 returns, and direct calls
+using System V integer argument registers.
+No extern calls, non-i32 function parameters or returns, array/struct
+parameters or returns, varargs, indirect calls, runtime strings, pointer decay,
+extern/param byte arrays, nested structs, non-i32 struct fields, bounds checks,
+or dynamic arrays yet.
 
 **Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
 
