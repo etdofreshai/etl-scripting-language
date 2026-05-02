@@ -151,27 +151,6 @@ fn emit_c_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512]
   ret false
 end
 
-fn emit_c_type_is_bool(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
-  if typ < 0
-    ret false
-  end
-  if ast[typ].kind != AN_TYPE()
-    ret false
-  end
-  if ast[typ].b != -1
-    ret false
-  end
-  let bool_name i8[16] = "bool"
-  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, bool_name, 4)
-    ret true
-  end
-  let boolean_name i8[16] = "boolean"
-  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, boolean_name, 7)
-    ret true
-  end
-  ret false
-end
-
 fn emit_c_type_is_struct_value(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
   if typ < 0
     ret false
@@ -932,7 +911,7 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
   if emit_c_type_is_byte_array(source, tokens, ast, ast[param].b)
     p = emit_c_append_text(out, p, out_cap, byte_ptr_text, 13)
   else
-    if emit_c_type_is_i32(source, tokens, ast, ast[param].b) or emit_c_type_is_bool(source, tokens, ast, ast[param].b)
+    if emit_c_type_is_i32(source, tokens, ast, ast[param].b)
       p = emit_c_append_text(out, p, out_cap, int_text, 4)
     else
       if emit_c_type_is_bool(source, tokens, ast, ast[param].b)
