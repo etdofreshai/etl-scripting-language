@@ -832,6 +832,7 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
     ret -1
   end
   let int_text i8[64] = "int "
+  let byte_ptr_text i8[64] = "signed char *"
   let comma i8[64] = ", "
   if ast[list].b >= 0
     p = emit_c_append_text(out, p, out_cap, comma, 2)
@@ -839,15 +840,19 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
       ret -1
     end
   end
-  p = emit_c_append_text(out, p, out_cap, int_text, 4)
-  if p < 0
-    ret -1
-  end
   let param i32 = ast[list].a
   if ast[param].kind != AN_PARAM()
     ret -1
   end
-  if emit_c_type_is_i32(source, tokens, ast, ast[param].b) == false
+  if emit_c_type_is_byte_array(source, tokens, ast, ast[param].b)
+    p = emit_c_append_text(out, p, out_cap, byte_ptr_text, 13)
+  else
+    if emit_c_type_is_i32(source, tokens, ast, ast[param].b) == false
+      ret -1
+    end
+    p = emit_c_append_text(out, p, out_cap, int_text, 4)
+  end
+  if p < 0
     ret -1
   end
   ret emit_c_append_token_text(source, tokens, ast[param].a, out, p, out_cap)

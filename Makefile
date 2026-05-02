@@ -34,6 +34,7 @@ smoke:
 	scripts/c1_source_to_c_array_smoke.sh
 	scripts/c1_source_to_c_array_var_index_smoke.sh
 	scripts/c1_source_to_c_byte_array_assign_smoke.sh
+	scripts/c1_source_to_c_byte_array_param_smoke.sh
 	scripts/c1_source_to_c_byte_string_smoke.sh
 	scripts/c1_source_to_c_byte_string_var_index_smoke.sh
 	scripts/c1_source_to_c_byte_string_extern_smoke.sh
