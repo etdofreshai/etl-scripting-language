@@ -354,8 +354,8 @@ literals).
 > can emit `int8_t text[N]` declarations initialized from string literals and
 > constant-index reads (`text[0] + text[1] - text[2]`) for local `i8` arrays.
 > The fixtures below expand coverage to multi-read sum expressions and multiple
-> string-initialized locals coexisting — the multi-buffer coexistence test is
-> not yet covered.
+> string-initialized locals coexisting; the multi-buffer coexistence smoke now
+> covers the latter path.
 
 #### `string_local.etl`
 

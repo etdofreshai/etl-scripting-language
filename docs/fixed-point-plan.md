@@ -96,7 +96,7 @@ Specifically, c1 can emit:
 - Narrow local `i8[N]` byte array indexed assignment and readback with both
   constant-index (`values[0] = 10`) and variable-index (`values[i]`) reads —
   proven by `scripts/c1_source_to_c_byte_array_assign_smoke.sh` (bd10575).
-  Larger `i8` arrays and multi-buffer coexistence are not yet covered.
+  Larger `i8` arrays beyond the current focused fixtures are not yet covered.
 - Narrow local struct array field read/write with both constant-index
   (`items[0].value = 19`) and variable-index (`items[i].value = items[i].value + 3`)
   indexed field access — proven by `scripts/c1_source_to_c_struct_array_smoke.sh`
