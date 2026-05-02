@@ -5,15 +5,16 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (22 fixtures, all passing)
+## Current corpus (23 fixtures, all passing)
 
 The existing corpus exercises single-function and multi-function programs
 with `i32` locals, integer arithmetic, comparisons, logical operators,
 `if`/`elif`/`else`, `while`, assignment, `return`, recursive user-defined
 calls, user-defined calls with `i32` arguments, and local fixed `i32` array
-sum/loop indexing. See `scripts/c1_equiv_smoke.sh` for the full list.
+sum/loop indexing plus `i8` array indexing. See `scripts/c1_equiv_smoke.sh`
+for the full list.
 
-All 22 produce matching exit codes when compiled by c0 vs c1.
+All 23 produce matching exit codes when compiled by c0 vs c1.
 
 ## Fixed-point blocker coverage map
 
@@ -242,16 +243,22 @@ extends to 8-element arrays with loop-driven variable subscripts.
 
 ```etl
 fn main() i32
+  let seed i8[3] = "Hi"
   let buf i8[8]
-  buf[0] = 72
-  buf[1] = 105
+  buf[0] = seed[0]
+  buf[1] = seed[1]
   ret buf[0]
 end
 ```
 
 **Acceptance**: c0 exit 72, c1 exit 72. Proves `int8_t buf[8] = {0};`
-declarations and i8 array indexing. Narrow `i8` byte array indexed assignment
-works (bd10575); this fixture extends to 8-element `i8` arrays.
+declarations and i8 array indexing. The fixture assigns from another `i8`
+array because c0 rejects assigning uncast `i32` literals into `i8` array
+slots. Narrow `i8` byte array indexed assignment works (bd10575); this fixture
+extends to 8-element `i8` arrays.
+
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 72 via both c0 and c1).
 
 **Unlocks**: 5f-ARRAYS chunk. The narrow `i32` constant-index, variable-index,
 and `i8` byte array smokes cover a subset; larger arrays still require the full
@@ -445,8 +452,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 22 fixtures, including Tier 1 multi-function/`i32` params plus local i32 array sum/loop indexing | 22 + up to 10 later-tier fixtures |
-| `make selfhost` | c1 pipeline + 22-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 23 fixtures, including Tier 1 multi-function/`i32` params plus local i32/i8 array indexing | 23 + up to 9 later-tier fixtures |
+| `make selfhost` | c1 pipeline + 23-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
@@ -479,9 +486,9 @@ implemented.
 |---|---|---|
 | Existing pre-Tier-1 corpus | 16 | 16 |
 | Tier 1: Multi-function and parameters | 4 | 20 |
-| Tier 3: `local_array_sum` + `local_array_loop` (early) | 2 | 22 |
-| Tier 2: Typed locals | 3 | 25 |
-| Tier 3: Remaining i8 array indexing | 1 | 26 |
+| Tier 3: `local_array_sum` + `local_array_loop` + `local_i8_array` (early) | 3 | 23 |
+| Tier 2: Typed locals | 3 | 26 |
+| Tier 3: Remaining array indexing | 0 | 26 |
 | Tier 4: Structs and fields | 3 | 29 |
 | Tier 5: String literals | 2 | 31 |
 | Tier 6: Typed extern | 1 | 32 |
