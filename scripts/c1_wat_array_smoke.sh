@@ -209,6 +209,12 @@ run_array_case i8_array_param_helper_idx \
   96 \
   '(func $first (param $v0 i32) (result i32)' 'call $first' "i32.load8_s offset=0" "i32.load8_s offset=1" "i32.load8_s offset=2"
 
+# Local i8 array passed to a helper, written there through its byte-array parameter, then read back
+run_array_case i8_array_param_helper_write_idx \
+  "fn set_second(text i8[4]) i32 text[1] = 42 ret text[1] end fn main() i32 let text i8[4] = \"abc\" ret set_second(text) end" \
+  42 \
+  '(func $set_second (param $v0 i32) (result i32)' 'call $set_second' "i32.store8 offset=1" "i32.load8_s offset=1"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_array_smoke: FAIL - $fail failed, $pass passed" >&2
