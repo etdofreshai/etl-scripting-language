@@ -867,6 +867,28 @@ fn emit_wasm_param_list(source i8[256], tokens Token[128], ast AstNode[512], lis
   ret emit_wasm_append_text(out, p, out_cap, tail, 5)
 end
 
+fn emit_wasm_import_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_wasm_import_param_list(source, tokens, ast, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind != AN_PARAM()
+    ret -1
+  end
+  if emit_wasm_type_is_i32_scalar(source, tokens, ast, ast[param].b) == false
+    ret -1
+  end
+  let param_t i8[64] = " (param i32)"
+  ret emit_wasm_append_text(out, p, out_cap, param_t, 12)
+end
+
 fn emit_wasm_store_const_byte(out i8[1024], pos i32, out_cap i32, addr i32, value i32) i32
   let p i32 = pos
   let const_head i8[64] = "    i32.const "
@@ -1524,6 +1546,77 @@ fn emit_wasm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_c
   ret emit_wasm_append_text(out, p, out_cap, footer, 4)
 end
 
+fn emit_wasm_import(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+  if node < 0 or node >= ast_count
+    ret -1
+  end
+  if ast[node].kind != AN_EXTERN_FN()
+    ret -1
+  end
+  if ast[node].c < 0
+    ret -1
+  end
+  if emit_wasm_type_is_i32_scalar(source, tokens, ast, ast[node].c) == false
+    ret -1
+  end
+  let params i32 = ast[node].b
+  if params < 0 or params >= ast_count
+    ret -1
+  end
+  if ast[params].kind != AN_BLOCK()
+    ret -1
+  end
+  let p i32 = pos
+  let head i8[64] = "  (import \"env\" \""
+  p = emit_wasm_append_text(out, p, out_cap, head, 17)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let mid i8[64] = "\" (func $"
+  p = emit_wasm_append_text(out, p, out_cap, mid, 9)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_token_text(source, tokens, ast[node].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_import_param_list(source, tokens, ast, ast[params].a, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let tail i8[64] = " (result i32)))\n"
+  ret emit_wasm_append_text(out, p, out_cap, tail, 16)
+end
+
+fn emit_wasm_import_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_wasm_import_list(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let decl i32 = ast[list].a
+  if decl < 0 or decl >= ast_count
+    ret -1
+  end
+  if ast[decl].kind == AN_EXTERN_FN()
+    ret emit_wasm_import(source, tokens, ast, ast_count, decl, out, p, out_cap)
+  end
+  ret p
+end
+
 fn emit_wasm_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
@@ -1543,6 +1636,9 @@ fn emit_wasm_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_
     ret -1
   end
   if ast[decl].kind == AN_STRUCT()
+    ret p
+  end
+  if ast[decl].kind == AN_EXTERN_FN()
     ret p
   end
   if ast[decl].kind != AN_FN()
@@ -1572,6 +1668,10 @@ fn emit_wasm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_co
   let mem_decl i8[64] = "  (memory (export \"memory\") 1)\n"
   let mod_tail i8[64] = ")\n"
   let p i32 = emit_wasm_append_text(out, pos, out_cap, mod_head, 8)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_import_list(source, tokens, ast, ast_count, list, out, p, out_cap)
   if p < 0
     ret -1
   end
