@@ -91,7 +91,8 @@ Specifically, c1 can emit:
   (`int8_t text[4] = {'a','b','c',0};`, `text[0] + text[1] - text[2]`) — proven
   by `scripts/c1_source_to_c_byte_string_smoke.sh` (ed3d8de). Variable-index
   string reads are proven by `scripts/c1_source_to_c_byte_string_var_index_smoke.sh`.
-  Multiple string buffers coexisting are not yet covered.
+  Multiple local string buffers coexisting are proven by
+  `scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
 - Narrow local `i8[N]` byte array indexed assignment and readback with both
   constant-index (`values[0] = 10`) and variable-index (`values[i]`) reads —
   proven by `scripts/c1_source_to_c_byte_array_assign_smoke.sh` (bd10575).

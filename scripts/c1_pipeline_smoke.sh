@@ -51,6 +51,9 @@ scripts/c1_source_to_c_bool_param_smoke.sh
 echo "c1_pipeline: run byte-string source-to-C smoke"
 scripts/c1_source_to_c_byte_string_smoke.sh
 
+echo "c1_pipeline: run byte-string multi-buffer source-to-C smoke"
+scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh
+
 echo "c1_pipeline: run byte-string variable-index source-to-C smoke"
 scripts/c1_source_to_c_byte_string_var_index_smoke.sh
 
