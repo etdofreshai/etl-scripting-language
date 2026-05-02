@@ -1677,11 +1677,11 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
       ret -1
     end
     let base_off i32 = emit_asm_find_local_offset(source, tokens, ast, ast_count, locals, ast[array_node].a)
-    if base_off < 0
-      ret -1
-    end
     let elem_bytes i32 = 4
     let typ i32 = emit_asm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+    if base_off < 0
+      typ = emit_asm_find_value_type(source, tokens, ast, params, locals, ast[array_node].a)
+    end
     if emit_asm_type_is_byte_array(source, tokens, ast, typ)
       elem_bytes = 1
     end
@@ -1691,6 +1691,109 @@ fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
     end
     let p i32 = pos
     let mov_head i8[64] = "    mov %rax, "
+    if base_off < 0
+      if elem_bytes != 1
+        ret -1
+      end
+      let param_off i32 = emit_asm_find_param_offset(source, tokens, ast, params, ast[array_node].a)
+      if param_off < 0
+        ret -1
+      end
+      if ast[idx].kind == AN_INT()
+        p = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
+        if p < 0
+          ret -1
+        end
+        let mov_ptr i8[64] = "    mov "
+        p = emit_asm_append_text(out, p, out_cap, mov_ptr, 8)
+        if p < 0
+          ret -1
+        end
+        p = emit_asm_append_stack_offset(out, p, out_cap, param_off)
+        if p < 0
+          ret -1
+        end
+        let rcx_tail i8[64] = ", %rcx"
+        p = emit_asm_append_text(out, p, out_cap, rcx_tail, 6)
+        if p < 0
+          ret -1
+        end
+        p = emit_asm_nl(out, p, out_cap)
+        if p < 0
+          ret -1
+        end
+        let byte_mov_head i8[64] = "    mov %al, "
+        p = emit_asm_append_text(out, p, out_cap, byte_mov_head, 13)
+        if p < 0
+          ret -1
+        end
+        p = emit_asm_append_i32(out, p, out_cap, ast[idx].a)
+        if p < 0
+          ret -1
+        end
+        let cref i8[64] = "(%rcx)"
+        p = emit_asm_append_text(out, p, out_cap, cref, 6)
+        if p < 0
+          ret -1
+        end
+        ret emit_asm_nl(out, p, out_cap)
+      end
+      p = emit_asm_expr(source, tokens, ast, ast_count, idx, params, locals, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let push_t i8[64] = "    push %rax"
+      p = emit_asm_append_text(out, p, out_cap, push_t, 13)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let pop_t i8[64] = "    pop %rcx"
+      p = emit_asm_append_text(out, p, out_cap, pop_t, 12)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let mov_ptr2 i8[64] = "    mov "
+      p = emit_asm_append_text(out, p, out_cap, mov_ptr2, 8)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_append_stack_offset(out, p, out_cap, param_off)
+      if p < 0
+        ret -1
+      end
+      let rdx_tail i8[64] = ", %rdx"
+      p = emit_asm_append_text(out, p, out_cap, rdx_tail, 6)
+      if p < 0
+        ret -1
+      end
+      p = emit_asm_nl(out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let byte_mov_head2 i8[64] = "    mov %al, "
+      p = emit_asm_append_text(out, p, out_cap, byte_mov_head2, 13)
+      if p < 0
+        ret -1
+      end
+      let ref_t i8[64] = "(%rdx,%rcx,1)"
+      p = emit_asm_append_text(out, p, out_cap, ref_t, 13)
+      if p < 0
+        ret -1
+      end
+      ret emit_asm_nl(out, p, out_cap)
+    end
     if ast[idx].kind == AN_INT()
       p = emit_asm_expr(source, tokens, ast, ast_count, ast[node].b, params, locals, out, p, out_cap)
       if p < 0
