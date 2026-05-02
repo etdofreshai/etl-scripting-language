@@ -143,11 +143,11 @@ field store/load, multiple user-defined `i32`-parameter/`i32`-return
 helper functions with direct intra-module calls (`_start` exported as
 `main`), and source `extern fn` declarations with `i32`/`integer` params
 and `i32` return lowered to `(import "env" "name" (func $name ... (result i32)))`
-with `call $name`. Helper `byte[N]`/`i8[N]` array parameter indexed reads
-(passed as i32 base pointer, using `i32.load8_s`) are supported.
+with `call $name`. Helper `byte[N]`/`i8[N]` array parameter indexed reads/writes
+(passed as i32 base pointer, using `i32.load8_s`/`i32.store8`) are supported.
 No void-return extern import statements, runtime host
 execution, runtime strings, pointer decay, extern byte arrays,
-byte-array param writes, nested structs, non-i32 struct fields,
+nested structs, non-i32 struct fields,
 non-i32 function parameters or returns, byte/string/pointer params
 (as opposed to byte-array param reads), arrays/struct params/returns,
 varargs, imported memory, or broader ABI, bounds checks, or
@@ -161,7 +161,7 @@ local `i8[N]` string literal initialization with constant-index reads,
 local i32 struct field store/load, local fixed struct array indexed
 field store/load, i32-parameter/i32-return helper function calls
 within a single module, narrow i32 extern import/call emission,
-and narrow `byte[N]`/`i8[N]` array helper parameter indexed reads.
+and narrow `byte[N]`/`i8[N]` array helper parameter indexed reads/writes.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 
