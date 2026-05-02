@@ -383,13 +383,14 @@ end
 ```
 
 **Acceptance**: c0 exit 98 (ASCII 'b'), c1 exit 98. Proves multiple
-string-initialized locals coexist without buffer corruption. **Not yet covered**
-— the existing smoke tests only a single string-initialized local.
+string-initialized locals coexist without buffer corruption. Now covered by
+`scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
 
 **Unlocks**: 5f-STRINGS chunk. The narrow local byte string smoke covers a
 subset (single `i8[N]="..."` local with constant-index reads); multiple string
-locals, variable-index string reads, and extern parameter string buffers still
-require the full 5f-STRINGS emitter work.
+locals are now proven by the multi-buffer smoke; variable-index string reads are
+proven by the var-index smoke; extern parameter string buffers still require the
+full 5f-STRINGS emitter work.
 
 ---
 
