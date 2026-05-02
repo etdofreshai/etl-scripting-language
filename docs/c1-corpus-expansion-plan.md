@@ -263,9 +263,12 @@ These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 > has also landed (`scripts/c1_source_to_c_struct_array_smoke.sh`, commit 6c54423),
 > proving c1 can emit local struct arrays (`Item items[2]`) with both constant-index
 > and variable-index field read/write (`items[0].value`, `items[i].value`).
-> The fixtures below expand coverage to struct parameters passed across function
-> boundaries and combined struct + array access patterns with larger arrays —
-> struct params and non-integer field types are not yet covered.
+> Narrow by-value struct parameters are now also covered by
+> `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7), with sema restricted
+> to declared struct names by 6c3cf90. The fixtures below expand coverage to
+> repeated corpus-style struct parameter cases and combined struct + array access
+> patterns with larger arrays — struct returns and non-integer field types are
+> not yet covered.
 
 #### `struct_decl.etl`
 
@@ -309,8 +312,8 @@ end
 ```
 
 **Acceptance**: c0 exit 42, c1 exit 42. Proves struct parameters and
-field access across function boundaries. **Not yet covered** — the existing
-smoke only tests local struct fields within `main`.
+field access across function boundaries. The narrow smoke now covers this core
+mechanism; the fixture remains useful as corpus-scale regression coverage.
 
 #### `struct_array.etl`
 
@@ -335,8 +338,9 @@ Narrow struct array field read/write with constant and variable index works
 
 **Unlocks**: 5f-STRUCTS chunk. The narrow struct field and struct array smokes
 cover a subset (struct declarations + local i32 field read/write + local struct
-array indexed field access); struct parameters, non-integer field types, and
-larger struct arrays still require the full 5f-STRUCTS emitter work.
+array indexed field access + narrow by-value struct params); non-integer field
+types, struct returns, and larger struct arrays still require the full
+5f-STRUCTS emitter work.
 
 ---
 

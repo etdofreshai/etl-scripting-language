@@ -81,8 +81,8 @@ codes for consistent error handling.
 
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
-| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs and user-defined `i32` parameters. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, helper `byte[N]`/`i8[N]` array parameter indexed reads via saved base pointers and `movsbq`, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
+| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, and narrow by-value struct parameters. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, helper `byte[N]`/`i8[N]` array parameter indexed reads via saved base pointers and `movsbq`, helper `byte[N]`/`i8[N]` array parameter indexed writes via saved base pointers and `movb`, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -273,9 +273,12 @@ string literal initialization with constant-index reads proven by the same
 smoke script (141756a, merged e006f5f). Helper `byte[N]`/`i8[N]` array
 parameter indexed reads proven by the same smoke script (2f16e17, merged
 69e0a05): local byte arrays are passed with `lea`, helper params are saved
-base pointers, and reads use `movsbq`. Param indexed writes, extern byte
-arrays, runtime strings, pointer decay beyond this helper-call slice, structs,
-struct arrays, bounds checks, and dynamic arrays remain unsupported in ASM.
+base pointers, and reads use `movsbq`. Helper `byte[N]`/`i8[N]` array
+parameter indexed writes proven by the same smoke script (99c6493, merged
+8db6ae1): `set_second(text i8[4]) i32` writes 42 to `text[1]` and reads
+it back, native exit 42. Extern byte arrays, runtime strings, pointer
+decay beyond this helper-call slice, structs, struct arrays, bounds checks,
+and dynamic arrays remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 
@@ -370,11 +373,12 @@ proven by `scripts/c1_asm_extern_call_smoke.sh` (535c56c, merged b66e5e0).
 Smoke exercises `forty_one()`, `bump(x)`, and `add_i32(a,b)` returning native
 exit 42 via external C helpers. Helper `byte[N]`/`i8[N]` array parameter
 indexed reads are also proven by `scripts/c1_asm_array_smoke.sh` (2f16e17,
-merged 69e0a05). General parameter types (bool, struct, non-byte arrays),
-byte-array param writes, void-return extern declarations, varargs, indirect
-calls, ABI work for non-integer args, runtime strings, pointer decay, extern
-byte arrays, nested structs, non-i32 fields, bounds checks, and dynamic arrays
-remain unsupported in ASM.
+merged 69e0a05). Helper `byte[N]`/`i8[N]` array parameter indexed writes are
+proven by the same smoke script (99c6493, merged 8db6ae1). General parameter
+types (bool, struct, non-byte arrays), void-return extern declarations,
+varargs, indirect calls, ABI work for non-integer args, runtime strings,
+pointer decay, extern byte arrays, nested structs, non-i32 fields, bounds
+checks, and dynamic arrays remain unsupported in ASM.
 
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).
@@ -383,7 +387,7 @@ remain unsupported in ASM.
 - Depends on: Phase 5f and at least one non-C backend at Chunk *-2.
 
 ### Future chunks
-- ASM-4: function parameters and multi-function support — **narrow i32 helper-call slice done** (a30d3cd); **narrow i32 extern call slice done** (535c56c); **narrow byte/i8 array helper param read slice done** (2f16e17); general param types, byte-array param writes, void-return extern, and full ABI remain.
+- ASM-4: function parameters and multi-function support — **narrow i32 helper-call slice done** (a30d3cd); **narrow i32 extern call slice done** (535c56c); **narrow byte/i8 array helper param read slice done** (2f16e17); **narrow byte/i8 array helper param write slice done** (99c6493); general param types, void-return extern, and full ABI remain.
 - ASM-5: `elif` chains — **Done** (52804e9, merged 6e255dd).
 - WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); **narrow byte/i8 array helper param read slice done** (df35de9); **narrow byte/i8 array helper param write slice done** (a67d121); general param types, void-return extern imports, runtime host execution, and full ABI remain.
 - WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).

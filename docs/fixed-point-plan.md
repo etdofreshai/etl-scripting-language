@@ -98,8 +98,13 @@ Specifically, c1 can emit:
 - Narrow local struct array field read/write with both constant-index
   (`items[0].value = 19`) and variable-index (`items[i].value = items[i].value + 3`)
   indexed field access — proven by `scripts/c1_source_to_c_struct_array_smoke.sh`
-  (6c54423). Struct arrays with non-integer fields, struct params/returns, and
-  nested struct-in-struct are not yet covered.
+  (6c54423). Struct arrays with non-integer fields and nested struct-in-struct
+  are not yet covered.
+- Narrow by-value struct parameters for user-defined C functions — proven by
+  `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7). The follow-up sema
+  guard (6c3cf90) keeps this path restricted to declared struct names, so scalar
+  `bool`/`i8` parameters are still not accepted by pretending they are structs.
+  Struct returns and extern struct parameters are not yet covered.
 - Narrow fixed byte/i8 array extern parameters emitted as `signed char *`
   in extern function declarations — proven by
   `scripts/c1_source_to_c_byte_string_extern_smoke.sh` (8d72ca2). Local byte
@@ -118,11 +123,11 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Gap | Why it blocks self-compilation | Notes |
 |---|---|---|
 | Multi-function emission | Basic named function emission works, but only for the current narrow function subset | c1 source has ~60+ named functions; broader type coverage is still needed across those functions |
-| Function parameters | `i32` and narrow byte/i8 array user-defined parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
+| Function parameters | `i32`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
 | Typed locals (not just int) | c1 type mapping is still partial; scalar `bool`/`i8` and composed typed locals are not fully covered | Token/AstNode structs, i8 arrays, bool locals |
 | Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
-| Struct declarations | c1 emits narrow local i32-only structs, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); struct params, non-i32 fields, and arrays in struct fields do not |
-| Struct field access | c1 emits local `.field` and local struct-array field access, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); cross-function struct params and returns do not |
+| Struct declarations | c1 emits narrow local i32-only structs and by-value struct parameters, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); narrow by-value struct params work (ec342d7); non-i32 fields and arrays in struct fields do not |
+| Struct field access | c1 emits local `.field`, local struct-array field access, and field access through by-value struct params, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); struct parameter field access works for the narrow C path (ec342d7); struct returns do not |
 | Index expressions | c1 emits narrow `arr[i]` patterns, but not all array element types and contexts | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); narrow `i8` array indexing works; struct-array field indexing works; larger and parameter-backed indexing remain incomplete |
 | String literal data | c1 cannot yet cover all c1-scale string/buffer patterns | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads work; multiple string buffers do not |
 | Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); non-byte-array extern param types do not |
