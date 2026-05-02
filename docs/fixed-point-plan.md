@@ -31,9 +31,9 @@ compiler-0 can be frozen.
 
 ## Current c1 capabilities
 
-The c1 compiler pipeline is functional for the current 22-fixture corpus,
+The c1 compiler pipeline is functional for the current 23-fixture corpus,
 including multi-function programs, recursive user-defined calls, local fixed
-i32 array sum/loop indexing, and `i32` function parameters. The `make
+i32 array sum/loop indexing, local i8 array indexing, and `i32` function parameters. The `make
 selfhost` gate proves:
 
 | Stage | File | What it does |
@@ -43,7 +43,7 @@ selfhost` gate proves:
 | Sema | `compiler1/sema.etl` | Validates types, extern call signatures, returns |
 | Emit C | `compiler1/emit_c.etl` | Produces C source text from AST |
 
-The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 22 corpus fixtures
+The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 23 corpus fixtures
 via both c0 and c1, then verifies matching exit codes. The c1 source-to-C
 smoke (`scripts/c1_source_to_c_smoke.sh`) proves end-to-end ETL-in to C-out.
 
@@ -185,7 +185,7 @@ for each fixture in tests/c1_corpus/:
   verify: exit code matches c0-compiled version
 ```
 
-This partially works today (22 fixtures pass via `make selfhost-equiv`). The
+This partially works today (23 fixtures pass via `make selfhost-equiv`). The
 5f milestone extends this to a broader corpus that exercises the full v0
 feature set including structs, arrays, strings, and multi-function programs.
 
@@ -222,7 +222,7 @@ Fixed point requires:
 
 | Gate | Command | What it proves |
 |---|---|---|
-| Existing equiv | `make selfhost-equiv` | 22 corpus fixtures: c0 and c1 produce same exit code |
+| Existing equiv | `make selfhost-equiv` | 23 corpus fixtures: c0 and c1 produce same exit code |
 | Expanded corpus | New equiv with structs/arrays/strings | c1 handles full v0 feature set |
 | C text diff | `diff <(c0_emit fixture.etl) <(c1_emit fixture.etl)` | Normalized C text equivalence (per ROADMAP standing decision) |
 | Self-compile attempt | `c1 < compiler1_all.etl > c1_self.c` | c1 can process its own source without crashing |
@@ -336,7 +336,7 @@ arbitrary names instead of hardcoding `main`. This is a compiler change, but
 it must not break existing c1 equiv results.
 
 - `emit_c_function` reads the function name token and emits it.
-- All existing 22 corpus fixtures continue to pass.
+- All existing 23 corpus fixtures continue to pass.
 - Tier 1 multi-function fixtures remain green.
 
 **Status**: Basic `i32` multi-function emission landed in 6ab989e.
@@ -350,7 +350,7 @@ for self-compilation.
 parameters. Remove the `ast[params].b != 0` guard.
 
 - Parameters are emitted with their C types (`int32_t`, `int8_t`, etc.).
-- All existing 22 corpus fixtures continue to pass.
+- All existing 23 corpus fixtures continue to pass.
 - Tier 1 parameter fixtures remain green.
 
 **Status**: Basic user-defined `i32` parameter emission landed in 6ab989e.
