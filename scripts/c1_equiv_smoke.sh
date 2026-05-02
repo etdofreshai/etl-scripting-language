@@ -32,6 +32,9 @@ fixtures=(
   local_array_sum.etl
   local_array_loop.etl
   local_i8_array.etl
+  struct_decl.etl
+  field_access_fn.etl
+  struct_array.etl
 )
 
 declare -A expected_exits=(
@@ -39,6 +42,9 @@ declare -A expected_exits=(
   [local_bool_expr.etl]=99
   [local_i8.etl]=65
   [local_i8_array.etl]=72
+  [struct_decl.etl]=7
+  [field_access_fn.etl]=42
+  [struct_array.etl]=200
 )
 
 pass=0

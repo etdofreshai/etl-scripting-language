@@ -1,0 +1,1 @@
+type Item structure value i32 end fn main() i32 let items Item[3] items[0].value = 100 items[1].value = 200 items[2].value = 300 ret items[1].value end

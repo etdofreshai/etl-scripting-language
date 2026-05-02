@@ -1,0 +1,1 @@
+type Point structure x i32 y i32 end fn main() i32 let p Point p.x = 3 p.y = 4 ret p.x + p.y end
