@@ -79,6 +79,7 @@ backend-wasm:
 	scripts/c1_wat_return_smoke.sh
 	scripts/c1_wat_function_call_smoke.sh
 	scripts/c1_wat_extern_import_smoke.sh
+	scripts/c1_wat_extern_call_smoke.sh
 	scripts/c1_wat_array_smoke.sh
 	scripts/c1_wat_struct_field_smoke.sh
 	scripts/c1_wat_struct_array_smoke.sh
