@@ -126,6 +126,23 @@ fn emit_wasm_find_param(source i8[256], tokens Token[128], ast AstNode[512], lis
   ret -1
 end
 
+fn emit_wasm_find_param_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+  if list < 0
+    ret -1
+  end
+  let prior i32 = emit_wasm_find_param_type(source, tokens, ast, ast[list].b, name_token)
+  if prior >= 0
+    ret prior
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind == AN_PARAM()
+    if emit_wasm_same_name(source, tokens, ast[param].a, name_token)
+      ret ast[param].b
+    end
+  end
+  ret -1
+end
+
 fn emit_wasm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
   if list < 0
     ret -1
@@ -414,6 +431,14 @@ fn emit_wasm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512]
   ret -1
 end
 
+fn emit_wasm_find_value_type(source i8[256], tokens Token[128], ast AstNode[512], params i32, locals i32, name_token i32) i32
+  let param_type i32 = emit_wasm_find_param_type(source, tokens, ast, params, name_token)
+  if param_type >= 0
+    ret param_type
+  end
+  ret emit_wasm_find_local_type(source, tokens, ast, locals, name_token)
+end
+
 fn emit_wasm_count_prior_array_bytes(source i8[256], tokens Token[128], ast AstNode[512], list i32) i32
   if list < 0
     ret 0
@@ -657,7 +682,7 @@ fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count
     let array_node i32 = ast[node].a
     if array_node >= 0 and array_node < ast_count
       if ast[array_node].kind == AN_NAME()
-        let typ i32 = emit_wasm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+        let typ i32 = emit_wasm_find_value_type(source, tokens, ast, params, locals, ast[array_node].a)
         if emit_wasm_type_is_byte_array(source, tokens, ast, typ)
           elem_bytes = 1
         end
@@ -1198,7 +1223,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
     let array_node i32 = ast[idx_node].a
     if array_node >= 0 and array_node < ast_count
       if ast[array_node].kind == AN_NAME()
-        let typ i32 = emit_wasm_find_local_type(source, tokens, ast, locals, ast[array_node].a)
+        let typ i32 = emit_wasm_find_value_type(source, tokens, ast, params, locals, ast[array_node].a)
         if emit_wasm_type_is_byte_array(source, tokens, ast, typ)
           elem_bytes = 1
         end

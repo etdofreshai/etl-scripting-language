@@ -203,6 +203,12 @@ run_array_case i8_array_string_literal_idx \
   96 \
   "i32.store8 align=1" "i32.const 97" "i32.const 98" "i32.const 99" "i32.load8_s offset=0" "i32.load8_s offset=1" "i32.load8_s offset=2"
 
+# Local i8 array passed to a helper and read there through its byte-array parameter
+run_array_case i8_array_param_helper_idx \
+  "fn first(text i8[4]) i32 ret text[0] + text[1] - text[2] end fn main() i32 let text i8[4] = \"abc\" ret first(text) end" \
+  96 \
+  '(func $first (param $v0 i32) (result i32)' 'call $first' "i32.load8_s offset=0" "i32.load8_s offset=1" "i32.load8_s offset=2"
+
 # Summary
 if [ "$fail" -gt 0 ]; then
   echo "c1_wat_array_smoke: FAIL - $fail failed, $pass passed" >&2
