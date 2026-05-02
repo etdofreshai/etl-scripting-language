@@ -2092,6 +2092,9 @@ fn emit_asm_decls(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   if ast[decl].kind == AN_STRUCT()
     ret p
   end
+  if ast[decl].kind == AN_EXTERN_FN()
+    ret p
+  end
   if ast[decl].kind != AN_FN()
     ret -1
   end
