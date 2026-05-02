@@ -1,0 +1,7 @@
+fn main() i32
+  let seed i8[3] = "Hi"
+  let buf i8[8]
+  buf[0] = seed[0]
+  buf[1] = seed[1]
+  ret buf[0]
+end

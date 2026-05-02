@@ -28,6 +28,11 @@ fixtures=(
   fn_recursive.etl
   local_array_sum.etl
   local_array_loop.etl
+  local_i8_array.etl
+)
+
+declare -A expected_exits=(
+  [local_i8_array.etl]=72
 )
 
 pass=0
@@ -44,7 +49,7 @@ build_c1_harness() {
   local source_text
   local source_len
   source_text="$(escape_for_etl_string "$src_file")"
-  source_len="$(printf "%s" "$source_text" | wc -c)"
+  source_len="$(tr -d '\n' < "$src_file" | wc -c)"
 
   sed '/^fn main()/,$d' compiler1/main.etl > "$harness"
   cat compiler1/lex.etl >> "$harness"
@@ -123,7 +128,13 @@ for fixture in "${fixtures[@]}"; do
 
   c0_status="$(run_program "$c0_exe")"
   c1_status="$(run_program "$c1_exe")"
-  if [ "$c0_status" = "$c1_status" ]; then
+  if [ -n "${expected_exits[$fixture]+x}" ] && [ "$c0_status" != "${expected_exits[$fixture]}" ]; then
+    echo "c1_equiv_smoke: FAIL $fixture c0=$c0_status expected=${expected_exits[$fixture]}" >&2
+    fail=$((fail + 1))
+  elif [ -n "${expected_exits[$fixture]+x}" ] && [ "$c1_status" != "${expected_exits[$fixture]}" ]; then
+    echo "c1_equiv_smoke: FAIL $fixture c1=$c1_status expected=${expected_exits[$fixture]}" >&2
+    fail=$((fail + 1))
+  elif [ "$c0_status" = "$c1_status" ]; then
     echo "c1_equiv_smoke: PASS $fixture (exit $c0_status)"
     pass=$((pass + 1))
   else
