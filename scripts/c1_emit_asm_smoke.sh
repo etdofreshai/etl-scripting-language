@@ -80,5 +80,9 @@ run_case "elif_true" "fn main() i32 let x i32 = 0 if false x = 1 elif true x = 7
 run_case "elif_else" "fn main() i32 let x i32 = 0 if false x = 1 elif false x = 7 else x = 9 end ret x end" 9
 run_case "elif_order" "fn main() i32 let x i32 = 0 if false x = 1 elif true x = 7 elif true x = 9 else x = 11 end ret x end" 7
 run_case "i32_call" "fn add(a i32, b integer) i32 ret a + b end fn main() i32 ret add(40, 2) end" 42
+run_case "bool_param" "fn choose(flag bool) i32 if flag ret 42 end ret 7 end fn main() i32 ret choose(true) end" 42
+run_case "boolean_param" "fn choose(flag boolean) i32 if flag ret 42 end ret 7 end fn main() i32 ret choose(false) end" 7
+run_case "i8_param" "fn plus_one(ch i8) i32 ret ch + 1 end fn main() i32 ret plus_one(41) end" 42
+run_case "byte_param" "fn plus_one(ch byte) i32 ret ch + 1 end fn main() i32 ret plus_one(41) end" 42
 
-echo "c1_emit_asm_smoke: ok (arithmetic, if/elif/else chains, and i32 helper calls -> x86-64 asm)"
+echo "c1_emit_asm_smoke: ok (arithmetic, if/elif/else chains, i32 helper calls, and scalar helper params -> x86-64 asm)"

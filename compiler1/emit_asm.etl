@@ -207,6 +207,88 @@ fn emit_asm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[51
   ret false
 end
 
+fn emit_asm_type_is_bool_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let tok i32 = ast[typ].a
+  if tok < 0
+    ret false
+  end
+  if tokens[tok].len == 4
+    let bool_text i8[64] = "bool"
+    let s i32 = tokens[tok].start
+    if source[s] == bool_text[0] and source[s + 1] == bool_text[1] and source[s + 2] == bool_text[2] and source[s + 3] == bool_text[3]
+      ret true
+    end
+  end
+  if tokens[tok].len == 7
+    let boolean_text i8[64] = "boolean"
+    let s2 i32 = tokens[tok].start
+    let i i32 = 0
+    while i < 7
+      if source[s2 + i] != boolean_text[i]
+        ret false
+      end
+      i = i + 1
+    end
+    ret true
+  end
+  ret false
+end
+
+fn emit_asm_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let tok i32 = ast[typ].a
+  if tok < 0
+    ret false
+  end
+  if tokens[tok].len == 2
+    let i8_text i8[64] = "i8"
+    let s i32 = tokens[tok].start
+    if source[s] == i8_text[0] and source[s + 1] == i8_text[1]
+      ret true
+    end
+  end
+  if tokens[tok].len == 4
+    let byte_text i8[64] = "byte"
+    let s2 i32 = tokens[tok].start
+    let i i32 = 0
+    while i < 4
+      if source[s2 + i] != byte_text[i]
+        ret false
+      end
+      i = i + 1
+    end
+    ret true
+  end
+  ret false
+end
+
+fn emit_asm_type_is_scalar_param(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if emit_asm_type_is_i32_scalar(source, tokens, ast, typ)
+    ret true
+  end
+  if emit_asm_type_is_bool_scalar(source, tokens, ast, typ)
+    ret true
+  end
+  ret emit_asm_type_is_i8_scalar(source, tokens, ast, typ)
+end
+
 fn emit_asm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, name_token i32) i32
   let i i32 = 0
   while i < ast_count
@@ -244,6 +326,45 @@ fn emit_asm_type_struct_array_decl(source i8[256], tokens Token[128], ast AstNod
     ret -1
   end
   ret emit_asm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
+end
+
+fn emit_asm_check_param_types(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32) i32
+  if list < 0
+    ret 0
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  if emit_asm_check_param_types(source, tokens, ast, ast_count, ast[list].b) < 0
+    ret -1
+  end
+  let param i32 = ast[list].a
+  if param < 0 or param >= ast_count
+    ret -1
+  end
+  if ast[param].kind != AN_PARAM()
+    ret -1
+  end
+  let typ i32 = ast[param].b
+  if emit_asm_type_is_scalar_param(source, tokens, ast, typ)
+    ret 0
+  end
+  if emit_asm_type_is_i32_array(source, tokens, ast, typ)
+    ret 0
+  end
+  if emit_asm_type_is_byte_array(source, tokens, ast, typ)
+    ret 0
+  end
+  if emit_asm_type_struct_decl(source, tokens, ast, ast_count, typ) >= 0
+    ret 0
+  end
+  if emit_asm_type_struct_array_decl(source, tokens, ast, ast_count, typ) >= 0
+    ret 0
+  end
+  ret -1
 end
 
 fn emit_asm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32) i32
@@ -1483,7 +1604,25 @@ fn emit_asm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   if ast[node].kind != AN_RET()
     ret -1
   end
-  ret emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
+  let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let leave_t i8[64] = "    leave"
+  p = emit_asm_append_text(out, p, out_cap, leave_t, 9)
+  if p < 0
+    ret -1
+  end
+  p = emit_asm_nl(out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let ret_t i8[64] = "    ret"
+  p = emit_asm_append_text(out, p, out_cap, ret_t, 7)
+  if p < 0
+    ret -1
+  end
+  ret emit_asm_nl(out, p, out_cap)
 end
 
 fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
@@ -2150,6 +2289,9 @@ fn emit_asm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_co
   end
   let param_list i32 = ast[params].a
   if emit_asm_count_params(ast, param_list) > 6
+    ret -1
+  end
+  if emit_asm_check_param_types(source, tokens, ast, ast_count, param_list) < 0
     ret -1
   end
   let body i32 = ast[node].c
