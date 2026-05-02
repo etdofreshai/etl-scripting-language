@@ -186,8 +186,11 @@ expressions).
 > A narrow `i8` byte array indexed assignment smoke has also landed
 > (`scripts/c1_source_to_c_byte_array_assign_smoke.sh`, commit bd10575), proving
 > c1 can emit `int8_t values[N] = {0}` declarations with both constant-index and
-> variable-index assignment/readback for `i8` arrays. The fixtures below expand
-> coverage to larger arrays — which is not yet covered.
+> variable-index assignment/readback for `i8` arrays. A narrow user-defined
+> byte-array parameter smoke has also landed
+> (`scripts/c1_source_to_c_byte_array_param_smoke.sh`), proving local byte/i8
+> array buffers can be passed to a user-defined helper and indexed there. The
+> fixtures below expand coverage to larger arrays — which is not yet covered.
 
 #### `local_array_sum.etl`
 
@@ -394,8 +397,10 @@ These require the extern parameter type emission part of 5f-TYPES.
 > landed (`scripts/c1_source_to_c_byte_string_extern_smoke.sh`, commit 8d72ca2).
 > It proves c1 can emit `signed char *` for fixed byte/i8 array extern parameters,
 > allowing local byte string buffers to be passed to an extern C helper. The
-> fixture below expands coverage to user-defined byte-array parameters and
-> non-byte-array extern param types — those are not yet covered.
+> user-defined byte-array parameters are now covered by
+> `scripts/c1_source_to_c_byte_array_param_smoke.sh`; the fixture below expands
+> coverage to c1-scale extern typed parameters and non-byte-array extern param
+> types — those are not yet covered.
 
 #### `extern_typed_write.etl`
 

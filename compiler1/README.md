@@ -12,7 +12,7 @@ stage harnesses and prove a small source-to-C path.
 | `lex.etl`    | Lexer module for the compiler-1 subset.          |
 | `parse.etl`  | Parser module for the compiler-1 subset.         |
 | `sema.etl`   | Semantic analysis module for compiler-1 AST validation. |
-| `emit_c.etl` | C emitter for `function main() integer return <integer arithmetic expression> end`. |
+| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, local arrays/structs, byte strings, extern byte buffers, and narrow user-defined byte-array params. |
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
 | `emit_asm.etl` | ASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
 | `emit_wasm.etl` | WASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
@@ -42,7 +42,7 @@ The choice will be made when it's needed.
 make selfhost
 ```
 
-This runs `scripts/c1_pipeline_smoke.sh` and `scripts/c1_smoke.sh`. The
-pipeline smoke lexes, parses, sema-checks, emits C for a small arithmetic
-`main`, writes that C through the runtime bridge, compiles it with `cc`, and
-asserts the emitted native program returns the expected value.
+This runs `scripts/c1_pipeline_smoke.sh`, `scripts/c1_equiv_smoke.sh`, and
+`scripts/c1_smoke.sh`. The broader `make check` smoke set includes focused
+source-to-C probes for arrays, structs, byte strings, extern byte buffers, and
+user-defined byte-array parameters.
