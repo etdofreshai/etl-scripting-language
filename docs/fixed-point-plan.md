@@ -31,10 +31,10 @@ compiler-0 can be frozen.
 
 ## Current c1 capabilities
 
-The c1 compiler pipeline is functional for the current 23-fixture corpus,
-including multi-function programs, recursive user-defined calls, local fixed
-i32 array sum/loop indexing, local i8 array indexing, and `i32` function parameters. The `make
-selfhost` gate proves:
+The c1 compiler pipeline is functional for the current 26-fixture corpus,
+including multi-function programs, recursive user-defined calls, Tier 2 typed
+bool/i8 locals, local fixed i32 array sum/loop indexing, local i8 array
+indexing, and `i32` function parameters. The `make selfhost` gate proves:
 
 | Stage | File | What it does |
 |---|---|---|
@@ -43,7 +43,7 @@ selfhost` gate proves:
 | Sema | `compiler1/sema.etl` | Validates types, extern call signatures, returns |
 | Emit C | `compiler1/emit_c.etl` | Produces C source text from AST |
 
-The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 23 corpus fixtures
+The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 26 corpus fixtures
 via both c0 and c1, then verifies matching exit codes. The c1 source-to-C
 smoke (`scripts/c1_source_to_c_smoke.sh`) proves end-to-end ETL-in to C-out.
 
@@ -185,7 +185,7 @@ for each fixture in tests/c1_corpus/:
   verify: exit code matches c0-compiled version
 ```
 
-This partially works today (23 fixtures pass via `make selfhost-equiv`). The
+This partially works today (26 fixtures pass via `make selfhost-equiv`). The
 5f milestone extends this to a broader corpus that exercises the full v0
 feature set including structs, arrays, strings, and multi-function programs.
 
@@ -222,7 +222,7 @@ Fixed point requires:
 
 | Gate | Command | What it proves |
 |---|---|---|
-| Existing equiv | `make selfhost-equiv` | 23 corpus fixtures: c0 and c1 produce same exit code |
+| Existing equiv | `make selfhost-equiv` | 26 corpus fixtures: c0 and c1 produce same exit code |
 | Expanded corpus | New equiv with structs/arrays/strings | c1 handles full v0 feature set |
 | C text diff | `diff <(c0_emit fixture.etl) <(c1_emit fixture.etl)` | Normalized C text equivalence (per ROADMAP standing decision) |
 | Self-compile attempt | `c1 < compiler1_all.etl > c1_self.c` | c1 can process its own source without crashing |
@@ -321,10 +321,10 @@ acceptance criteria, tier ordering, and blocker mapping. Summary:
 - Tier 5 (2 fixtures): string-initialized `i8[]` locals
 - Tier 6 (1 fixture): typed extern function parameters
 
-Each fixture has an expected exit code. Tier 1 plus the early `local_array_sum`,
-`local_array_loop`, and `local_i8_array` Tier 3 fixtures are now included in
-the default c1 equiv gate and pass; later tiers should be added to the smoke
-array as their matching emitter support lands.
+Each fixture has an expected exit code. Tier 1, Tier 2 typed locals, plus the
+early `local_array_sum`, `local_array_loop`, and `local_i8_array` Tier 3
+fixtures are now included in the default c1 equiv gate and pass; later tiers
+should be added to the smoke array as their matching emitter support lands.
 
 **Prerequisite**: None (documentation/test-only).
 **Estimated waves**: 1–2.
@@ -336,7 +336,7 @@ arbitrary names instead of hardcoding `main`. This is a compiler change, but
 it must not break existing c1 equiv results.
 
 - `emit_c_function` reads the function name token and emits it.
-- All existing 23 corpus fixtures continue to pass.
+- All existing 26 corpus fixtures continue to pass.
 - Tier 1 multi-function fixtures remain green.
 
 **Status**: Basic `i32` multi-function emission landed in 6ab989e.
@@ -350,7 +350,7 @@ for self-compilation.
 parameters. Remove the `ast[params].b != 0` guard.
 
 - Parameters are emitted with their C types (`int32_t`, `int8_t`, etc.).
-- All existing 23 corpus fixtures continue to pass.
+- All existing 26 corpus fixtures continue to pass.
 - Tier 1 parameter fixtures remain green.
 
 **Status**: Basic user-defined `i32` parameter emission landed in 6ab989e.
@@ -365,7 +365,7 @@ for self-compilation.
 - `emit_c_let` maps ETL types to C types: `i32` → `int32_t`, `i8` → `int8_t`,
   `bool` → `bool`, `ptr` → `int8_t*`.
 - `emit_c_extern_param_list` uses actual parameter types instead of `int`.
-- `local_bool.etl` and typed-extern fixtures now pass.
+- `local_bool.etl`, `local_bool_expr.etl`, and `local_i8.etl` now pass.
 
 **Prerequisite**: 5f-PARAMS.
 **Estimated waves**: 2–3.
