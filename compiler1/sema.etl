@@ -99,6 +99,38 @@ fn sema_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], 
   ret false
 end
 
+fn sema_type_is_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], typ i32, program i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  if program < 0
+    ret false
+  end
+  if ast[program].kind != AN_PROGRAM()
+    ret false
+  end
+  let item i32 = ast[program].a
+  while item >= 0
+    if ast[item].kind != AN_LIST()
+      ret false
+    end
+    let decl i32 = ast[item].a
+    if ast[decl].kind == AN_STRUCT()
+      if sema_same_name(source, tokens, ast[decl].a, ast[typ].a)
+        ret true
+      end
+    end
+    item = ast[item].b
+  end
+  ret false
+end
+
 fn sema_find_extern(source i8[256], tokens Token[128], extern_names i32[64], extern_count i32, name i32) i32
   let i i32 = 0
   while i < extern_count
@@ -134,7 +166,7 @@ fn sema_add_params_to_scope(source i8[256], tokens Token[128], ast AstNode[512],
   ret SEMA_OK()
 end
 
-fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
+fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], params i32, program i32) i32
   if params < 0
     ret -1
   end
@@ -153,10 +185,7 @@ fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], pa
     end
     if sema_type_is_i32(source, tokens, ast, ast[param].b) == false
       if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
-        if ast[ast[param].b].kind != AN_TYPE()
-          ret -1
-        end
-        if ast[ast[param].b].b != -1
+        if sema_type_is_struct_decl(source, tokens, ast, ast[param].b, program) == false
           ret -1
         end
       end
@@ -647,7 +676,7 @@ fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], pro
       if count >= 64
         ret sema_report(SE_BAD_AST(), ast[decl].token)
       end
-      let argc i32 = sema_count_i32_params(source, tokens, ast, ast[decl].b)
+      let argc i32 = sema_count_i32_params(source, tokens, ast, ast[decl].b, program)
       if ast[decl].kind == AN_EXTERN_FN()
         argc = sema_count_extern_params(source, tokens, ast, ast[decl].b)
       end
