@@ -62,7 +62,7 @@ fn emit_asm_nl(out i8[1024], pos i32, out_cap i32) i32
   ret emit_asm_append_text(out, pos, out_cap, nl, 1)
 end
 
-fn emit_asm_append_token_text(source i8[256], tokens Token[128], token i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_append_token_text(source i8[131072], tokens Token[32768], token i32, out i8[1024], pos i32, out_cap i32) i32
   if token < 0
     ret -1
   end
@@ -78,7 +78,7 @@ fn emit_asm_append_token_text(source i8[256], tokens Token[128], token i32, out 
   ret p
 end
 
-fn emit_asm_count_prior_lets(ast AstNode[512], list i32) i32
+fn emit_asm_count_prior_lets(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
@@ -90,21 +90,21 @@ fn emit_asm_count_prior_lets(ast AstNode[512], list i32) i32
   ret count
 end
 
-fn emit_asm_count_prior_params(ast AstNode[512], list i32) i32
+fn emit_asm_count_prior_params(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
   ret emit_asm_count_prior_params(ast, ast[list].b) + 1
 end
 
-fn emit_asm_count_params(ast AstNode[512], list i32) i32
+fn emit_asm_count_params(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
   ret emit_asm_count_params(ast, ast[list].b) + 1
 end
 
-fn emit_asm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_i32_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -133,7 +133,7 @@ fn emit_asm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[512
   ret true
 end
 
-fn emit_asm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_byte_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -171,7 +171,7 @@ fn emit_asm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[51
   ret false
 end
 
-fn emit_asm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_i32_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -207,7 +207,7 @@ fn emit_asm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[51
   ret false
 end
 
-fn emit_asm_type_is_bool_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_bool_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -243,7 +243,7 @@ fn emit_asm_type_is_bool_scalar(source i8[256], tokens Token[128], ast AstNode[5
   ret false
 end
 
-fn emit_asm_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_i8_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -279,7 +279,7 @@ fn emit_asm_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512
   ret false
 end
 
-fn emit_asm_type_is_scalar_param(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_asm_type_is_scalar_param(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if emit_asm_type_is_i32_scalar(source, tokens, ast, typ)
     ret true
   end
@@ -289,7 +289,7 @@ fn emit_asm_type_is_scalar_param(source i8[256], tokens Token[128], ast AstNode[
   ret emit_asm_type_is_i8_scalar(source, tokens, ast, typ)
 end
 
-fn emit_asm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, name_token i32) i32
+fn emit_asm_find_struct_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, name_token i32) i32
   let i i32 = 0
   while i < ast_count
     if ast[i].kind == AN_STRUCT()
@@ -302,7 +302,7 @@ fn emit_asm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512]
   ret -1
 end
 
-fn emit_asm_type_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, typ i32) i32
+fn emit_asm_type_struct_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, typ i32) i32
   if typ < 0 or typ >= ast_count
     ret -1
   end
@@ -315,7 +315,7 @@ fn emit_asm_type_struct_decl(source i8[256], tokens Token[128], ast AstNode[512]
   ret emit_asm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
 end
 
-fn emit_asm_type_struct_array_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, typ i32) i32
+fn emit_asm_type_struct_array_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, typ i32) i32
   if typ < 0 or typ >= ast_count
     ret -1
   end
@@ -328,7 +328,7 @@ fn emit_asm_type_struct_array_decl(source i8[256], tokens Token[128], ast AstNod
   ret emit_asm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
 end
 
-fn emit_asm_check_param_types(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32) i32
+fn emit_asm_check_param_types(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32) i32
   if list < 0
     ret 0
   end
@@ -367,7 +367,7 @@ fn emit_asm_check_param_types(source i8[256], tokens Token[128], ast AstNode[512
   ret -1
 end
 
-fn emit_asm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32) i32
+fn emit_asm_struct_bytes(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, struct_node i32) i32
   if struct_node < 0 or struct_node >= ast_count
     ret -1
   end
@@ -400,14 +400,14 @@ fn emit_asm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], as
   ret count * 4
 end
 
-fn emit_asm_count_fields(ast AstNode[512], list i32) i32
+fn emit_asm_count_fields(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
   ret emit_asm_count_fields(ast, ast[list].b) + 1
 end
 
-fn emit_asm_struct_field_offset_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, field_token i32) i32
+fn emit_asm_struct_field_offset_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, field_token i32) i32
   if list < 0
     ret -1
   end
@@ -434,7 +434,7 @@ fn emit_asm_struct_field_offset_list(source i8[256], tokens Token[128], ast AstN
   ret -1
 end
 
-fn emit_asm_struct_field_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32, field_token i32) i32
+fn emit_asm_struct_field_offset(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, struct_node i32, field_token i32) i32
   if struct_node < 0 or struct_node >= ast_count
     ret -1
   end
@@ -444,7 +444,7 @@ fn emit_asm_struct_field_offset(source i8[256], tokens Token[128], ast AstNode[5
   ret emit_asm_struct_field_offset_list(source, tokens, ast, ast_count, ast[struct_node].b, field_token)
 end
 
-fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32) i32
+fn emit_asm_count_prior_stack_bytes(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32) i32
   if list < 0
     ret 0
   end
@@ -479,7 +479,7 @@ fn emit_asm_count_prior_stack_bytes(source i8[256], tokens Token[128], ast AstNo
   ret bytes
 end
 
-fn emit_asm_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
+fn emit_asm_same_name(source i8[131072], tokens Token[32768], left i32, right i32) bool
   if left == right
     ret true
   end
@@ -496,7 +496,7 @@ fn emit_asm_same_name(source i8[256], tokens Token[128], left i32, right i32) bo
   ret true
 end
 
-fn emit_asm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_asm_find_local(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -513,7 +513,7 @@ fn emit_asm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list
   ret -1
 end
 
-fn emit_asm_find_local_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, name_token i32) i32
+fn emit_asm_find_local_offset(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -554,7 +554,7 @@ fn emit_asm_find_local_offset(source i8[256], tokens Token[128], ast AstNode[512
   ret -1
 end
 
-fn emit_asm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_asm_find_local_type(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -571,7 +571,7 @@ fn emit_asm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512],
   ret -1
 end
 
-fn emit_asm_find_param_offset(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_asm_find_param_offset(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -588,7 +588,7 @@ fn emit_asm_find_param_offset(source i8[256], tokens Token[128], ast AstNode[512
   ret -1
 end
 
-fn emit_asm_find_value_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, params i32, locals i32, name_token i32) i32
+fn emit_asm_find_value_offset(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, params i32, locals i32, name_token i32) i32
   let poff i32 = emit_asm_find_param_offset(source, tokens, ast, params, name_token)
   if poff >= 0
     ret poff
@@ -600,7 +600,7 @@ fn emit_asm_find_value_offset(source i8[256], tokens Token[128], ast AstNode[512
   ret emit_asm_count_params(ast, params) * 8 + loff
 end
 
-fn emit_asm_find_value_type(source i8[256], tokens Token[128], ast AstNode[512], params i32, locals i32, name_token i32) i32
+fn emit_asm_find_value_type(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32, locals i32, name_token i32) i32
   if params >= 0
     let item i32 = params
     while item >= 0
@@ -719,7 +719,7 @@ fn emit_asm_append_byte_index_ref_with_disp(out i8[1024], pos i32, out_cap i32, 
   ret emit_asm_append_text(out, p, out_cap, tail, 3)
 end
 
-fn emit_asm_load_value(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, params i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_load_value(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, params i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
   let off i32 = emit_asm_find_value_offset(source, tokens, ast, ast_count, params, locals, name_token)
   if off < 0
     ret -1
@@ -742,7 +742,7 @@ fn emit_asm_load_value(source i8[256], tokens Token[128], ast AstNode[512], ast_
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_store_value(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, params i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_store_value(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, params i32, locals i32, name_token i32, out i8[1024], pos i32, out_cap i32) i32
   let off i32 = emit_asm_find_value_offset(source, tokens, ast, ast_count, params, locals, name_token)
   if off < 0
     ret -1
@@ -811,7 +811,7 @@ fn emit_asm_store_arg_reg(out i8[1024], pos i32, out_cap i32, index i32, off i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_store_params(ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_store_params(ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -845,7 +845,7 @@ fn emit_asm_mov_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_call_args_push(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_call_args_push(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -908,7 +908,7 @@ fn emit_asm_call_args_push(source i8[256], tokens Token[128], ast AstNode[512], 
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_call_args_pop(ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_call_args_pop(ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -956,7 +956,7 @@ fn emit_asm_store_const_byte(out i8[1024], pos i32, out_cap i32, off i32, value 
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNode[512], typ i32, string_node i32, base_off i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_init_byte_array_string(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32, string_node i32, base_off i32, out i8[1024], pos i32, out_cap i32) i32
   if typ < 0
     ret -1
   end
@@ -1013,7 +1013,7 @@ fn emit_asm_setcc_result(out i8[1024], pos i32, out_cap i32, set_op i8[64], set_
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1597,7 +1597,7 @@ fn emit_asm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
   ret -1
 end
 
-fn emit_asm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1625,7 +1625,7 @@ fn emit_asm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1661,7 +1661,7 @@ fn emit_asm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   ret emit_asm_store_value(source, tokens, ast, ast_count, params, visible_locals, ast[node].a, out, p, out_cap)
 end
 
-fn emit_asm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -2038,7 +2038,7 @@ fn emit_asm_jump_label(out i8[1024], pos i32, out_cap i32, op i8[64], op_len i32
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
+fn emit_asm_oldest_elif_list(ast AstNode[32768], ast_count i32, list i32) i32
   if list < 0 or list >= ast_count
     ret -1
   end
@@ -2051,7 +2051,7 @@ fn emit_asm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
   ret emit_asm_oldest_elif_list(ast, ast_count, ast[list].b)
 end
 
-fn emit_asm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i32) i32
+fn emit_asm_next_elif_list(ast AstNode[32768], ast_count i32, list i32, current i32) i32
   if list < 0
     ret -1
   end
@@ -2067,7 +2067,7 @@ fn emit_asm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i3
   ret emit_asm_next_elif_list(ast, ast_count, ast[list].b, current)
 end
 
-fn emit_asm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, end_id i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_elif_chain_from(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, all_elifs i32, current i32, else_body i32, end_id i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if current < 0 or current >= ast_count
     ret -1
   end
@@ -2124,7 +2124,7 @@ fn emit_asm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512],
   ret p
 end
 
-fn emit_asm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, end_id i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_elif_chain(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, elifs i32, else_body i32, end_id i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let first i32 = emit_asm_oldest_elif_list(ast, ast_count, elifs)
   if first < 0
     ret -1
@@ -2132,7 +2132,7 @@ fn emit_asm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_
   ret emit_asm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, end_id, params, locals, out, pos, out_cap)
 end
 
-fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = emit_asm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
@@ -2183,7 +2183,7 @@ fn emit_asm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i3
   ret emit_asm_label(out, p, out_cap, end_p, 7, node)
 end
 
-fn emit_asm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let loop_p i8[64] = ".Lwhile"
   let end_p i8[64] = ".Lendwhile"
   let je_t i8[64] = "    je "
@@ -2220,7 +2220,7 @@ fn emit_asm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   ret emit_asm_label(out, p, out_cap, end_p, 10, node)
 end
 
-fn emit_asm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, params i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -2253,7 +2253,7 @@ fn emit_asm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_c
   ret -1
 end
 
-fn emit_asm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_nested_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -2263,7 +2263,7 @@ fn emit_asm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], as
   ret emit_asm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
 end
 
-fn emit_asm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -2273,7 +2273,7 @@ fn emit_asm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   ret emit_asm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, ast[node].a, out, pos, out_cap)
 end
 
-fn emit_asm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_function(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -2427,7 +2427,7 @@ fn emit_asm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_co
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm_decls(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_decls(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -2457,7 +2457,7 @@ fn emit_asm_decls(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   ret emit_asm_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
 end
 
-fn emit_asm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_asm_program(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -2486,7 +2486,7 @@ fn emit_asm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_asm_nl(out, p, out_cap)
 end
 
-fn emit_asm(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
+fn emit_asm(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, out i8[1024], out_cap i32) i32
   if ast_count <= 0
     ret EMIT_ERR_BAD_AST()
   end

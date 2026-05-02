@@ -57,7 +57,7 @@ fn emit_wasm_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret p
 end
 
-fn emit_wasm_append_token_text(source i8[256], tokens Token[128], token i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_append_token_text(source i8[131072], tokens Token[32768], token i32, out i8[1024], pos i32, out_cap i32) i32
   if token < 0
     ret -1
   end
@@ -73,7 +73,7 @@ fn emit_wasm_append_token_text(source i8[256], tokens Token[128], token i32, out
   ret p
 end
 
-fn emit_wasm_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
+fn emit_wasm_same_name(source i8[131072], tokens Token[32768], left i32, right i32) bool
   if left == right
     ret true
   end
@@ -90,7 +90,7 @@ fn emit_wasm_same_name(source i8[256], tokens Token[128], left i32, right i32) b
   ret true
 end
 
-fn emit_wasm_count_prior_lets(ast AstNode[512], list i32) i32
+fn emit_wasm_count_prior_lets(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
@@ -102,14 +102,14 @@ fn emit_wasm_count_prior_lets(ast AstNode[512], list i32) i32
   ret count
 end
 
-fn emit_wasm_count_prior_params(ast AstNode[512], list i32) i32
+fn emit_wasm_count_prior_params(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
   ret emit_wasm_count_prior_params(ast, ast[list].b) + 1
 end
 
-fn emit_wasm_find_param(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_wasm_find_param(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -126,7 +126,7 @@ fn emit_wasm_find_param(source i8[256], tokens Token[128], ast AstNode[512], lis
   ret -1
 end
 
-fn emit_wasm_find_param_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_wasm_find_param_type(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -143,7 +143,7 @@ fn emit_wasm_find_param_type(source i8[256], tokens Token[128], ast AstNode[512]
   ret -1
 end
 
-fn emit_wasm_find_local(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_wasm_find_local(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -160,7 +160,7 @@ fn emit_wasm_find_local(source i8[256], tokens Token[128], ast AstNode[512], lis
   ret -1
 end
 
-fn emit_wasm_find_value(source i8[256], tokens Token[128], ast AstNode[512], params i32, locals i32, name_token i32) i32
+fn emit_wasm_find_value(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32, locals i32, name_token i32) i32
   let param_index i32 = emit_wasm_find_param(source, tokens, ast, params, name_token)
   if param_index >= 0
     ret param_index
@@ -186,7 +186,7 @@ fn emit_wasm_nl(out i8[1024], pos i32, out_cap i32) i32
   ret emit_wasm_append_text(out, pos, out_cap, nl, 1)
 end
 
-fn emit_wasm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_i32_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -215,7 +215,7 @@ fn emit_wasm_type_is_i32_array(source i8[256], tokens Token[128], ast AstNode[51
   ret true
 end
 
-fn emit_wasm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_byte_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -253,7 +253,7 @@ fn emit_wasm_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[5
   ret false
 end
 
-fn emit_wasm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_i32_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -289,7 +289,7 @@ fn emit_wasm_type_is_i32_scalar(source i8[256], tokens Token[128], ast AstNode[5
   ret false
 end
 
-fn emit_wasm_type_is_bool_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_bool_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -325,7 +325,7 @@ fn emit_wasm_type_is_bool_scalar(source i8[256], tokens Token[128], ast AstNode[
   ret false
 end
 
-fn emit_wasm_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_i8_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -361,7 +361,7 @@ fn emit_wasm_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[51
   ret false
 end
 
-fn emit_wasm_type_is_scalar_param(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn emit_wasm_type_is_scalar_param(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if emit_wasm_type_is_i32_scalar(source, tokens, ast, typ)
     ret true
   end
@@ -371,7 +371,7 @@ fn emit_wasm_type_is_scalar_param(source i8[256], tokens Token[128], ast AstNode
   ret emit_wasm_type_is_i8_scalar(source, tokens, ast, typ)
 end
 
-fn emit_wasm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, name_token i32) i32
+fn emit_wasm_find_struct_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, name_token i32) i32
   let i i32 = 0
   while i < ast_count
     if ast[i].kind == AN_STRUCT()
@@ -384,7 +384,7 @@ fn emit_wasm_find_struct_decl(source i8[256], tokens Token[128], ast AstNode[512
   ret -1
 end
 
-fn emit_wasm_type_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, typ i32) i32
+fn emit_wasm_type_struct_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, typ i32) i32
   if typ < 0 or typ >= ast_count
     ret -1
   end
@@ -397,7 +397,7 @@ fn emit_wasm_type_struct_decl(source i8[256], tokens Token[128], ast AstNode[512
   ret emit_wasm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
 end
 
-fn emit_wasm_type_struct_array_decl(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, typ i32) i32
+fn emit_wasm_type_struct_array_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, typ i32) i32
   if typ < 0 or typ >= ast_count
     ret -1
   end
@@ -410,7 +410,7 @@ fn emit_wasm_type_struct_array_decl(source i8[256], tokens Token[128], ast AstNo
   ret emit_wasm_find_struct_decl(source, tokens, ast, ast_count, ast[typ].a)
 end
 
-fn emit_wasm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32) i32
+fn emit_wasm_struct_bytes(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, struct_node i32) i32
   if struct_node < 0 or struct_node >= ast_count
     ret -1
   end
@@ -452,14 +452,14 @@ fn emit_wasm_struct_bytes(source i8[256], tokens Token[128], ast AstNode[512], a
   ret count * 4
 end
 
-fn emit_wasm_count_fields(ast AstNode[512], list i32) i32
+fn emit_wasm_count_fields(ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
   ret emit_wasm_count_fields(ast, ast[list].b) + 1
 end
 
-fn emit_wasm_struct_field_offset_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, field_token i32) i32
+fn emit_wasm_struct_field_offset_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, field_token i32) i32
   if list < 0
     ret -1
   end
@@ -486,7 +486,7 @@ fn emit_wasm_struct_field_offset_list(source i8[256], tokens Token[128], ast Ast
   ret -1
 end
 
-fn emit_wasm_struct_field_offset(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, struct_node i32, field_token i32) i32
+fn emit_wasm_struct_field_offset(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, struct_node i32, field_token i32) i32
   if struct_node < 0 or struct_node >= ast_count
     ret -1
   end
@@ -496,7 +496,7 @@ fn emit_wasm_struct_field_offset(source i8[256], tokens Token[128], ast AstNode[
   ret emit_wasm_struct_field_offset_list(source, tokens, ast, ast_count, ast[struct_node].b, field_token)
 end
 
-fn emit_wasm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512], list i32, name_token i32) i32
+fn emit_wasm_find_local_type(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
   end
@@ -513,7 +513,7 @@ fn emit_wasm_find_local_type(source i8[256], tokens Token[128], ast AstNode[512]
   ret -1
 end
 
-fn emit_wasm_find_value_type(source i8[256], tokens Token[128], ast AstNode[512], params i32, locals i32, name_token i32) i32
+fn emit_wasm_find_value_type(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32, locals i32, name_token i32) i32
   let param_type i32 = emit_wasm_find_param_type(source, tokens, ast, params, name_token)
   if param_type >= 0
     ret param_type
@@ -521,7 +521,7 @@ fn emit_wasm_find_value_type(source i8[256], tokens Token[128], ast AstNode[512]
   ret emit_wasm_find_local_type(source, tokens, ast, locals, name_token)
 end
 
-fn emit_wasm_count_prior_array_bytes(source i8[256], tokens Token[128], ast AstNode[512], list i32) i32
+fn emit_wasm_count_prior_array_bytes(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32) i32
   if list < 0
     ret 0
   end
@@ -539,7 +539,7 @@ fn emit_wasm_count_prior_array_bytes(source i8[256], tokens Token[128], ast AstN
   ret bytes
 end
 
-fn emit_wasm_count_prior_storage_bytes(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32) i32
+fn emit_wasm_count_prior_storage_bytes(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32) i32
   if list < 0
     ret 0
   end
@@ -573,7 +573,7 @@ fn emit_wasm_count_prior_storage_bytes(source i8[256], tokens Token[128], ast As
   ret bytes
 end
 
-fn emit_wasm_call_args(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -587,7 +587,7 @@ fn emit_wasm_call_args(source i8[256], tokens Token[128], ast AstNode[512], ast_
   ret emit_wasm_expr(source, tokens, ast, ast_count, ast[list].a, params, locals, out, p, out_cap)
 end
 
-fn emit_wasm_expr(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -946,7 +946,7 @@ fn emit_wasm_local_decl(out i8[1024], pos i32, out_cap i32, index i32) i32
   ret emit_wasm_append_text(out, p, out_cap, tail, 6)
 end
 
-fn emit_wasm_param_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_param_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -980,7 +980,7 @@ fn emit_wasm_param_list(source i8[256], tokens Token[128], ast AstNode[512], ast
   ret emit_wasm_append_text(out, p, out_cap, tail, 5)
 end
 
-fn emit_wasm_import_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_import_param_list(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1033,7 +1033,7 @@ fn emit_wasm_store_const_byte(out i8[1024], pos i32, out_cap i32, addr i32, valu
   ret emit_wasm_append_text(out, p, out_cap, store_t, 23)
 end
 
-fn emit_wasm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNode[512], typ i32, string_node i32, base i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_init_byte_array_string(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32, string_node i32, base i32, out i8[1024], pos i32, out_cap i32) i32
   if typ < 0
     ret -1
   end
@@ -1063,7 +1063,7 @@ fn emit_wasm_init_byte_array_string(source i8[256], tokens Token[128], ast AstNo
   ret p
 end
 
-fn emit_wasm_local_decls(ast AstNode[512], list i32, base i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_local_decls(ast AstNode[32768], list i32, base i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1081,7 +1081,7 @@ fn emit_wasm_local_decls(ast AstNode[512], list i32, base i32, out i8[1024], pos
   ret p
 end
 
-fn emit_wasm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1096,7 +1096,7 @@ fn emit_wasm_return(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_wasm_append_text(out, p, out_cap, ret_t, 11)
 end
 
-fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, prior_locals i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1176,7 +1176,7 @@ fn emit_wasm_let(source i8[256], tokens Token[128], ast AstNode[512], ast_count 
   ret emit_wasm_nl(out, p, out_cap)
 end
 
-fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1399,7 +1399,7 @@ fn emit_wasm_assign(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_wasm_nl(out, p, out_cap)
 end
 
-fn emit_wasm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_nested_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1409,7 +1409,7 @@ fn emit_wasm_nested_block(source i8[256], tokens Token[128], ast AstNode[512], a
   ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
 end
 
-fn emit_wasm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
+fn emit_wasm_oldest_elif_list(ast AstNode[32768], ast_count i32, list i32) i32
   if list < 0 or list >= ast_count
     ret -1
   end
@@ -1422,7 +1422,7 @@ fn emit_wasm_oldest_elif_list(ast AstNode[512], ast_count i32, list i32) i32
   ret emit_wasm_oldest_elif_list(ast, ast_count, ast[list].b)
 end
 
-fn emit_wasm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i32) i32
+fn emit_wasm_next_elif_list(ast AstNode[32768], ast_count i32, list i32, current i32) i32
   if list < 0
     ret -1
   end
@@ -1438,7 +1438,7 @@ fn emit_wasm_next_elif_list(ast AstNode[512], ast_count i32, list i32, current i
   ret emit_wasm_next_elif_list(ast, ast_count, ast[list].b, current)
 end
 
-fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, all_elifs i32, current i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_elif_chain_from(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, all_elifs i32, current i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   if current < 0 or current >= ast_count
     ret -1
   end
@@ -1485,7 +1485,7 @@ fn emit_wasm_elif_chain_from(source i8[256], tokens Token[128], ast AstNode[512]
   ret emit_wasm_append_text(out, p, out_cap, tail, 8)
 end
 
-fn emit_wasm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, elifs i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_elif_chain(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, elifs i32, else_body i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let first i32 = emit_wasm_oldest_elif_list(ast, ast_count, elifs)
   if first < 0
     ret -1
@@ -1493,7 +1493,7 @@ fn emit_wasm_elif_chain(source i8[256], tokens Token[128], ast AstNode[512], ast
   ret emit_wasm_elif_chain_from(source, tokens, ast, ast_count, elifs, first, else_body, params, locals, out, pos, out_cap)
 end
 
-fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = emit_wasm_expr(source, tokens, ast, ast_count, ast[node].a, params, locals, out, pos, out_cap)
   if p < 0
     ret -1
@@ -1527,7 +1527,7 @@ fn emit_wasm_if(source i8[256], tokens Token[128], ast AstNode[512], ast_count i
   ret emit_wasm_append_text(out, p, out_cap, tail, 8)
 end
 
-fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, locals i32, out i8[1024], pos i32, out_cap i32) i32
   let p i32 = pos
   let head i8[64] = "    block\n    loop\n"
   p = emit_wasm_append_text(out, p, out_cap, head, 19)
@@ -1551,7 +1551,7 @@ fn emit_wasm_while(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   ret emit_wasm_append_text(out, p, out_cap, tail, 25)
 end
 
-fn emit_wasm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, params i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, params i32, visible_locals i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1584,7 +1584,7 @@ fn emit_wasm_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], ast_
   ret -1
 end
 
-fn emit_wasm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, params i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, params i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1598,7 +1598,7 @@ fn emit_wasm_block(source i8[256], tokens Token[128], ast AstNode[512], ast_coun
   ret emit_wasm_stmt_list(source, tokens, ast, ast_count, ast[node].a, params, ast[node].a, out, p, out_cap)
 end
 
-fn emit_wasm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_function(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1659,7 +1659,7 @@ fn emit_wasm_function(source i8[256], tokens Token[128], ast AstNode[512], ast_c
   ret emit_wasm_append_text(out, p, out_cap, footer, 4)
 end
 
-fn emit_wasm_import(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_import(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1706,7 +1706,7 @@ fn emit_wasm_import(source i8[256], tokens Token[128], ast AstNode[512], ast_cou
   ret emit_wasm_append_text(out, p, out_cap, tail, 16)
 end
 
-fn emit_wasm_import_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_import_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1730,7 +1730,7 @@ fn emit_wasm_import_list(source i8[256], tokens Token[128], ast AstNode[512], as
   ret p
 end
 
-fn emit_wasm_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_decl_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -1760,7 +1760,7 @@ fn emit_wasm_decl_list(source i8[256], tokens Token[128], ast AstNode[512], ast_
   ret emit_wasm_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
 end
 
-fn emit_wasm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
+fn emit_wasm_program(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[1024], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -1799,7 +1799,7 @@ fn emit_wasm_program(source i8[256], tokens Token[128], ast AstNode[512], ast_co
   ret emit_wasm_append_text(out, p, out_cap, mod_tail, 2)
 end
 
-fn emit_wasm(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32
+fn emit_wasm(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, out i8[1024], out_cap i32) i32
   if ast_count <= 0
     ret EMIT_ERR_BAD_AST()
   end

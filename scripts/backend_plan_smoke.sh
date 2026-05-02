@@ -38,7 +38,7 @@ fi
 sed '/^fn main()/,$d' compiler1/main.etl > "$td/test_asm.etl"
 cat compiler1/backend_defs.etl >> "$td/test_asm.etl"
 cat compiler1/emit_asm.etl >> "$td/test_asm.etl"
-printf 'fn main() i32\n  let source i8[256]\n  let tokens Token[128]\n  let out i8[1024]\n  let ast AstNode[512]\n  ret emit_asm(source, tokens, ast, 0, out, 1024)\nend\n' >> "$td/test_asm.etl"
+printf 'fn main() i32\n  let source i8[131072]\n  let tokens Token[32768]\n  let out i8[1024]\n  let ast AstNode[32768]\n  ret emit_asm(source, tokens, ast, 0, out, 1024)\nend\n' >> "$td/test_asm.etl"
 python3 -m compiler0 compile "$td/test_asm.etl" -o "$td/test_asm.c"
 cc -Wall -Werror "$td/test_asm.c" -I runtime -o "$td/test_asm"
 set +e
@@ -58,7 +58,7 @@ fi
 sed '/^fn main()/,$d' compiler1/main.etl > "$td/test_wasm.etl"
 cat compiler1/backend_defs.etl >> "$td/test_wasm.etl"
 cat compiler1/emit_wasm.etl >> "$td/test_wasm.etl"
-printf 'fn main() i32\n  let source i8[256]\n  let tokens Token[128]\n  let out i8[1024]\n  let ast AstNode[512]\n  ret emit_wasm(source, tokens, ast, 0, out, 1024)\nend\n' >> "$td/test_wasm.etl"
+printf 'fn main() i32\n  let source i8[131072]\n  let tokens Token[32768]\n  let out i8[1024]\n  let ast AstNode[32768]\n  ret emit_wasm(source, tokens, ast, 0, out, 1024)\nend\n' >> "$td/test_wasm.etl"
 python3 -m compiler0 compile "$td/test_wasm.etl" -o "$td/test_wasm.c"
 cc -Wall -Werror "$td/test_wasm.c" -I runtime -o "$td/test_wasm"
 set +e

@@ -35,6 +35,8 @@ fixtures=(
   struct_decl.etl
   field_access_fn.etl
   struct_array.etl
+  string_local.etl
+  string_multi.etl
 )
 
 declare -A expected_exits=(
@@ -45,6 +47,8 @@ declare -A expected_exits=(
   [struct_decl.etl]=7
   [field_access_fn.etl]=42
   [struct_array.etl]=200
+  [string_local.etl]=104
+  [string_multi.etl]=98
 )
 
 pass=0
