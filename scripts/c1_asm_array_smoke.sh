@@ -92,5 +92,6 @@ run_case i8_array_var_idx "fn main() i32 let values i8[4] let i i32 = 1 values[i
 run_case i8_array_string_literal_idx "fn main() i32 let text i8[4] = \"abc\" ret text[0] + text[1] - text[2] end" 96
 run_case i8_array_param_const_idx "fn first(text i8[4]) i32 ret text[0] + text[1] - text[2] end fn main() i32 let text i8[4] = \"abc\" ret first(text) end" 96
 run_case byte_array_param_var_idx "fn pick(text byte[4], i i32) i32 ret text[i] end fn main() i32 let text byte[4] text[0] = 10 text[1] = 42 ret pick(text, 1) end" 42
+run_case i8_array_param_write_idx "fn set_second(text i8[4]) i32 text[1] = 42 ret text[1] end fn main() i32 let text i8[4] = \"abc\" ret set_second(text) end" 42
 
 echo "c1_asm_array_smoke: ok"
