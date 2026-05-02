@@ -12,10 +12,10 @@ stage harnesses and prove a small source-to-C path.
 | `lex.etl`    | Lexer module for the compiler-1 subset.          |
 | `parse.etl`  | Parser module for the compiler-1 subset.         |
 | `sema.etl`   | Semantic analysis module for compiler-1 AST validation. |
-| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, local arrays/structs, byte strings, extern byte buffers, and narrow user-defined byte-array params. |
+| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, local arrays/structs, byte strings, extern byte buffers, narrow user-defined byte-array params, and narrow by-value struct params. |
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
-| `emit_asm.etl` | ASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
-| `emit_wasm.etl` | WASM backend scaffold (returns EMIT_ERR_UNSUPPORTED). Not linked into build. |
+| `emit_asm.etl` | ASM backend emitter (x86-64 System V active smoke subset). Not linked into default build. |
+| `emit_wasm.etl` | WASM backend emitter (WAT text active subset). Not linked into default build. |
 
 ## Build command
 
