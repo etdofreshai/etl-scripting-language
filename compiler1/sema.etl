@@ -30,7 +30,7 @@ fn sema_report(code i32, token i32) i32
   ret SEMA_ERROR()
 end
 
-fn sema_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
+fn sema_same_name(source i8[131072], tokens Token[32768], left i32, right i32) bool
   if left == right
     ret true
   end
@@ -47,7 +47,7 @@ fn sema_same_name(source i8[256], tokens Token[128], left i32, right i32) bool
   ret true
 end
 
-fn sema_check_list(ast AstNode[512], node i32) i32
+fn sema_check_list(ast AstNode[32768], node i32) i32
   if node < 0
     ret SEMA_OK()
   end
@@ -57,7 +57,7 @@ fn sema_check_list(ast AstNode[512], node i32) i32
   ret SEMA_OK()
 end
 
-fn sema_type_is_i32(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn sema_type_is_i32(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -78,7 +78,7 @@ fn sema_type_is_i32(source i8[256], tokens Token[128], ast AstNode[512], typ i32
   ret false
 end
 
-fn sema_type_is_bool(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn sema_type_is_bool(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -99,7 +99,7 @@ fn sema_type_is_bool(source i8[256], tokens Token[128], ast AstNode[512], typ i3
   ret false
 end
 
-fn sema_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn sema_type_is_i8_scalar(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -120,7 +120,7 @@ fn sema_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], t
   ret false
 end
 
-fn sema_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+fn sema_type_is_byte_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
   end
@@ -141,7 +141,7 @@ fn sema_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], 
   ret false
 end
 
-fn sema_type_is_struct_decl(source i8[256], tokens Token[128], ast AstNode[512], typ i32, program i32) bool
+fn sema_type_is_struct_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32, program i32) bool
   if typ < 0
     ret false
   end
@@ -173,7 +173,7 @@ fn sema_type_is_struct_decl(source i8[256], tokens Token[128], ast AstNode[512],
   ret false
 end
 
-fn sema_find_extern(source i8[256], tokens Token[128], extern_names i32[64], extern_count i32, name i32) i32
+fn sema_find_extern(source i8[131072], tokens Token[32768], extern_names i32[64], extern_count i32, name i32) i32
   let i i32 = 0
   while i < extern_count
     if sema_same_name(source, tokens, extern_names[i], name)
@@ -184,7 +184,7 @@ fn sema_find_extern(source i8[256], tokens Token[128], extern_names i32[64], ext
   ret -1
 end
 
-fn sema_add_params_to_scope(source i8[256], tokens Token[128], ast AstNode[512], params i32, scope i32[64]) i32
+fn sema_add_params_to_scope(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32, scope i32[64]) i32
   if params < 0
     ret sema_report(SE_BAD_AST(), 0)
   end
@@ -208,7 +208,7 @@ fn sema_add_params_to_scope(source i8[256], tokens Token[128], ast AstNode[512],
   ret SEMA_OK()
 end
 
-fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], params i32, program i32) i32
+fn sema_count_i32_params(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32, program i32) i32
   if params < 0
     ret -1
   end
@@ -242,7 +242,7 @@ fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], pa
   ret count
 end
 
-fn sema_count_extern_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
+fn sema_count_extern_params(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32) i32
   if params < 0
     ret -1
   end
@@ -274,7 +274,7 @@ fn sema_count_extern_params(source i8[256], tokens Token[128], ast AstNode[512],
   ret count
 end
 
-fn sema_scope_add(source i8[256], tokens Token[128], scope i32[64], name i32) i32
+fn sema_scope_add(source i8[131072], tokens Token[32768], scope i32[64], name i32) i32
   let count i32 = scope[0]
   let i i32 = 1
   while i <= count
@@ -288,7 +288,7 @@ fn sema_scope_add(source i8[256], tokens Token[128], scope i32[64], name i32) i3
   ret SEMA_OK()
 end
 
-fn sema_scope_has(source i8[256], tokens Token[128], scope i32[64], name i32) bool
+fn sema_scope_has(source i8[131072], tokens Token[32768], scope i32[64], name i32) bool
   let count i32 = scope[0]
   let i i32 = 1
   while i <= count
@@ -300,7 +300,7 @@ fn sema_scope_has(source i8[256], tokens Token[128], scope i32[64], name i32) bo
   ret false
 end
 
-fn sema_expr_type(ast AstNode[512], expr i32) i32
+fn sema_expr_type(ast AstNode[32768], expr i32) i32
   if expr < 0
     ret TY_I32()
   end
@@ -330,7 +330,7 @@ fn sema_expr_type(ast AstNode[512], expr i32) i32
   ret TY_I32()
 end
 
-fn sema_expr_type_ctx(source i8[256], tokens Token[128], ast AstNode[512], expr i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_expr_type_ctx(source i8[131072], tokens Token[32768], ast AstNode[32768], expr i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   let keep_argc i32 = extern_argc[0]
   keep_argc = keep_argc + 0
   if expr < 0
@@ -357,14 +357,14 @@ fn sema_expr_type_ctx(source i8[256], tokens Token[128], ast AstNode[512], expr 
   ret sema_expr_type(ast, expr)
 end
 
-fn sema_validate_expr(source i8[256], tokens Token[128], ast AstNode[512], expr i32, scope i32[64], cs i32) i32
+fn sema_validate_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], expr i32, scope i32[64], cs i32) i32
   let extern_names i32[64]
   let extern_argc i32[64]
   let extern_ret i32[64]
   ret sema_validate_expr_ex(source, tokens, ast, expr, scope, cs, extern_names, extern_argc, extern_ret, 0)
 end
 
-fn sema_validate_expr_ex(source i8[256], tokens Token[128], ast AstNode[512], expr i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_validate_expr_ex(source i8[131072], tokens Token[32768], ast AstNode[32768], expr i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   if expr < 0
     ret SEMA_OK()
   end
@@ -465,7 +465,7 @@ fn sema_validate_expr_ex(source i8[256], tokens Token[128], ast AstNode[512], ex
   ret sema_report(SE_BAD_AST(), ast[expr].token)
 end
 
-fn sema_check_block_locals(source i8[256], tokens Token[128], ast AstNode[512], block i32) i32
+fn sema_check_block_locals(source i8[131072], tokens Token[32768], ast AstNode[32768], block i32) i32
   let outer i32 = ast[block].a
   while outer >= 0
     if sema_check_list(ast, outer) < 0
@@ -492,14 +492,14 @@ fn sema_check_block_locals(source i8[256], tokens Token[128], ast AstNode[512], 
   ret SEMA_OK()
 end
 
-fn sema_validate_stmt(source i8[256], tokens Token[128], ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i32) i32
+fn sema_validate_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], stmt i32, in_fn i32, scope i32[64], cs i32) i32
   let extern_names i32[64]
   let extern_argc i32[64]
   let extern_ret i32[64]
   ret sema_validate_stmt_ex(source, tokens, ast, stmt, in_fn, scope, cs, extern_names, extern_argc, extern_ret, 0)
 end
 
-fn sema_validate_stmt_ex(source i8[256], tokens Token[128], ast AstNode[512], stmt i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_validate_stmt_ex(source i8[131072], tokens Token[32768], ast AstNode[32768], stmt i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   let kind i32 = ast[stmt].kind
   if kind == AN_LET()
     if ast[stmt].c >= 0
@@ -610,14 +610,14 @@ fn sema_validate_stmt_ex(source i8[256], tokens Token[128], ast AstNode[512], st
   ret sema_report(SE_BAD_AST(), ast[stmt].token)
 end
 
-fn sema_validate_stmt_list(source i8[256], tokens Token[128], ast AstNode[512], item i32, in_fn i32, scope i32[64], cs i32) i32
+fn sema_validate_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], item i32, in_fn i32, scope i32[64], cs i32) i32
   let extern_names i32[64]
   let extern_argc i32[64]
   let extern_ret i32[64]
   ret sema_validate_stmt_list_ex(source, tokens, ast, item, in_fn, scope, cs, extern_names, extern_argc, extern_ret, 0)
 end
 
-fn sema_validate_stmt_list_ex(source i8[256], tokens Token[128], ast AstNode[512], item i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_validate_stmt_list_ex(source i8[131072], tokens Token[32768], ast AstNode[32768], item i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   if item < 0
     ret SEMA_OK()
   end
@@ -630,14 +630,14 @@ fn sema_validate_stmt_list_ex(source i8[256], tokens Token[128], ast AstNode[512
   ret sema_validate_stmt_ex(source, tokens, ast, ast[item].a, in_fn, scope, cs, extern_names, extern_argc, extern_ret, extern_count)
 end
 
-fn sema_validate_block(source i8[256], tokens Token[128], ast AstNode[512], block i32, in_fn i32, scope i32[64], cs i32) i32
+fn sema_validate_block(source i8[131072], tokens Token[32768], ast AstNode[32768], block i32, in_fn i32, scope i32[64], cs i32) i32
   let extern_names i32[64]
   let extern_argc i32[64]
   let extern_ret i32[64]
   ret sema_validate_block_ex(source, tokens, ast, block, in_fn, scope, cs, extern_names, extern_argc, extern_ret, 0)
 end
 
-fn sema_validate_block_ex(source i8[256], tokens Token[128], ast AstNode[512], block i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_validate_block_ex(source i8[131072], tokens Token[32768], ast AstNode[32768], block i32, in_fn i32, scope i32[64], cs i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   if block < 0
     ret sema_report(SE_BAD_AST(), 0)
   end
@@ -650,7 +650,7 @@ fn sema_validate_block_ex(source i8[256], tokens Token[128], ast AstNode[512], b
   ret sema_validate_stmt_list_ex(source, tokens, ast, ast[block].a, in_fn, scope, cs, extern_names, extern_argc, extern_ret, extern_count)
 end
 
-fn sema_check_params(source i8[256], tokens Token[128], ast AstNode[512], params i32) i32
+fn sema_check_params(source i8[131072], tokens Token[32768], ast AstNode[32768], params i32) i32
   if params < 0
     ret sema_report(SE_BAD_AST(), 0)
   end
@@ -685,14 +685,14 @@ fn sema_check_params(source i8[256], tokens Token[128], ast AstNode[512], params
   ret SEMA_OK()
 end
 
-fn sema_validate_decl(source i8[256], tokens Token[128], ast AstNode[512], decl i32) i32
+fn sema_validate_decl(source i8[131072], tokens Token[32768], ast AstNode[32768], decl i32) i32
   let extern_names i32[64]
   let extern_argc i32[64]
   let extern_ret i32[64]
   ret sema_validate_decl_ex(source, tokens, ast, decl, extern_names, extern_argc, extern_ret, 0)
 end
 
-fn sema_validate_decl_ex(source i8[256], tokens Token[128], ast AstNode[512], decl i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
+fn sema_validate_decl_ex(source i8[131072], tokens Token[32768], ast AstNode[32768], decl i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64], extern_count i32) i32
   let kind i32 = ast[decl].kind
   if kind == AN_FN()
     if sema_check_params(source, tokens, ast, ast[decl].b) < 0
@@ -714,7 +714,7 @@ fn sema_validate_decl_ex(source i8[256], tokens Token[128], ast AstNode[512], de
   ret sema_report(SE_BAD_AST(), ast[decl].token)
 end
 
-fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], program i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64]) i32
+fn sema_collect_externs(source i8[131072], tokens Token[32768], ast AstNode[32768], program i32, extern_names i32[64], extern_argc i32[64], extern_ret i32[64]) i32
   let count i32 = 0
   let item i32 = ast[program].a
   while item >= 0
@@ -757,7 +757,7 @@ fn sema_collect_externs(source i8[256], tokens Token[128], ast AstNode[512], pro
   ret count
 end
 
-fn sema_check_top_dups(source i8[256], tokens Token[128], ast AstNode[512], program i32) i32
+fn sema_check_top_dups(source i8[131072], tokens Token[32768], ast AstNode[32768], program i32) i32
   let outer i32 = ast[program].a
   while outer >= 0
     if sema_check_list(ast, outer) < 0
@@ -791,7 +791,7 @@ fn sema_check_top_dups(source i8[256], tokens Token[128], ast AstNode[512], prog
   ret SEMA_OK()
 end
 
-fn sema(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32) i32
+fn sema(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32) i32
   if ast_count <= 0
     ret sema_report(SE_BAD_AST(), 0)
   end
