@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, and multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`); smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -231,6 +231,7 @@ Premature IR abstraction is a known risk.
 | `scripts/backend_plan_smoke.sh`   | Verifies scaffolds compile via compiler-0.    |
 | `scripts/c1_emit_asm_smoke.sh`    | ASM backend smoke (arithmetic expression).    |
 | `scripts/c1_wat_return_smoke.sh`  | WAT/WASM return-value and extended smoke.     |
+| `scripts/c1_wat_function_call_smoke.sh` | WAT/WASM i32 helper/user function call smoke. |
 | `Makefile`                        | `make backend-plan` target.                   |
 
 ## Verification
@@ -328,6 +329,15 @@ items[i].value + 3; ret items[0].value + items[i].value`. Nested
 structs, non-i32 fields, function parameters, extern calls, bounds
 checks, and dynamic memory remain unsupported in WAT.
 
+### Chunk WASM-3: WAT i32 helper/user function calls — **Partially done (narrow i32 slice).**
+Multiple user-defined functions with `i32` parameters and `i32` return values,
+direct intra-module calls, and `_start` export proven by
+`scripts/c1_wat_function_call_smoke.sh` (cc78aaf, merged 99caf9a). Smoke
+validates `add(a,b)`, `bump(x)`, and `main` returning 42. General parameter
+types (byte, bool, struct, array), extern/import calls, ABI work, runtime
+strings, pointer decay, extern/param byte arrays, nested structs, non-i32
+fields, bounds checks, and dynamic arrays remain unsupported in WAT.
+
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).
 - Build a lowering pass: AST → IR.
@@ -337,7 +347,7 @@ checks, and dynamic memory remain unsupported in WAT.
 ### Future chunks
 - ASM-4: function parameters and multi-function support.
 - ASM-5: `elif` chains — **Done** (52804e9, merged 6e255dd).
-- WASM-3: function parameters and multi-function support.
+- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); general param types, extern/import, and ABI remain.
 - WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).
 - These can be delegated to independent workers.
 
