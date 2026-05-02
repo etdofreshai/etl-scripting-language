@@ -114,11 +114,13 @@ declarations with `i32`-only field store/load via `mov` with RBP offsets,
 and local fixed struct array indexed field store/load via computed base
 offset with `imul` struct-size scaling. Also emits multiple user-defined
 helper functions with `i32`/`integer` parameters, i32 returns, and direct calls
-using System V integer argument registers.
-No extern calls, non-i32 function parameters or returns, array/struct
-parameters or returns, varargs, indirect calls, runtime strings, pointer decay,
-extern/param byte arrays, nested structs, non-i32 struct fields, bounds checks,
-or dynamic arrays yet.
+using System V integer argument registers. Source `extern fn` declarations
+with `i32`/`integer` params and `i32` return are lowered to direct `call`
+to named symbols resolved by the linker.
+No void-return extern declarations, non-i32 function parameters or returns,
+array/struct parameters or returns, varargs, indirect calls, runtime strings,
+pointer decay, extern/param byte arrays, nested structs, non-i32 struct
+fields, bounds checks, or dynamic arrays yet.
 
 **Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
 
