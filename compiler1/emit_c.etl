@@ -88,6 +88,48 @@ fn emit_c_type_is_i32(source i8[256], tokens Token[128], ast AstNode[512], typ i
   ret false
 end
 
+fn emit_c_type_is_bool(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let bool_name i8[16] = "bool"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, bool_name, 4)
+    ret true
+  end
+  let boolean_name i8[16] = "boolean"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, boolean_name, 7)
+    ret true
+  end
+  ret false
+end
+
+fn emit_c_type_is_i8_scalar(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let i8_name i8[16] = "i8"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i8_name, 2)
+    ret true
+  end
+  let byte_name i8[16] = "byte"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, byte_name, 4)
+    ret true
+  end
+  ret false
+end
+
 fn emit_c_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
   if typ < 0
     ret false
@@ -848,6 +890,8 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
     ret -1
   end
   let int_text i8[64] = "int "
+  let bool_text i8[64] = "bool "
+  let byte_text i8[64] = "signed char "
   let byte_ptr_text i8[64] = "signed char *"
   let struct_text i8[64] = "struct "
   let comma i8[64] = ", "
@@ -867,19 +911,27 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
     if emit_c_type_is_i32(source, tokens, ast, ast[param].b)
       p = emit_c_append_text(out, p, out_cap, int_text, 4)
     else
-      if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
-        ret -1
+      if emit_c_type_is_bool(source, tokens, ast, ast[param].b)
+        p = emit_c_append_text(out, p, out_cap, bool_text, 5)
+      else
+        if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
+          p = emit_c_append_text(out, p, out_cap, byte_text, 12)
+        else
+          if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
+            ret -1
+          end
+          p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+          if p < 0
+            ret -1
+          end
+          p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+          if p < 0
+            ret -1
+          end
+          let space i8[64] = " "
+          p = emit_c_append_text(out, p, out_cap, space, 1)
+        end
       end
-      p = emit_c_append_text(out, p, out_cap, struct_text, 7)
-      if p < 0
-        ret -1
-      end
-      p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
-      if p < 0
-        ret -1
-      end
-      let space i8[64] = " "
-      p = emit_c_append_text(out, p, out_cap, space, 1)
     end
   end
   if p < 0
@@ -1149,7 +1201,12 @@ fn emit_c_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_c_struct_forwards(source, tokens, ast, ast_count, list, out, pos, out_cap)
+  let include_bool i8[64] = "#include <stdbool.h>\n"
+  let p i32 = emit_c_append_text(out, pos, out_cap, include_bool, 21)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_struct_forwards(source, tokens, ast, ast_count, list, out, p, out_cap)
   if p < 0
     ret -1
   end
