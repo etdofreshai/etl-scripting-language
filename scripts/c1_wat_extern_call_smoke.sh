@@ -64,15 +64,20 @@ ETL
   cat "$wat_out"
 }
 
-source='extern fn add(a i32, b i32) i32 fn main() i32 ret add(40, 2) end'
+source='extern fn accept_bool(flag bool) i32 extern fn plus_one(ch i8) i32 extern fn accept_byte(ch byte) i32 fn main() i32 ret accept_bool(true) + plus_one(40) + accept_byte(0) end'
 wat_text="$(run_wat_emit "$source")"
 
 for fragment in \
-  '(import "env" "add" (func $add (param i32) (param i32) (result i32)))' \
+  '(import "env" "accept_bool" (func $accept_bool (param i32) (result i32)))' \
+  '(import "env" "plus_one" (func $plus_one (param i32) (result i32)))' \
+  '(import "env" "accept_byte" (func $accept_byte (param i32) (result i32)))' \
   '(func $main (export "_start") (result i32)' \
+  'i32.const 1' \
   'i32.const 40' \
-  'i32.const 2' \
-  'call $add'; do
+  'i32.const 0' \
+  'call $accept_bool' \
+  'call $plus_one' \
+  'call $accept_byte'; do
   if ! echo "$wat_text" | grep -q "$fragment"; then
     echo "c1_wat_extern_call_smoke: FAIL missing WAT fragment: $fragment" >&2
     echo "$wat_text" >&2
