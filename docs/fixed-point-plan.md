@@ -31,7 +31,7 @@ compiler-0 can be frozen.
 
 ## Current c1 capabilities
 
-The c1 compiler pipeline is functional for the current 26-fixture corpus,
+The c1 compiler pipeline is functional for the current 29-fixture corpus,
 including multi-function programs, recursive user-defined calls, Tier 2 typed
 bool/i8 locals, local fixed i32 array sum/loop indexing, local i8 array
 indexing, and `i32` function parameters. The `make selfhost` gate proves:
@@ -134,35 +134,33 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Multi-function emission | Basic named function emission works, but only for the current narrow function subset | c1 source has ~60+ named functions; broader type coverage is still needed across those functions |
 | Function parameters | `i32`, scalar `bool`/`i8`/`byte`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
 | Typed locals (not just int) | Scalar `bool`/`i8` locals work (Tier 2 fixtures pass); composed typed locals (struct-typed, array-typed) are not yet covered | Token/AstNode structs, i8 arrays |
-| Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
+| Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source now uses expanded C-path buffers (`Token[32768]`, `AstNode[32768]`, `i8[262144]` output). Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
 | Struct declarations | c1 emits narrow local i32-only structs and by-value struct parameters, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); narrow by-value struct params work (ec342d7); non-i32 fields and arrays in struct fields do not |
 | Struct field access | c1 emits local `.field`, local struct-array field access, and field access through by-value struct params, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); struct parameter field access works for the narrow C path (ec342d7); struct returns do not |
 | Index expressions | c1 emits narrow `arr[i]` patterns, but not all array element types and contexts | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); narrow `i8` array indexing works; struct-array field indexing works; larger and parameter-backed indexing remain incomplete |
 | String literal data | c1 cannot yet cover all c1-scale string/buffer patterns | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads work; multiple string buffers coexist without corruption (proven by multi-buffer smoke) |
 | Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); extern scalar `bool` emitted as C `bool` and scalar `i8`/`byte` emitted as C `signed char` works (9c71068); extern struct and non-scalar param types do not |
-| Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
+| Buffer size limits | C-backend path raised to source 131072 bytes, tokens 32768, AST nodes 32768, output 262144 | Next self-compile probe should expose semantic/emitter blockers rather than the old small-buffer ceiling |
 
-### Phase 5f buffer scout (2026-05-02)
+### Phase 5f buffer migration (2026-05-02)
 
-The current fixed buffers are too small for a direct c1 self-compile, and
-they are embedded in function signatures rather than only in harness locals:
+The original fixed buffers were too small for a direct c1 self-compile, and
+they were embedded in function signatures rather than only in harness locals.
+The C-backend path was mechanically raised in `afk/70b1d60e/capacity-migration-codex`
+and merged at `60afeb1`; `make check` passed after the merge.
 
-| Buffer | Current cap | Exact fixed sites | Required c1 C-backend size |
+| Buffer | Previous cap | Current C-path cap | Required c1 C-backend size |
 |---|---:|---|---:|
-| Source text | 256 bytes | `compiler1/lex.etl` (`source i8[256]`), `compiler1/parse.etl`, `compiler1/sema.etl`, `compiler1/emit_c.etl`, plus `compiler1/test_source_to_c*.etl` harness locals | 81,198 bytes for `main+lex+parse+sema+emit_c` |
-| Tokens | 128 | `Token[128]` in `lex`, `parse`, `sema`, `emit_c`, and source-to-C/equiv harnesses | 20,370 tokens including EOF, measured by compiler-0 |
-| AST nodes | 512 | `AstNode[512]` in `parse`, `sema`, `emit_c`, and source-to-C/equiv harnesses | 20,993 compiler-0 dataclass AST nodes as a scale proxy |
-| C output | 1,024 bytes | `out i8[1024]` and `emit_c(... out i8[1024] ...)`; `etl_write_file1024` externs in source-to-C harnesses | Larger than source input; exact c1 emitted-C size still needs a successful c1-scale emit |
-| `main.etl` stdin buffer | 64 bytes | `etl_read_file(path, buf, 64)` with `buf i8[64]` | Must cover the full concatenated source before c1 can read itself |
+| Source text | 256 bytes | 131,072 bytes | 81,198 bytes for `main+lex+parse+sema+emit_c` |
+| Tokens | 128 | 32,768 | 20,370 tokens including EOF, measured by compiler-0 |
+| AST nodes | 512 | 32,768 | 20,993 compiler-0 dataclass AST nodes as a scale proxy |
+| C output | 1,024 bytes | 262,144 bytes | Larger than source input; exact c1 emitted-C size still needs a successful c1-scale emit |
+| `main.etl` stdin buffer | 64 bytes | 131,072 bytes | Must cover the full concatenated source before c1 can read itself |
 
-A probe with a larger local source buffer failed under compiler-0 type
-checking (`lex` expected `i8[256]`, got `i8[512]`), so a safe cap increase is
-not just a local harness edit. The low-risk next chunk is a mechanical
-capacity migration across the c1 C-backend path: raise `source i8[256]`,
-`Token[128]`, `AstNode[512]`, and `out i8[1024]` consistently in
-`lex/parse/sema/emit_c`, `compiler1/main.etl`, `scripts/c1_equiv_smoke.sh`,
-and the `compiler1/test_source_to_c*.etl` harnesses, then rerun
-`make check` and `make selfhost`.
+The next low-risk chunk is the 5f self-compile smoke: concatenate the c1
+source, feed it to the c0-built c1 binary, capture emitted C, and compile that
+C as a c2 candidate. This should become the durable way to expose the next
+remaining blocker.
 
 ## The self-compilation chain
 
@@ -289,9 +287,9 @@ These are ordered by dependency; earlier items unblock later ones.
 9. **Extern fn typed params**: c1 must emit correct C types for extern
    function parameters (not all `int`).
 
-10. **Buffer expansion**: The c1 harness buffers (`source i8[256]`,
-    `tokens Token[128]`, `out i8[1024]`) must be expanded to handle the
-    full concatenated c1 source (~15KB+ source, ~500+ tokens, ~20KB+ output).
+10. **Buffer expansion**: The c1 C-backend path has been expanded to handle
+    c1-scale source, token, AST, and C output buffers. The next validation is
+    an actual self-compile attempt that records the first remaining blocker.
 
 ### Before Phase 5g can start
 
@@ -407,12 +405,16 @@ for self-compilation.
 
 ### Chunk 5f-BUFFERS: Expand harness buffer sizes
 
+**Status**: Landed in `afk/70b1d60e/capacity-migration-codex` and merged at
+`60afeb1`; `make check` passed after merge.
+
 **Scope**: Increase buffer sizes in the equiv smoke harness to handle
 c1-scale programs.
 
-- `source i8[256]` → `source i8[16384]` (16KB).
-- `tokens Token[128]` → `tokens Token[1024]`.
-- `out i8[1024]` → `out i8[32768]` (32KB).
+- `source i8[256]` → `source i8[131072]`.
+- `tokens Token[128]` → `tokens Token[32768]`.
+- `AstNode[512]` → `AstNode[32768]`.
+- `out i8[1024]` → `out i8[262144]`.
 - Adjust `emit_c` internal buffers proportionally.
 
 **Prerequisite**: 5f-STRINGS.
