@@ -5,15 +5,15 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (20 fixtures, all passing)
+## Current corpus (22 fixtures, all passing)
 
 The existing corpus exercises single-function and multi-function programs
 with `i32` locals, integer arithmetic, comparisons, logical operators,
 `if`/`elif`/`else`, `while`, assignment, `return`, recursive user-defined
-calls, and user-defined calls with `i32` arguments. See
-`scripts/c1_equiv_smoke.sh` for the full list.
+calls, user-defined calls with `i32` arguments, and local fixed `i32` array
+sum/loop indexing. See `scripts/c1_equiv_smoke.sh` for the full list.
 
-All 20 produce matching exit codes when compiled by c0 vs c1.
+All 22 produce matching exit codes when compiled by c0 vs c1.
 
 ## Fixed-point blocker coverage map
 
@@ -211,6 +211,10 @@ reads and writes. The narrow `i32` constant-index smoke already covers the
 core mechanism (declare + write + read); this fixture extends to 4-element
 arrays with multi-read sum expressions.
 
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 100 via both c0 and c1).
+> Merged in commit fa3215d.
+
 #### `local_array_loop.etl`
 
 ```etl
@@ -229,6 +233,10 @@ end
 subscripts inside loops. The narrow variable-index smoke (6df84e6) covers
 `arr[i]` reads and writes for a single local variable index; this fixture
 extends to 8-element arrays with loop-driven variable subscripts.
+
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 49 via both c0 and c1).
+> Merged in commit ec6a28d.
 
 #### `local_i8_array.etl`
 
@@ -437,8 +445,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 20 fixtures, including Tier 1 multi-function/`i32` params | 20 + up to 12 later-tier fixtures |
-| `make selfhost` | c1 pipeline + 20-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 22 fixtures, including Tier 1 multi-function/`i32` params plus local i32 array sum/loop indexing | 22 + up to 10 later-tier fixtures |
+| `make selfhost` | c1 pipeline + 22-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
@@ -471,8 +479,9 @@ implemented.
 |---|---|---|
 | Existing pre-Tier-1 corpus | 16 | 16 |
 | Tier 1: Multi-function and parameters | 4 | 20 |
-| Tier 2: Typed locals | 3 | 23 |
-| Tier 3: Arrays and indexing | 3 | 26 |
+| Tier 3: `local_array_sum` + `local_array_loop` (early) | 2 | 22 |
+| Tier 2: Typed locals | 3 | 25 |
+| Tier 3: Remaining i8 array indexing | 1 | 26 |
 | Tier 4: Structs and fields | 3 | 29 |
 | Tier 5: String literals | 2 | 31 |
 | Tier 6: Typed extern | 1 | 32 |
