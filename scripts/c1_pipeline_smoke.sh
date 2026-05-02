@@ -45,6 +45,9 @@ scripts/c1_source_to_c_byte_array_assign_smoke.sh
 echo "c1_pipeline: run byte-array parameter source-to-C smoke"
 scripts/c1_source_to_c_byte_array_param_smoke.sh
 
+echo "c1_pipeline: run bool parameter source-to-C smoke"
+scripts/c1_source_to_c_bool_param_smoke.sh
+
 echo "c1_pipeline: run byte-string source-to-C smoke"
 scripts/c1_source_to_c_byte_string_smoke.sh
 
