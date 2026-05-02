@@ -41,6 +41,7 @@ smoke:
 	scripts/c1_source_to_c_struct_field_smoke.sh
 	scripts/c1_source_to_c_struct_array_smoke.sh
 	scripts/c1_source_to_c_struct_param_smoke.sh
+	scripts/c1_source_to_c_scalar_param_smoke.sh
 	scripts/c1_extern_call_smoke.sh
 
 runtime-test:

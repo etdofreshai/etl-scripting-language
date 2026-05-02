@@ -16,62 +16,62 @@ fn main() i32
     ret 2
   end
   let emitted i32 = emit_c(source, tokens, ast, an, out, 1024)
-  if emitted != 65
+  if emitted != 86
     ret 3
   end
-  if not check_byte(out, 0, 105)
+  if not check_byte(out, 0, 35)
     ret 4
   end
-  if not check_byte(out, 1, 110)
+  if not check_byte(out, 1, 105)
     ret 5
   end
-  if not check_byte(out, 2, 116)
+  if not check_byte(out, 2, 110)
     ret 6
   end
-  if not check_byte(out, 4, 109)
+  if not check_byte(out, 20, 10)
     ret 7
   end
-  if not check_byte(out, 13, 41)
+  if not check_byte(out, 34, 41)
     ret 8
   end
-  if not check_byte(out, 14, 59)
+  if not check_byte(out, 35, 59)
     ret 9
   end
-  if not check_byte(out, 15, 10)
+  if not check_byte(out, 36, 10)
     ret 10
   end
-  if not check_byte(out, 16, 105)
+  if not check_byte(out, 37, 105)
     ret 11
   end
-  if not check_byte(out, 31, 123)
+  if not check_byte(out, 52, 123)
     ret 12
   end
-  if not check_byte(out, 42, 40)
+  if not check_byte(out, 63, 40)
     ret 13
   end
-  if not check_byte(out, 45, 43)
+  if not check_byte(out, 66, 43)
     ret 14
   end
-  if not check_byte(out, 47, 40)
+  if not check_byte(out, 68, 40)
     ret 15
   end
-  if not check_byte(out, 50, 42)
+  if not check_byte(out, 71, 42)
     ret 16
   end
-  if not check_byte(out, 52, 40)
+  if not check_byte(out, 73, 40)
     ret 17
   end
-  if not check_byte(out, 55, 45)
+  if not check_byte(out, 76, 45)
     ret 18
   end
-  if not check_byte(out, 61, 59)
+  if not check_byte(out, 82, 59)
     ret 19
   end
-  if not check_byte(out, 63, 125)
+  if not check_byte(out, 84, 125)
     ret 20
   end
-  if not check_byte(out, 64, 10)
+  if not check_byte(out, 85, 10)
     ret 21
   end
-  ret 65
+  ret 86
 end

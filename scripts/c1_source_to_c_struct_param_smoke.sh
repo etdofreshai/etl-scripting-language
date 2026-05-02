@@ -15,15 +15,6 @@ cat compiler1/test_source_to_c_struct_param.etl >> "$td/test_source_to_c_struct_
 scripts/build_etl.sh "$td/test_source_to_c_struct_param_all.etl" "$td/test_source_to_c_struct_param"
 "$td/test_source_to_c_struct_param"
 
-sed '/^fn main()/,$d' compiler1/main.etl > "$td/test_source_to_c_bool_param_reject_all.etl"
-cat compiler1/lex.etl >> "$td/test_source_to_c_bool_param_reject_all.etl"
-cat compiler1/parse.etl >> "$td/test_source_to_c_bool_param_reject_all.etl"
-cat compiler1/sema.etl >> "$td/test_source_to_c_bool_param_reject_all.etl"
-cat compiler1/test_source_to_c_bool_param_reject.etl >> "$td/test_source_to_c_bool_param_reject_all.etl"
-
-scripts/build_etl.sh "$td/test_source_to_c_bool_param_reject_all.etl" "$td/test_source_to_c_bool_param_reject"
-"$td/test_source_to_c_bool_param_reject"
-
 if [ ! -s "$emitted" ]; then
   echo "c1_source_to_c_struct_param_smoke: FAIL - compiler-1 harness did not write emitted C" >&2
   exit 1
