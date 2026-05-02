@@ -82,7 +82,7 @@ codes for consistent error handling.
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, and narrow by-value struct parameters. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, helper `byte[N]`/`i8[N]` array parameter indexed reads via saved base pointers and `movsbq`, helper `byte[N]`/`i8[N]` array parameter indexed writes via saved base pointers and `movb`, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via saved base pointers and `movsbq`/`movb`, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
@@ -274,11 +274,11 @@ smoke script (141756a, merged e006f5f). Helper `byte[N]`/`i8[N]` array
 parameter indexed reads proven by the same smoke script (2f16e17, merged
 69e0a05): local byte arrays are passed with `lea`, helper params are saved
 base pointers, and reads use `movsbq`. Helper `byte[N]`/`i8[N]` array
-parameter indexed writes proven by the same smoke script (99c6493, merged
-8db6ae1): `set_second(text i8[4]) i32` writes 42 to `text[1]` and reads
-it back, native exit 42. Extern byte arrays, runtime strings, pointer
-decay beyond this helper-call slice, structs, struct arrays, bounds checks,
-and dynamic arrays remain unsupported in ASM.
+parameter indexed writes proven by `scripts/c1_asm_array_smoke.sh` (99c6493,
+merged 8db6ae1): `i8_array_param_write_idx` writes 42 into `buf[1]` and reads
+it back, returning native exit 42. Extern byte arrays, runtime strings,
+pointer decay beyond this helper-call slice, structs, struct arrays, bounds
+checks, and dynamic arrays remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 

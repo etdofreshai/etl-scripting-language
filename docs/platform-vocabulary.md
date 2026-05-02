@@ -115,8 +115,8 @@ and local fixed struct array indexed field store/load via computed base
 offset with `imul` struct-size scaling. Also emits multiple user-defined
 helper functions with `i32`/`integer` parameters, i32 returns, and direct calls
 using System V integer argument registers. Helper `byte[N]`/`i8[N]` array
-parameters can be passed as saved base pointers and read through indexed
-`movsbq` loads or written through indexed `movb` stores. Source `extern fn` declarations with `i32`/`integer` params
+parameters can be passed as saved base pointers and read/written through
+indexed `movsbq`/`movb`. Source `extern fn` declarations with `i32`/`integer` params
 and `i32` return are lowered to direct `call` to named symbols resolved by
 the linker.
 No void-return extern declarations, non-i32 function parameters or returns,
