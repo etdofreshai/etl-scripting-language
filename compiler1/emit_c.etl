@@ -1095,6 +1095,8 @@ fn emit_c_extern_param_list(source i8[256], tokens Token[128], ast AstNode[512],
     ret -1
   end
   let int_text i8[64] = "int"
+  let bool_text i8[64] = "bool"
+  let byte_text i8[64] = "signed char"
   let byte_ptr_text i8[64] = "signed char *"
   let comma i8[64] = ", "
   if ast[list].b >= 0
@@ -1109,6 +1111,12 @@ fn emit_c_extern_param_list(source i8[256], tokens Token[128], ast AstNode[512],
   end
   if emit_c_type_is_byte_array(source, tokens, ast, ast[param].b)
     ret emit_c_append_text(out, p, out_cap, byte_ptr_text, 13)
+  end
+  if emit_c_type_is_bool(source, tokens, ast, ast[param].b)
+    ret emit_c_append_text(out, p, out_cap, bool_text, 4)
+  end
+  if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
+    ret emit_c_append_text(out, p, out_cap, byte_text, 11)
   end
   ret emit_c_append_text(out, p, out_cap, int_text, 3)
 end

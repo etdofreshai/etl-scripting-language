@@ -45,6 +45,7 @@ smoke:
 	scripts/c1_source_to_c_struct_param_smoke.sh
 	scripts/c1_source_to_c_scalar_param_smoke.sh
 	scripts/c1_extern_call_smoke.sh
+	scripts/c1_extern_scalar_param_smoke.sh
 
 runtime-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -o runtime/test_runtime runtime/test_runtime.c $(ETL_RUNTIME)
