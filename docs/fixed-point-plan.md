@@ -124,6 +124,28 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 | Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); user-defined byte-array params and non-byte-array extern param types do not |
 | Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
 
+### Phase 5f buffer scout (2026-05-02)
+
+The current fixed buffers are too small for a direct c1 self-compile, and
+they are embedded in function signatures rather than only in harness locals:
+
+| Buffer | Current cap | Exact fixed sites | Required c1 C-backend size |
+|---|---:|---|---:|
+| Source text | 256 bytes | `compiler1/lex.etl` (`source i8[256]`), `compiler1/parse.etl`, `compiler1/sema.etl`, `compiler1/emit_c.etl`, plus `compiler1/test_source_to_c*.etl` harness locals | 81,198 bytes for `main+lex+parse+sema+emit_c` |
+| Tokens | 128 | `Token[128]` in `lex`, `parse`, `sema`, `emit_c`, and source-to-C/equiv harnesses | 20,370 tokens including EOF, measured by compiler-0 |
+| AST nodes | 512 | `AstNode[512]` in `parse`, `sema`, `emit_c`, and source-to-C/equiv harnesses | 20,993 compiler-0 dataclass AST nodes as a scale proxy |
+| C output | 1,024 bytes | `out i8[1024]` and `emit_c(... out i8[1024] ...)`; `etl_write_file1024` externs in source-to-C harnesses | Larger than source input; exact c1 emitted-C size still needs a successful c1-scale emit |
+| `main.etl` stdin buffer | 64 bytes | `etl_read_file(path, buf, 64)` with `buf i8[64]` | Must cover the full concatenated source before c1 can read itself |
+
+A probe with a larger local source buffer failed under compiler-0 type
+checking (`lex` expected `i8[256]`, got `i8[512]`), so a safe cap increase is
+not just a local harness edit. The low-risk next chunk is a mechanical
+capacity migration across the c1 C-backend path: raise `source i8[256]`,
+`Token[128]`, `AstNode[512]`, and `out i8[1024]` consistently in
+`lex/parse/sema/emit_c`, `compiler1/main.etl`, `scripts/c1_equiv_smoke.sh`,
+and the `compiler1/test_source_to_c*.etl` harnesses, then rerun
+`make check` and `make selfhost`.
+
 ## The self-compilation chain
 
 ### Stage A: c0 builds c1 (current)
