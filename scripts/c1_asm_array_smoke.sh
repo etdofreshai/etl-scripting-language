@@ -90,5 +90,7 @@ run_case array_with_scalar "fn main() i32 let a i32[2] let x i32 = 10 a[0] = x a
 run_case byte_array_const_idx "fn main() i32 let values byte[4] values[0] = 10 values[1] = 32 ret values[0] + values[1] end" 42
 run_case i8_array_var_idx "fn main() i32 let values i8[4] let i i32 = 1 values[i] = 42 ret values[i] end" 42
 run_case i8_array_string_literal_idx "fn main() i32 let text i8[4] = \"abc\" ret text[0] + text[1] - text[2] end" 96
+run_case i8_array_param_const_idx "fn first(text i8[4]) i32 ret text[0] + text[1] - text[2] end fn main() i32 let text i8[4] = \"abc\" ret first(text) end" 96
+run_case byte_array_param_var_idx "fn pick(text byte[4], i i32) i32 ret text[i] end fn main() i32 let text byte[4] text[0] = 10 text[1] = 42 ret pick(text, 1) end" 42
 
 echo "c1_asm_array_smoke: ok"
