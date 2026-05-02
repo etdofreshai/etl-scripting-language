@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs and user-defined `i32` parameters. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads via `i32.load8_s` (param passed as i32 base pointer), local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -287,7 +287,11 @@ read/write proven by `scripts/c1_wat_array_smoke.sh` (ea5408c, merged
 using `i32.store8`/`i32.load8_s` proven by the same smoke script
 (cd65f69, merged 7ce9043). Local `i8[N]` string literal initialization
 with constant-index reads proven by the same smoke script (c173e18,
-merged 44ac63e). Extern/param byte arrays, structs, struct arrays,
+merged 44ac63e). Helper `byte[N]`/`i8[N]` array parameter indexed reads
+(passed as i32 base pointer, using `i32.load8_s`) proven by the same
+smoke script (df35de9, merged 1d20f20): `first(text i8[4]) i32` returns
+`text[0] + text[1] - text[2]` = 96 from a local `i8[4] = "abc"`.
+Extern byte arrays, byte-array param writes, structs, struct arrays,
 bounds checks, and dynamic arrays remain unsupported.
 
 ### Chunk ASM-3D: x86-64 local i32 struct field store/load — **Done.**
@@ -343,8 +347,9 @@ proven by `scripts/c1_wat_extern_import_smoke.sh` and
 `scripts/c1_wat_extern_call_smoke.sh`. General parameter
 types (byte, bool, struct, array), void-return extern import statements, runtime
 host execution, ABI work for non-i32 params/returns, runtime
-strings, pointer decay, extern/param byte arrays, nested structs, non-i32
-fields, bounds checks, and dynamic arrays remain unsupported in WAT.
+strings, pointer decay, extern byte arrays, byte-array param writes,
+nested structs, non-i32 fields, bounds checks, and dynamic arrays
+remain unsupported in WAT.
 
 ### Chunk ASM-4: x86-64 i32 helper/user function calls — **Partially done (narrow i32 slice).**
 Multiple user-defined functions with `i32`/`integer` parameters and `i32` return
@@ -371,7 +376,7 @@ unsupported in ASM.
 ### Future chunks
 - ASM-4: function parameters and multi-function support — **narrow i32 helper-call slice done** (a30d3cd); **narrow i32 extern call slice done** (535c56c); general param types, void-return extern, and full ABI remain.
 - ASM-5: `elif` chains — **Done** (52804e9, merged 6e255dd).
-- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); general param types, void-return extern imports, runtime host execution, and full ABI remain.
+- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); **narrow byte/i8 array helper param read slice done** (df35de9); general param types, void-return extern imports, runtime host execution, and full ABI remain.
 - WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).
 - These can be delegated to independent workers.
 
