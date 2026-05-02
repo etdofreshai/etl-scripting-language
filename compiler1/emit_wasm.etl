@@ -995,7 +995,7 @@ fn emit_wasm_import_param_list(source i8[256], tokens Token[128], ast AstNode[51
   if ast[param].kind != AN_PARAM()
     ret -1
   end
-  if emit_wasm_type_is_i32_scalar(source, tokens, ast, ast[param].b) == false
+  if emit_wasm_type_is_scalar_param(source, tokens, ast, ast[param].b) == false
     ret -1
   end
   let param_t i8[64] = " (param i32)"
