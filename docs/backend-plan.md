@@ -83,7 +83,7 @@ codes for consistent error handling.
 |---------|------|--------|-------|
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, and narrow by-value struct parameters. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via saved base pointers and `movsbq`/`movb`, and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped as `i32` params/locals, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined `i32`/scalar-bool/byte-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
 
 ## Shared backend subset smoke
 
@@ -347,16 +347,20 @@ items[i].value + 3; ret items[0].value + items[i].value`. Nested
 structs, non-i32 fields, function parameters, extern calls, bounds
 checks, and dynamic memory remain unsupported in WAT.
 
-### Chunk WASM-3: WAT i32 helper/user function calls — **Partially done (narrow i32 slice).**
+### Chunk WASM-3: WAT i32 helper/user function calls — **Partially done (narrow i32 + scalar bool/i8/byte slice).**
 Multiple user-defined functions with `i32` parameters and `i32` return values,
 direct intra-module calls, and `_start` export proven by
 `scripts/c1_wat_function_call_smoke.sh` (cc78aaf, merged 99caf9a). Smoke
-validates `add(a,b)`, `bump(x)`, and `main` returning 42. Source `extern fn`
+validates `add(a,b)`, `bump(x)`, and `main` returning 42. Scalar `bool`/`boolean`
+and `i8`/`byte` helper parameters mapped as `i32` params/locals proven by the
+same smoke script (383d930, merged 91d8ef7). Smoke validates `c(f bool)`,
+`d(f boolean)`, `e(x i8)`, `g(x byte)` all lowering to `(param $v0 i32)`.
+Source `extern fn`
 declarations with `i32`/`integer` params and `i32` return lowered to
 `(import "env" "name" (func $name ... (result i32)))` with `call $name`
 proven by `scripts/c1_wat_extern_import_smoke.sh` and
-`scripts/c1_wat_extern_call_smoke.sh`. General parameter
-types (byte, bool, struct, array), void-return extern import statements, runtime
+`scripts/c1_wat_extern_call_smoke.sh`. Struct and array parameters,
+void-return extern import statements, runtime
 host execution, ABI work for non-i32 params/returns, runtime
 strings, pointer decay, extern byte arrays,
 nested structs, non-i32 fields, bounds checks, and dynamic arrays
@@ -390,7 +394,7 @@ checks, and dynamic arrays remain unsupported in ASM.
 ### Future chunks
 - ASM-4: function parameters and multi-function support — **narrow i32 helper-call slice done** (a30d3cd); **narrow i32 extern call slice done** (535c56c); **narrow byte/i8 array helper param read slice done** (2f16e17); **narrow byte/i8 array helper param write slice done** (99c6493); general param types, void-return extern, and full ABI remain.
 - ASM-5: `elif` chains — **Done** (52804e9, merged 6e255dd).
-- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); **narrow byte/i8 array helper param read slice done** (df35de9); **narrow byte/i8 array helper param write slice done** (a67d121); general param types, void-return extern imports, runtime host execution, and full ABI remain.
+- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); **narrow byte/i8 array helper param read slice done** (df35de9); **narrow byte/i8 array helper param write slice done** (a67d121); **narrow scalar bool/i8/byte helper param slice done** (383d930); struct/array param types, void-return extern imports, runtime host execution, and full ABI remain.
 - WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).
 - These can be delegated to independent workers.
 
