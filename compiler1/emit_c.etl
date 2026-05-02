@@ -109,6 +109,22 @@ fn emit_c_type_is_byte_array(source i8[256], tokens Token[128], ast AstNode[512]
   ret false
 end
 
+fn emit_c_type_is_struct_value(source i8[256], tokens Token[128], ast AstNode[512], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  if emit_c_type_is_i32(source, tokens, ast, typ)
+    ret false
+  end
+  ret true
+end
+
 fn emit_c_count_prior_lets(ast AstNode[512], list i32) i32
   if list < 0
     ret 0
@@ -833,6 +849,7 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
   end
   let int_text i8[64] = "int "
   let byte_ptr_text i8[64] = "signed char *"
+  let struct_text i8[64] = "struct "
   let comma i8[64] = ", "
   if ast[list].b >= 0
     p = emit_c_append_text(out, p, out_cap, comma, 2)
@@ -847,10 +864,23 @@ fn emit_c_param_list(source i8[256], tokens Token[128], ast AstNode[512], list i
   if emit_c_type_is_byte_array(source, tokens, ast, ast[param].b)
     p = emit_c_append_text(out, p, out_cap, byte_ptr_text, 13)
   else
-    if emit_c_type_is_i32(source, tokens, ast, ast[param].b) == false
-      ret -1
+    if emit_c_type_is_i32(source, tokens, ast, ast[param].b)
+      p = emit_c_append_text(out, p, out_cap, int_text, 4)
+    else
+      if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
+        ret -1
+      end
+      p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+      if p < 0
+        ret -1
+      end
+      p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+      if p < 0
+        ret -1
+      end
+      let space i8[64] = " "
+      p = emit_c_append_text(out, p, out_cap, space, 1)
     end
-    p = emit_c_append_text(out, p, out_cap, int_text, 4)
   end
   if p < 0
     ret -1
@@ -960,6 +990,37 @@ fn emit_c_function_prototypes(source i8[256], tokens Token[128], ast AstNode[512
     ret p
   end
   p = emit_c_function_signature(source, tokens, ast, ast_count, decl, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  let semi i8[64] = ";\n"
+  ret emit_c_append_text(out, p, out_cap, semi, 2)
+end
+
+fn emit_c_struct_forwards(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if list >= ast_count
+    ret -1
+  end
+  if ast[list].kind != AN_LIST()
+    ret -1
+  end
+  let p i32 = emit_c_struct_forwards(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret -1
+  end
+  let decl i32 = ast[list].a
+  if ast[decl].kind != AN_STRUCT()
+    ret p
+  end
+  let head i8[64] = "struct "
+  p = emit_c_append_text(out, p, out_cap, head, 7)
+  if p < 0
+    ret -1
+  end
+  p = emit_c_append_token_text(source, tokens, ast[decl].a, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -1088,11 +1149,15 @@ fn emit_c_program(source i8[256], tokens Token[128], ast AstNode[512], ast_count
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, list, out, pos, out_cap)
+  let p i32 = emit_c_struct_forwards(source, tokens, ast, ast_count, list, out, pos, out_cap)
   if p < 0
     ret -1
   end
-  ret emit_c_decl_list(source, tokens, ast, ast_count, list, out, p, out_cap)
+  let p2 i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, list, out, p, out_cap)
+  if p2 < 0
+    ret -1
+  end
+  ret emit_c_decl_list(source, tokens, ast, ast_count, list, out, p2, out_cap)
 end
 
 fn emit_c(source i8[256], tokens Token[128], ast AstNode[512], ast_count i32, out i8[1024], out_cap i32) i32

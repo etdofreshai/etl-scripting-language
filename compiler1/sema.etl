@@ -153,7 +153,12 @@ fn sema_count_i32_params(source i8[256], tokens Token[128], ast AstNode[512], pa
     end
     if sema_type_is_i32(source, tokens, ast, ast[param].b) == false
       if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
-        ret -1
+        if ast[ast[param].b].kind != AN_TYPE()
+          ret -1
+        end
+        if ast[ast[param].b].b != -1
+          ret -1
+        end
       end
     end
     count = count + 1
