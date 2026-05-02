@@ -321,10 +321,10 @@ acceptance criteria, tier ordering, and blocker mapping. Summary:
 - Tier 5 (2 fixtures): string-initialized `i8[]` locals
 - Tier 6 (1 fixture): typed extern function parameters
 
-Each fixture has an expected exit code. Tier 1 plus the early `local_array_sum`
-and `local_array_loop` Tier 3 fixtures are now included in the default c1 equiv
-gate and pass; later tiers should be added to the smoke array as their matching
-emitter support lands.
+Each fixture has an expected exit code. Tier 1 plus the early `local_array_sum`,
+`local_array_loop`, and `local_i8_array` Tier 3 fixtures are now included in
+the default c1 equiv gate and pass; later tiers should be added to the smoke
+array as their matching emitter support lands.
 
 **Prerequisite**: None (documentation/test-only).
 **Estimated waves**: 1–2.
