@@ -76,7 +76,8 @@ make examples
 
 > **Phase 5 status: IN PROGRESS.** `compiler1/` now has lexer, parser,
 > semantic validation, C emission with void and return-valued extern call
-> support, multi-function/user-call emission with `i32` parameters, a
+> support, multi-function/user-call emission with `i32` parameters across
+> C/WAT/ASM, a
 > 20-fixture c1 equiv corpus, and an 18-case shared C/ASM/WAT backend subset.
 > `make selfhost` runs the full compiler-1 pipeline; `make headless-ready` is
 > the integration gate.
