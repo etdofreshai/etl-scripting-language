@@ -64,17 +64,23 @@ ETL
   cat "$wat_out"
 }
 
-source='fn add(a i32, b integer) i32 ret a + b end fn bump(x integer) integer ret add(x, 1) end fn main() i32 ret bump(41) end'
+source='fn add(a i32,b integer) i32 ret a+b end fn c(f bool) i32 if f ret 40 end ret 7 end fn d(f boolean) i32 if f ret 1 end ret 0 end fn e(x i8) i32 ret x+1 end fn g(x byte) i32 ret x+1 end fn main() i32 ret add(c(true),d(true)+e(0)+g(0))-1 end'
 wat_text="$(run_wat_emit "$source")"
 
 for fragment in \
   '(func $add (param $v0 i32) (param $v1 i32) (result i32)' \
-  '(func $bump (param $v0 i32) (result i32)' \
+  '(func $c (param $v0 i32) (result i32)' \
+  '(func $d (param $v0 i32) (result i32)' \
+  '(func $e (param $v0 i32) (result i32)' \
+  '(func $g (param $v0 i32) (result i32)' \
   '(func $main (export "_start") (result i32)' \
   'local.get $v0' \
   'local.get $v1' \
   'call $add' \
-  'call $bump'; do
+  'call $c' \
+  'call $d' \
+  'call $e' \
+  'call $g'; do
   if ! echo "$wat_text" | grep -q "$fragment"; then
     echo "c1_wat_function_call_smoke: FAIL missing WAT fragment: $fragment" >&2
     echo "$wat_text" >&2
