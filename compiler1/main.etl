@@ -1,5 +1,5 @@
-extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
-extern fn etl_write_file(path i8[64], buf i8[64], len i32) i32
+extern fn etl_read_file(path i8[64], buf i8[131072], cap i32) i32
+extern fn etl_write_file(path i8[64], buf i8[262144], len i32) i32
 
 type Token struct
   kind i32
@@ -85,8 +85,8 @@ fn AN_SIZEOF() i32 ret 26 end
 
 fn main() i32
   let path i8[64] = "/dev/stdin"
-  let buf i8[64]
-  let n i32 = etl_read_file(path, buf, 64)
+  let buf i8[131072]
+  let n i32 = etl_read_file(path, buf, 131072)
   let expect i8[64] = "hello\n"
   if n == 6
     if buf[0] == expect[0]
@@ -96,7 +96,7 @@ fn main() i32
             if buf[4] == expect[4]
               if buf[5] == expect[5]
                 let outpath i8[64] = "/dev/stdout"
-                let out i8[64] = "h"
+                let out i8[262144] = "h"
                 let w i32 = etl_write_file(outpath, out, 1)
                 if w < 0
                   ret 2

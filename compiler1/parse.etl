@@ -6,7 +6,7 @@ type ParserState struct
   error i32
 end
 
-fn p_peek(tokens Token[128], st ParserState[1]) i32
+fn p_peek(tokens Token[32768], st ParserState[1]) i32
   if st[0].pos >= st[0].token_count
     ret TK_EOF()
   end
@@ -17,11 +17,11 @@ fn p_token(st ParserState[1]) i32
   ret st[0].pos
 end
 
-fn p_at(tokens Token[128], st ParserState[1], kind i32) bool
+fn p_at(tokens Token[32768], st ParserState[1], kind i32) bool
   ret p_peek(tokens, st) == kind
 end
 
-fn p_take(tokens Token[128], st ParserState[1], kind i32) i32
+fn p_take(tokens Token[32768], st ParserState[1], kind i32) i32
   let tok i32 = p_token(st)
   if p_peek(tokens, st) != kind
     st[0].error = tok
@@ -31,7 +31,7 @@ fn p_take(tokens Token[128], st ParserState[1], kind i32) i32
   ret tok
 end
 
-fn p_node(ast AstNode[512], st ParserState[1], kind i32, a i32, b i32, c i32, token i32) i32
+fn p_node(ast AstNode[32768], st ParserState[1], kind i32, a i32, b i32, c i32, token i32) i32
   let i i32 = st[0].ast_n
   if i >= st[0].ast_cap
     st[0].error = token
@@ -46,11 +46,11 @@ fn p_node(ast AstNode[512], st ParserState[1], kind i32, a i32, b i32, c i32, to
   ret i
 end
 
-fn p_list(ast AstNode[512], st ParserState[1], item i32, next i32, token i32) i32
+fn p_list(ast AstNode[32768], st ParserState[1], item i32, next i32, token i32) i32
   ret p_node(ast, st, AN_LIST(), item, next, 0, token)
 end
 
-fn p_parse_type(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_type(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let tok i32 = p_token(st)
   if p_take(tokens, st, TK_IDENT()) < 0
     ret -1
@@ -86,7 +86,7 @@ fn p_parse_type(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret p_node(ast, st, AN_TYPE(), tok, arr_size, 0, tok)
 end
 
-fn p_parse_param_list(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_param_list(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   if p_take(tokens, st, TK_LPAREN()) < 0
     ret -1
   end
@@ -127,11 +127,11 @@ fn p_parse_param_list(tokens Token[128], st ParserState[1], ast AstNode[512]) i3
   ret p_node(ast, st, AN_BLOCK(), list, count, 0, p_token(st))
 end
 
-fn p_parse_expr(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_expr(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   ret p_parse_or(tokens, st, ast)
 end
 
-fn p_parse_primary(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_primary(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let tok i32 = p_token(st)
   if p_at(tokens, st, TK_INT())
     if p_take(tokens, st, TK_INT()) < 0
@@ -258,7 +258,7 @@ fn p_parse_primary(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret -1
 end
 
-fn p_parse_unary(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_unary(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   if p_at(tokens, st, TK_MINUS()) or p_at(tokens, st, TK_NOT())
     let tok i32 = p_token(st)
     let op i32 = p_peek(tokens, st)
@@ -272,7 +272,7 @@ fn p_parse_unary(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret p_parse_primary(tokens, st, ast)
 end
 
-fn p_parse_mul(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_mul(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let expr i32 = p_parse_unary(tokens, st, ast)
   if expr < 0
     ret -1
@@ -293,7 +293,7 @@ fn p_parse_mul(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret expr
 end
 
-fn p_parse_add(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_add(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let expr i32 = p_parse_mul(tokens, st, ast)
   if expr < 0
     ret -1
@@ -314,7 +314,7 @@ fn p_parse_add(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret expr
 end
 
-fn p_parse_cmp(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_cmp(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let expr i32 = p_parse_add(tokens, st, ast)
   if expr < 0
     ret -1
@@ -335,7 +335,7 @@ fn p_parse_cmp(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret expr
 end
 
-fn p_parse_and(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_and(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let expr i32 = p_parse_cmp(tokens, st, ast)
   if expr < 0
     ret -1
@@ -357,7 +357,7 @@ fn p_parse_and(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret expr
 end
 
-fn p_parse_or(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_or(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let expr i32 = p_parse_and(tokens, st, ast)
   if expr < 0
     ret -1
@@ -379,7 +379,7 @@ fn p_parse_or(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret expr
 end
 
-fn p_parse_block(tokens Token[128], st ParserState[1], ast AstNode[512], t1 i32, t2 i32, t3 i32) i32
+fn p_parse_block(tokens Token[32768], st ParserState[1], ast AstNode[32768], t1 i32, t2 i32, t3 i32) i32
   let list i32 = -1
   let count i32 = 0
   while p_peek(tokens, st) != t1 and p_peek(tokens, st) != t2 and p_peek(tokens, st) != t3 and p_peek(tokens, st) != TK_EOF()
@@ -400,7 +400,7 @@ fn p_parse_block(tokens Token[128], st ParserState[1], ast AstNode[512], t1 i32,
   ret p_node(ast, st, AN_BLOCK(), list, count, 0, p_token(st))
 end
 
-fn p_parse_stmt(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_stmt(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let tok i32 = p_token(st)
   if p_at(tokens, st, TK_LET())
     if p_take(tokens, st, TK_LET()) < 0
@@ -529,7 +529,7 @@ fn p_parse_stmt(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret -1
 end
 
-fn p_parse_struct(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
+fn p_parse_struct(tokens Token[32768], st ParserState[1], ast AstNode[32768]) i32
   let tok i32 = p_take(tokens, st, TK_TYPE())
   if tok < 0
     ret -1
@@ -568,7 +568,7 @@ fn p_parse_struct(tokens Token[128], st ParserState[1], ast AstNode[512]) i32
   ret p_node(ast, st, AN_STRUCT(), name, fields, count, tok)
 end
 
-fn p_parse_function(tokens Token[128], st ParserState[1], ast AstNode[512], is_extern i32) i32
+fn p_parse_function(tokens Token[32768], st ParserState[1], ast AstNode[32768], is_extern i32) i32
   let tok i32 = p_token(st)
   if is_extern != 0
     if p_take(tokens, st, TK_EXTERN()) < 0
@@ -607,7 +607,7 @@ fn p_parse_function(tokens Token[128], st ParserState[1], ast AstNode[512], is_e
   ret p_node(ast, st, AN_FN(), name, params, body, tok)
 end
 
-fn parse(tokens Token[128], token_count i32, ast AstNode[512], ast_cap i32) i32
+fn parse(tokens Token[32768], token_count i32, ast AstNode[32768], ast_cap i32) i32
   let st ParserState[1]
   st[0].pos = 0
   st[0].token_count = token_count

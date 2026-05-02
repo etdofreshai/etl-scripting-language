@@ -1,4 +1,4 @@
-fn set_ast(ast AstNode[512], idx i32, kind i32, a i32, b i32, c i32, token i32) i32
+fn set_ast(ast AstNode[32768], idx i32, kind i32, a i32, b i32, c i32, token i32) i32
   ast[idx].kind = kind
   ast[idx].a = a
   ast[idx].b = b
@@ -8,9 +8,9 @@ fn set_ast(ast AstNode[512], idx i32, kind i32, a i32, b i32, c i32, token i32) 
 end
 
 fn test_duplicate_fn_ast() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let same_name_token i32 = 10
   let unused_type i32 = -1
 
@@ -34,9 +34,9 @@ fn test_duplicate_fn_ast() i32
 end
 
 fn test_duplicate_param_ast() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let fn_token i32 = 20
   let param_token i32 = 21
   let unused_type i32 = -1
@@ -61,9 +61,9 @@ fn test_duplicate_param_ast() i32
 end
 
 fn test_expr_stmt_not_call_ast() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let fn_token i32 = 30
   let expr_token i32 = 31
   let unused_type i32 = -1
@@ -87,9 +87,9 @@ fn test_expr_stmt_not_call_ast() i32
 end
 
 fn test_return_outside_fn_ast() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let ret_token i32 = 40
   let scope i32[64]
   scope[0] = 0
@@ -109,9 +109,9 @@ fn test_return_outside_fn_ast() i32
 end
 
 fn test_valid_if() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -132,9 +132,9 @@ fn test_valid_if() i32
 end
 
 fn test_invalid_if_condition() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -152,9 +152,9 @@ fn test_invalid_if_condition() i32
 end
 
 fn test_valid_while() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -172,9 +172,9 @@ fn test_valid_while() i32
 end
 
 fn test_invalid_while_condition() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -192,9 +192,9 @@ fn test_invalid_while_condition() i32
 end
 
 fn test_assign_undeclared() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -213,9 +213,9 @@ fn test_assign_undeclared() i32
 end
 
 fn test_assign_declared() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -238,9 +238,9 @@ fn test_assign_declared() i32
 end
 
 fn test_use_undeclared_name() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -261,9 +261,9 @@ fn test_use_undeclared_name() i32
 end
 
 fn test_let_then_use() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -290,9 +290,9 @@ fn test_let_then_use() i32
 end
 
 fn test_comparison_valid() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -310,9 +310,9 @@ fn test_comparison_valid() i32
 end
 
 fn test_comparison_incompat() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -330,9 +330,9 @@ fn test_comparison_incompat() i32
 end
 
 fn test_bool_op_string() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -350,9 +350,9 @@ fn test_bool_op_string() i32
 end
 
 fn test_bool_op_valid() i32
-  let source i8[256]
-  let tokens Token[128]
-  let ast AstNode[512]
+  let source i8[131072]
+  let tokens Token[32768]
+  let ast AstNode[32768]
   let scope i32[64]
   scope[0] = 0
 
@@ -370,14 +370,14 @@ fn test_bool_op_valid() i32
 end
 
 fn test_source_local_chain() i32
-  let source i8[256] = "fn main() i32 let x i32 = 10 let y i32 = x ret y end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 52, tokens, 128)
+  let source i8[131072] = "fn main() i32 let x i32 = 10 let y i32 = x ret y end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 52, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -388,14 +388,14 @@ fn test_source_local_chain() i32
 end
 
 fn test_source_assign_declared() i32
-  let source i8[256] = "fn main() i32 let x i32 = 10 x = 7 ret x end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 44, tokens, 128)
+  let source i8[131072] = "fn main() i32 let x i32 = 10 x = 7 ret x end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 44, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -406,14 +406,14 @@ fn test_source_assign_declared() i32
 end
 
 fn test_source_undeclared_rejected() i32
-  let source i8[256] = "fn main() i32 ret missing end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 29, tokens, 128)
+  let source i8[131072] = "fn main() i32 ret missing end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 29, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -424,14 +424,14 @@ fn test_source_undeclared_rejected() i32
 end
 
 fn test_source_extern_void_call_stmt() i32
-  let source i8[256] = "extern fn etl_print_i32(value i32) fn main() i32 etl_print_i32(42) ret 0 end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 76, tokens, 128)
+  let source i8[131072] = "extern fn etl_print_i32(value i32) fn main() i32 etl_print_i32(42) ret 0 end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 76, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -442,14 +442,14 @@ fn test_source_extern_void_call_stmt() i32
 end
 
 fn test_source_extern_i32_call_expr() i32
-  let source i8[256] = "extern fn etl_identity_i32(value i32) i32 fn main() i32 let x i32 = etl_identity_i32(41) ret etl_identity_i32(x) end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 116, tokens, 128)
+  let source i8[131072] = "extern fn etl_identity_i32(value i32) i32 fn main() i32 let x i32 = etl_identity_i32(41) ret etl_identity_i32(x) end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 116, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -460,14 +460,14 @@ fn test_source_extern_i32_call_expr() i32
 end
 
 fn test_source_extern_wrong_arg_count() i32
-  let source i8[256] = "extern fn etl_print_i32(value i32) fn main() i32 etl_print_i32() ret 0 end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 74, tokens, 128)
+  let source i8[131072] = "extern fn etl_print_i32(value i32) fn main() i32 etl_print_i32() ret 0 end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 74, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -478,14 +478,14 @@ fn test_source_extern_wrong_arg_count() i32
 end
 
 fn test_source_extern_void_call_return_rejected() i32
-  let source i8[256] = "extern fn etl_print_i32(value i32) fn main() i32 ret etl_print_i32(1) end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 73, tokens, 128)
+  let source i8[131072] = "extern fn etl_print_i32(value i32) fn main() i32 ret etl_print_i32(1) end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 73, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -496,14 +496,14 @@ fn test_source_extern_void_call_return_rejected() i32
 end
 
 fn test_source_extern_void_call_let_rejected() i32
-  let source i8[256] = "extern fn etl_print_i32(value i32) fn main() i32 let x i32 = etl_print_i32(1) ret 0 end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 87, tokens, 128)
+  let source i8[131072] = "extern fn etl_print_i32(value i32) fn main() i32 let x i32 = etl_print_i32(1) ret 0 end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 87, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -514,14 +514,14 @@ fn test_source_extern_void_call_let_rejected() i32
 end
 
 fn test_source_user_i32_call_expr() i32
-  let source i8[256] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc(41) end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 69, tokens, 128)
+  let source i8[131072] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc(41) end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 69, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -532,14 +532,14 @@ fn test_source_user_i32_call_expr() i32
 end
 
 fn test_source_user_wrong_arg_count() i32
-  let source i8[256] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc() end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 67, tokens, 128)
+  let source i8[131072] = "fn inc(value i32) i32 ret value + 1 end fn main() i32 ret inc() end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 67, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 1
   end
@@ -550,14 +550,14 @@ fn test_source_user_wrong_arg_count() i32
 end
 
 fn main() i32
-  let source i8[256] = "fn main() i32 ret 42 end"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let n i32 = lex(source, 24, tokens, 128)
+  let source i8[131072] = "fn main() i32 ret 42 end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let n i32 = lex(source, 24, tokens, 32768)
   if n != 9
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 2
   end
