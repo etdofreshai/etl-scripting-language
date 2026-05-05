@@ -1,0 +1,13 @@
+// Reads bytes from /dev/stdin into a fixed buffer and returns the byte count.
+
+extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
+
+fn main() i32
+  let path i8[64] = "/dev/stdin"
+  let buf i8[64]
+  let n i32 = etl_read_file(path, buf, 64)
+  if n < 0
+    ret 1
+  end
+  ret n
+end

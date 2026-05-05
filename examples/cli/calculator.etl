@@ -1,0 +1,5 @@
+// Calculates the hardcoded expression (3 + 4) * 2 - 5 and returns 9.
+
+fn main() i32
+  ret (3 + 4) * 2 - 5
+end

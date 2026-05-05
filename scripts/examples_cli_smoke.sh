@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test for the examples-cli gate: drives bin/etl through the
-# trivial examples/cli/hello.etl fixture (check + run, asserting the
-# program's exit code is forwarded faithfully).
+# Smoke test for the examples-cli gate: drives bin/etl through the CLI
+# examples and asserts each program's exit code is forwarded faithfully.
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,19 +13,33 @@ build_probe="$(mktemp -d)"
 trap 'rm -rf "$build_probe"' EXIT
 scripts/build_etl.sh examples/cli/hello.etl "$build_probe/hello_probe" >/dev/null
 
-src="examples/cli/hello.etl"
+run_expect() {
+  name="$1"
+  expected="$2"
+  shift 2
 
-echo "examples_cli_smoke: bin/etl check $src"
-bin/etl check "$src"
+  echo "examples_cli_smoke: $name (expect exit $expected)"
+  set +e
+  "$@"
+  status=$?
+  set -e
+  if [ "$status" -ne "$expected" ]; then
+    echo "examples_cli_smoke: FAIL - $name expected exit $expected, got $status" >&2
+    exit 1
+  fi
+}
 
-echo "examples_cli_smoke: bin/etl run $src (expect exit 42)"
-set +e
-bin/etl run "$src"
-status=$?
-set -e
-if [ "$status" -ne 42 ]; then
-  echo "examples_cli_smoke: FAIL - expected bin/etl run to forward exit 42, got $status" >&2
-  exit 1
-fi
+hello="examples/cli/hello.etl"
+
+echo "examples_cli_smoke: bin/etl check $hello"
+bin/etl check "$hello"
+
+run_expect "hello: bin/etl run $hello" 42 bin/etl run "$hello"
+run_expect "calculator: bin/etl run examples/cli/calculator.etl" 9 \
+  bin/etl run examples/cli/calculator.etl
+run_expect "file_transform: echo -n hello | bin/etl run examples/cli/file_transform.etl" 5 \
+  bash -c 'printf %s hello | bin/etl run examples/cli/file_transform.etl'
+run_expect "config_rules: bin/etl run examples/cli/config_rules.etl" 5 \
+  bin/etl run examples/cli/config_rules.etl
 
 echo "examples_cli_smoke: ok"
