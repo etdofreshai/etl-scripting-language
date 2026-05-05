@@ -1,0 +1,23 @@
+function main() integer
+  let pixels integer[16]
+  let i integer = 0
+  let checksum integer = 0
+
+  while i < 16
+    pixels[i] = 0
+    i = i + 1
+  end
+
+  pixels[0] = 1
+  pixels[5] = 2
+  pixels[10] = 3
+  pixels[15] = 4
+
+  i = 0
+  while i < 16
+    checksum = checksum + pixels[i] * (i + 1)
+    i = i + 1
+  end
+
+  return checksum
+end
