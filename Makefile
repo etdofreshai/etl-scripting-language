@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
 
 test:
 	python3 -m unittest discover -s tests
@@ -63,6 +63,12 @@ equiv: selfhost-equiv
 
 selfhost: c1-pipeline selfhost-equiv
 	scripts/c1_smoke.sh
+
+# c1 self-compile probe. Allowed to fail loudly today: not wired into
+# `make check` or `make selfhost`. Records the next blocker into
+# build/fixedpoint/selfcompile-status.md when it fails.
+selfhost-selfcompile:
+	scripts/c1_selfcompile_smoke.sh
 
 backend-plan-smoke:
 	scripts/backend_plan_smoke.sh
