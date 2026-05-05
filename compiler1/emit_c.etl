@@ -92,6 +92,9 @@ fn emit_c_type_is_i32(source i8[131072], tokens Token[32768], ast AstNode[32768]
   if ast[typ].kind != AN_TYPE()
     ret false
   end
+  if ast[typ].b != -1
+    ret false
+  end
   let i32_name i8[16] = "i32"
   if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3)
     ret true
@@ -220,6 +223,9 @@ fn emit_c_type_is_struct_array(source i8[131072], tokens Token[32768], ast AstNo
     ret false
   end
   if emit_c_type_is_i32(source, tokens, ast, typ)
+    ret false
+  end
+  if emit_c_type_is_i32_array(source, tokens, ast, typ)
     ret false
   end
   if emit_c_type_is_bool(source, tokens, ast, typ)
@@ -561,6 +567,9 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
   if emit_c_type_is_i32(source, tokens, ast, typ)
     is_i32 = 1
   end
+  if emit_c_type_is_i32_array(source, tokens, ast, typ)
+    is_i32 = 1
+  end
   if is_i32 != 0
     p = emit_c_append_text(out, p, out_cap, decl_text, 6)
   else
@@ -793,11 +802,11 @@ fn emit_c_nested_block(source i8[131072], tokens Token[32768], ast AstNode[32768
   end
   let tail i32 = emit_c_chain_tail(ast, inner_list)
   if tail < 0
-    ret emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, -1, out, pos, out_cap)
+    ret emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, outer, out, pos, out_cap)
   end
   let saved_b i32 = ast[tail].b
   ast[tail].b = locals
-  let r i32 = emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, -1, out, pos, out_cap)
+  let r i32 = emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, outer, out, pos, out_cap)
   ast[tail].b = saved_b
   ret r
 end

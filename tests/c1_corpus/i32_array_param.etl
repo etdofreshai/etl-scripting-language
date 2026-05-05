@@ -1,0 +1,16 @@
+fn sum_first_three(values i32[8]) i32
+  ret values[0] + values[1] + values[2]
+end
+
+fn main() i32
+  let arr i32[8]
+  arr[0] = 7
+  arr[1] = 11
+  arr[2] = 13
+  arr[3] = 17
+  arr[4] = 19
+  arr[5] = 23
+  arr[6] = 29
+  arr[7] = 31
+  ret sum_first_three(arr)
+end
