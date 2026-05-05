@@ -1,3 +1,14 @@
+// ETLB1 bytecode subset emitted here:
+//   ETLB1;                 module magic/version
+//   T<count>;              function table count
+//   D<name>,<argc>;        function table entry; VM resolves @<name>; to byte offset
+//   C<name>;               call function; arguments are already on stack
+//   @<name>;               function body marker
+//   I<n>; L<n>; L<n>=;     literals and local load/store
+//   +; -; *; /; %; q; n; <; l; >; g; !;
+//   :<n>; F<n>; J<n>;      labels and branches local to the bytecode stream
+//   R;                     return from function, or final program return at frame depth 0
+
 fn emit_bytecode_append_byte(out i8[1024], pos i32, out_cap i32, value i8) i32
   if pos < 0
     ret EMIT_ERR_CAPACITY()
@@ -64,6 +75,19 @@ fn emit_bytecode_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
   ret p
 end
 
+fn emit_bytecode_append_token_text(source i8[131072], tokens Token[32768], tok i32, out i8[1024], pos i32, out_cap i32) i32
+  let p i32 = pos
+  let i i32 = 0
+  while i < tokens[tok].len
+    p = emit_bytecode_append_byte(out, p, out_cap, source[tokens[tok].start + i])
+    if p < 0
+      ret p
+    end
+    i = i + 1
+  end
+  ret p
+end
+
 fn emit_bytecode_names_match(source i8[131072], tokens Token[32768], left i32, right i32) i32
   if left == right
     ret 1
@@ -101,6 +125,59 @@ fn emit_bytecode_add_local(scope i32[64], name i32) i32
   scope[0] = count + 1
   scope[count + 1] = name
   ret count
+end
+
+fn emit_bytecode_add_params(source i8[131072], tokens Token[32768], ast AstNode[32768], scope i32[64], list i32) i32
+  if list < 0
+    ret 0
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let prior i32 = emit_bytecode_add_params(source, tokens, ast, scope, ast[list].b)
+  if prior < 0
+    ret prior
+  end
+  let param i32 = ast[list].a
+  if ast[param].kind != AN_PARAM()
+    ret EMIT_ERR_BAD_AST()
+  end
+  ret emit_bytecode_add_local(scope, ast[param].a)
+end
+
+fn emit_bytecode_count_list(ast AstNode[32768], list i32) i32
+  if list < 0
+    ret 0
+  end
+  ret emit_bytecode_count_list(ast, ast[list].b) + 1
+end
+
+fn emit_bytecode_emit_body_marker(source i8[131072], tokens Token[32768], out i8[1024], pos i32, out_cap i32, name_tok i32) i32
+  let op i8[64] = "@"
+  let sep i8[64] = ";"
+  let p i32 = emit_bytecode_append_text(out, pos, out_cap, op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_token_text(source, tokens, name_tok, out, p, out_cap)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+end
+
+fn emit_bytecode_emit_call_op(source i8[131072], tokens Token[32768], out i8[1024], pos i32, out_cap i32, name_tok i32) i32
+  let op i8[64] = "C"
+  let sep i8[64] = ";"
+  let p i32 = emit_bytecode_append_text(out, pos, out_cap, op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_token_text(source, tokens, name_tok, out, p, out_cap)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
 end
 
 fn emit_bytecode_emit_load_local(out i8[1024], pos i32, out_cap i32, slot i32) i32
@@ -202,6 +279,13 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
       ret EMIT_ERR_UNSUPPORTED()
     end
     ret emit_bytecode_emit_load_local(out, pos, out_cap, slot)
+  end
+  if ast[node].kind == AN_CALL()
+    let pcall i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[node].b, out, pos, out_cap, scope)
+    if pcall < 0
+      ret pcall
+    end
+    ret emit_bytecode_emit_call_op(source, tokens, out, pcall, out_cap, ast[node].a)
   end
   if ast[node].kind == AN_BINARY()
     let p i32 = emit_bytecode_emit_expr(source, tokens, ast, ast[node].b, out, pos, out_cap, scope)
@@ -319,6 +403,20 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
     ret emit_bytecode_append_text(out, p4, out_cap, sep4, 1)
   end
   ret EMIT_ERR_UNSUPPORTED()
+end
+
+fn emit_bytecode_emit_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let p i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[list].b, out, pos, out_cap, scope)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_emit_expr(source, tokens, ast, ast[list].a, out, p, out_cap, scope)
 end
 
 fn emit_bytecode_emit_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32, scope i32[64], end_label i32) i32
@@ -497,6 +595,46 @@ fn emit_bytecode_find_main(ast AstNode[32768], list i32) i32
   ret EMIT_ERR_UNSUPPORTED()
 end
 
+fn emit_bytecode_token_is_main(source i8[131072], tokens Token[32768], tok i32) i32
+  let name i8[64] = "main"
+  if tokens[tok].len != 4
+    ret 0
+  end
+  if source[tokens[tok].start] != name[0]
+    ret 0
+  end
+  if source[tokens[tok].start + 1] != name[1]
+    ret 0
+  end
+  if source[tokens[tok].start + 2] != name[2]
+    ret 0
+  end
+  if source[tokens[tok].start + 3] != name[3]
+    ret 0
+  end
+  ret 1
+end
+
+fn emit_bytecode_find_named_main(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32) i32
+  if list < 0
+    ret EMIT_ERR_UNSUPPORTED()
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let prior i32 = emit_bytecode_find_named_main(source, tokens, ast, ast[list].b)
+  if prior >= 0
+    ret prior
+  end
+  let decl i32 = ast[list].a
+  if ast[decl].kind == AN_FN()
+    if emit_bytecode_token_is_main(source, tokens, ast[decl].a) == 1
+      ret decl
+    end
+  end
+  ret EMIT_ERR_UNSUPPORTED()
+end
+
 fn emit_bytecode_emit_fn(source i8[131072], tokens Token[32768], ast AstNode[32768], fn_node i32, out i8[1024], pos i32, out_cap i32) i32
   if ast[fn_node].kind != AN_FN()
     ret EMIT_ERR_BAD_AST()
@@ -509,7 +647,113 @@ fn emit_bytecode_emit_fn(source i8[131072], tokens Token[32768], ast AstNode[327
   let scope i32[64]
   scope[0] = 0
   scope[33] = 0
-  ret emit_bytecode_emit_stmt_list(source, tokens, ast, stmt_list, out, pos, out_cap, scope)
+  let params_block i32 = ast[fn_node].b
+  if ast[params_block].kind != AN_BLOCK()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let pp i32 = emit_bytecode_add_params(source, tokens, ast, scope, ast[params_block].a)
+  if pp < 0
+    ret pp
+  end
+  let p i32 = emit_bytecode_emit_body_marker(source, tokens, out, pos, out_cap, ast[fn_node].a)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_emit_stmt_list(source, tokens, ast, stmt_list, out, p, out_cap, scope)
+end
+
+fn emit_bytecode_count_fns(ast AstNode[32768], list i32) i32
+  if list < 0
+    ret 0
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let prior i32 = emit_bytecode_count_fns(ast, ast[list].b)
+  if prior < 0
+    ret prior
+  end
+  if ast[ast[list].a].kind == AN_FN()
+    ret prior + 1
+  end
+  ret prior
+end
+
+fn emit_bytecode_emit_function_table(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
+  let table_op i8[64] = "T"
+  let sep i8[64] = ";"
+  let count i32 = emit_bytecode_count_fns(ast, list)
+  if count < 0
+    ret count
+  end
+  let p i32 = emit_bytecode_append_text(out, pos, out_cap, table_op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_i32(out, p, out_cap, count)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_text(out, p, out_cap, sep, 1)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_emit_function_table_entries(source, tokens, ast, list, out, p, out_cap)
+end
+
+fn emit_bytecode_emit_function_table_entries(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let p i32 = emit_bytecode_emit_function_table_entries(source, tokens, ast, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret p
+  end
+  let fn_node i32 = ast[list].a
+  if ast[fn_node].kind != AN_FN()
+    ret p
+  end
+  let def_op i8[64] = "D"
+  let comma i8[64] = ","
+  let sep i8[64] = ";"
+  p = emit_bytecode_append_text(out, p, out_cap, def_op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_token_text(source, tokens, ast[fn_node].a, out, p, out_cap)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_text(out, p, out_cap, comma, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_i32(out, p, out_cap, ast[ast[fn_node].b].b)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+end
+
+fn emit_bytecode_emit_all_fns(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let p i32 = emit_bytecode_emit_all_fns(source, tokens, ast, ast[list].b, out, pos, out_cap)
+  if p < 0
+    ret p
+  end
+  let decl i32 = ast[list].a
+  if ast[decl].kind == AN_FN()
+    ret emit_bytecode_emit_fn(source, tokens, ast, decl, out, p, out_cap)
+  end
+  ret p
 end
 
 fn emit_bytecode(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, out i8[1024], out_cap i32) i32
@@ -525,9 +769,23 @@ fn emit_bytecode(source i8[131072], tokens Token[32768], ast AstNode[32768], ast
   if p < 0
     ret p
   end
-  let main_fn i32 = emit_bytecode_find_main(ast, ast[ast_count - 1].a)
+  let decls i32 = ast[ast_count - 1].a
+  p = emit_bytecode_emit_function_table(source, tokens, ast, decls, out, p, out_cap)
+  if p < 0
+    ret p
+  end
+  let main_fn i32 = emit_bytecode_find_named_main(source, tokens, ast, ast[ast_count - 1].a)
   if main_fn < 0
     ret main_fn
   end
-  ret emit_bytecode_emit_fn(source, tokens, ast, main_fn, out, p, out_cap)
+  p = emit_bytecode_emit_call_op(source, tokens, out, p, out_cap, ast[main_fn].a)
+  if p < 0
+    ret p
+  end
+  let ret_op i8[64] = "R;"
+  p = emit_bytecode_append_text(out, p, out_cap, ret_op, 2)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_emit_all_fns(source, tokens, ast, decls, out, p, out_cap)
 end

@@ -33,6 +33,20 @@
  *     -20  label/jump missing ';'
  *     -21  jump target label not found
  *     -22  execution step bound exceeded
+ *     -23  malformed function body marker
+ *     -24  function table body marker not found
+ *     -25  function table count missing digit
+ *     -26  function table count exceeds limit 32
+ *     -27  function table count missing ';'
+ *     -28  function table entry missing 'D'
+ *     -29  function name exceeds limit 32 bytes
+ *     -30  malformed function name
+ *     -31  function argc missing digit
+ *     -32  function argc exceeds local limit 32
+ *     -33  function table entry missing ';'
+ *     -34  called function not found
+ *     -35  call opcode missing ';'
+ *     -36  call-frame stack exceeded limit 32
  *
  * The interpreter is intentionally bounded and deterministic; it does not
  * allocate, perform any I/O, or access memory outside its parameters.

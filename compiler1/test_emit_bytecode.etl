@@ -16,7 +16,7 @@ fn main() i32
     ret 2
   end
   let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
-  if emitted != 26
+  if emitted != 51
     ret 3
   end
   if not check_bytecode_byte(out, 0, 69)
@@ -37,7 +37,7 @@ fn main() i32
   if not check_bytecode_byte(out, 5, 59)
     ret 9
   end
-  if not check_bytecode_byte(out, 6, 73)
+  if not check_bytecode_byte(out, 6, 84)
     ret 10
   end
   if not check_bytecode_byte(out, 7, 49)
@@ -46,56 +46,56 @@ fn main() i32
   if not check_bytecode_byte(out, 8, 59)
     ret 12
   end
-  if not check_bytecode_byte(out, 9, 73)
+  if not check_bytecode_byte(out, 9, 68)
     ret 13
   end
-  if not check_bytecode_byte(out, 10, 50)
+  if not check_bytecode_byte(out, 10, 109)
     ret 14
   end
-  if not check_bytecode_byte(out, 11, 59)
+  if not check_bytecode_byte(out, 11, 97)
     ret 15
   end
-  if not check_bytecode_byte(out, 12, 73)
+  if not check_bytecode_byte(out, 12, 105)
     ret 16
   end
-  if not check_bytecode_byte(out, 13, 57)
+  if not check_bytecode_byte(out, 13, 110)
     ret 17
   end
-  if not check_bytecode_byte(out, 14, 59)
+  if not check_bytecode_byte(out, 14, 44)
     ret 18
   end
-  if not check_bytecode_byte(out, 15, 73)
+  if not check_bytecode_byte(out, 15, 48)
     ret 19
   end
-  if not check_bytecode_byte(out, 16, 52)
+  if not check_bytecode_byte(out, 16, 59)
     ret 20
   end
-  if not check_bytecode_byte(out, 17, 59)
+  if not check_bytecode_byte(out, 17, 67)
     ret 21
   end
-  if not check_bytecode_byte(out, 18, 45)
+  if not check_bytecode_byte(out, 18, 109)
     ret 22
   end
-  if not check_bytecode_byte(out, 19, 59)
+  if not check_bytecode_byte(out, 19, 97)
     ret 23
   end
-  if not check_bytecode_byte(out, 20, 42)
+  if not check_bytecode_byte(out, 20, 105)
     ret 24
   end
-  if not check_bytecode_byte(out, 21, 59)
+  if not check_bytecode_byte(out, 21, 110)
     ret 25
   end
-  if not check_bytecode_byte(out, 22, 43)
+  if not check_bytecode_byte(out, 22, 59)
     ret 26
   end
-  if not check_bytecode_byte(out, 23, 59)
+  if not check_bytecode_byte(out, 23, 82)
     ret 27
   end
-  if not check_bytecode_byte(out, 24, 82)
+  if not check_bytecode_byte(out, 24, 59)
     ret 28
   end
-  if not check_bytecode_byte(out, 25, 59)
+  if not check_bytecode_byte(out, 25, 64)
     ret 29
   end
-  ret 26
+  ret 51
 end

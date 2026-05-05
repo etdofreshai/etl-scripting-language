@@ -19,9 +19,9 @@ set +e
 status=$?
 set -e
 
-if [ "$status" -ne 26 ]; then
-  echo "c1_emit_bytecode_smoke: FAIL - expected emitted bytecode length exit 26, got $status" >&2
+if [ "$status" -ne 51 ]; then
+  echo "c1_emit_bytecode_smoke: FAIL - expected emitted bytecode length exit 51, got $status" >&2
   exit 1
 fi
 
-echo "c1_emit_bytecode_smoke: ok (integer return expression -> ETL stack bytecode scaffold)"
+echo "c1_emit_bytecode_smoke: ok (integer return expression -> ETL function bytecode scaffold)"

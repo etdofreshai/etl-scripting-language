@@ -113,6 +113,7 @@ backend-vm:
 	scripts/c1_vm_return_smoke.sh
 	scripts/c1_vm_expr_smoke.sh
 	scripts/c1_vm_control_flow_smoke.sh
+	scripts/c1_vm_function_smoke.sh
 
 headless-selfeval:
 	scripts/selfeval_smoke.sh

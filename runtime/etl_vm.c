@@ -6,6 +6,11 @@
  * Bytecode format (readable ASCII; ';' is the universal separator):
  *
  *   ETLB1;            magic + version (always first)
+ *   T<count>;         function table count
+ *   D<name>,<argc>;   function table entry. The loader resolves the matching
+ *                     @<name>; body marker into a byte offset.
+ *   C<name>;          call function. Args are popped into callee locals.
+ *   @<name>;          body marker (no-op when reached by linear scanning)
  *   I<int>;           push i32 literal (decimal, non-negative)
  *   +;  -;  *;  /;  %;
  *                     pop right, pop left, push (left OP right)
@@ -19,6 +24,7 @@
  *   F<label>;         pop condition; jump to label if condition == 0
  *   J<label>;         unconditional jump to label
  *   R;                pop top of stack and return as exit value
+ *                     at frame depth 0, or return to caller otherwise.
  *
  * Locals slots are zero-initialised before execution; valid indices are
  * 0..ETL_VM_LOCAL_MAX-1. Stack is bounded at ETL_VM_STACK_MAX. All limits
@@ -27,7 +33,22 @@
 
 #define ETL_VM_STACK_MAX 64
 #define ETL_VM_LOCAL_MAX 32
+#define ETL_VM_FUNC_MAX 32
+#define ETL_VM_NAME_MAX 32
+#define ETL_VM_FRAME_MAX 32
 #define ETL_VM_STEP_MAX 100000
+
+typedef struct {
+    int8_t name[ETL_VM_NAME_MAX];
+    int32_t name_len;
+    int32_t argc;
+    int32_t ip;
+} EtlVmFunction;
+
+typedef struct {
+    int32_t return_ip;
+    int32_t locals[ETL_VM_LOCAL_MAX];
+} EtlVmFrame;
 
 static int etl_vm_is_digit(int8_t ch) {
     return ch >= '0' && ch <= '9';
@@ -70,6 +91,119 @@ static int32_t etl_vm_find_label(const int8_t *bytecode, int32_t len, int32_t la
     return -21;
 }
 
+static int32_t etl_vm_name_equals(const int8_t *a, int32_t a_len, const int8_t *b, int32_t b_len) {
+    if (a_len != b_len) {
+        return 0;
+    }
+    for (int32_t i = 0; i < a_len; i = i + 1) {
+        if (a[i] != b[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int32_t etl_vm_skip_to_sep(const int8_t *bytecode, int32_t len, int32_t *i) {
+    while (*i < len && bytecode[*i] != ';') {
+        *i = *i + 1;
+    }
+    if (*i >= len || bytecode[*i] != ';') {
+        return -23;
+    }
+    *i = *i + 1;
+    return 0;
+}
+
+static int32_t etl_vm_find_body(const int8_t *bytecode, int32_t len, const int8_t *name, int32_t name_len) {
+    int32_t i = 6;
+    while (i < len) {
+        if (bytecode[i] == '@') {
+            i = i + 1;
+            int32_t start = i;
+            while (i < len && bytecode[i] != ';') {
+                i = i + 1;
+            }
+            if (i >= len || bytecode[i] != ';') {
+                return -23;
+            }
+            if (etl_vm_name_equals(bytecode + start, i - start, name, name_len)) {
+                return i + 1;
+            }
+            i = i + 1;
+        } else {
+            i = i + 1;
+        }
+    }
+    return -24;
+}
+
+static int32_t etl_vm_parse_functions(const int8_t *bytecode, int32_t len, int32_t *i,
+                                      EtlVmFunction *funcs, int32_t *func_count) {
+    *func_count = 0;
+    if (*i >= len || bytecode[*i] != 'T') {
+        return 0;
+    }
+    *i = *i + 1;
+    int32_t count = 0;
+    int32_t rc = etl_vm_parse_i32(bytecode, len, i, &count);
+    if (rc < 0) {
+        return -25;
+    }
+    if (count < 0 || count > ETL_VM_FUNC_MAX) {
+        return -26;
+    }
+    if (*i >= len || bytecode[*i] != ';') {
+        return -27;
+    }
+    *i = *i + 1;
+    for (int32_t fi = 0; fi < count; fi = fi + 1) {
+        if (*i >= len || bytecode[*i] != 'D') {
+            return -28;
+        }
+        *i = *i + 1;
+        int32_t name_len = 0;
+        while (*i < len && bytecode[*i] != ',') {
+            if (name_len >= ETL_VM_NAME_MAX) {
+                return -29;
+            }
+            funcs[fi].name[name_len] = bytecode[*i];
+            name_len = name_len + 1;
+            *i = *i + 1;
+        }
+        if (*i >= len || bytecode[*i] != ',' || name_len <= 0) {
+            return -30;
+        }
+        funcs[fi].name_len = name_len;
+        *i = *i + 1;
+        rc = etl_vm_parse_i32(bytecode, len, i, &funcs[fi].argc);
+        if (rc < 0) {
+            return -31;
+        }
+        if (funcs[fi].argc < 0 || funcs[fi].argc > ETL_VM_LOCAL_MAX) {
+            return -32;
+        }
+        if (*i >= len || bytecode[*i] != ';') {
+            return -33;
+        }
+        *i = *i + 1;
+        funcs[fi].ip = etl_vm_find_body(bytecode, len, funcs[fi].name, funcs[fi].name_len);
+        if (funcs[fi].ip < 0) {
+            return funcs[fi].ip;
+        }
+    }
+    *func_count = count;
+    return 0;
+}
+
+static int32_t etl_vm_find_function(EtlVmFunction *funcs, int32_t func_count, const int8_t *name, int32_t name_len) {
+    for (int32_t fi = 0; fi < func_count; fi = fi + 1) {
+        if (etl_vm_name_equals(funcs[fi].name, funcs[fi].name_len, name, name_len)) {
+            return fi;
+        }
+    }
+    return -34;
+}
+
 static int32_t etl_vm_pop_i32(int32_t *stack, int32_t *sp, int32_t *out) {
     if (*sp <= 0) {
         return -10;
@@ -104,12 +238,20 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
     }
 
     int32_t stack[ETL_VM_STACK_MAX];
-    int32_t locals[ETL_VM_LOCAL_MAX];
+    EtlVmFunction funcs[ETL_VM_FUNC_MAX];
+    EtlVmFrame frames[ETL_VM_FRAME_MAX];
+    int32_t frame_depth = 0;
+    int32_t *locals = frames[0].locals;
     for (int32_t li = 0; li < ETL_VM_LOCAL_MAX; li = li + 1) {
         locals[li] = 0;
     }
     int32_t sp = 0;
     int32_t i = 6;
+    int32_t func_count = 0;
+    int32_t parsed_funcs = etl_vm_parse_functions(bytecode, len, &i, funcs, &func_count);
+    if (parsed_funcs < 0) {
+        return parsed_funcs;
+    }
     int32_t steps = 0;
     while (i < len) {
         steps = steps + 1;
@@ -269,6 +411,43 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                 }
                 i = target;
             }
+        } else if (op == '@') {
+            int32_t skipped = etl_vm_skip_to_sep(bytecode, len, &i);
+            if (skipped < 0) {
+                return skipped;
+            }
+        } else if (op == 'C') {
+            int32_t name_start = i;
+            while (i < len && bytecode[i] != ';') {
+                i = i + 1;
+            }
+            if (i >= len || bytecode[i] != ';') {
+                return -35;
+            }
+            int32_t name_len = i - name_start;
+            i = i + 1;
+            int32_t fn_index = etl_vm_find_function(funcs, func_count, bytecode + name_start, name_len);
+            if (fn_index < 0) {
+                return fn_index;
+            }
+            if (frame_depth + 1 >= ETL_VM_FRAME_MAX) {
+                return -36;
+            }
+            frame_depth = frame_depth + 1;
+            frames[frame_depth].return_ip = i;
+            locals = frames[frame_depth].locals;
+            for (int32_t li = 0; li < ETL_VM_LOCAL_MAX; li = li + 1) {
+                locals[li] = 0;
+            }
+            for (int32_t ai = funcs[fn_index].argc - 1; ai >= 0; ai = ai - 1) {
+                int32_t value = 0;
+                int32_t popped = etl_vm_pop_i32(stack, &sp, &value);
+                if (popped < 0) {
+                    return popped;
+                }
+                locals[ai] = value;
+            }
+            i = funcs[fn_index].ip;
         } else if (op == 'R') {
             if (i >= len || bytecode[i] != ';') {
                 return -9;
@@ -279,11 +458,21 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
             if (popped < 0) {
                 return popped;
             }
-            if (sp != 0) {
-                return -13;
+            if (frame_depth > 0) {
+                i = frames[frame_depth].return_ip;
+                frame_depth = frame_depth - 1;
+                locals = frames[frame_depth].locals;
+                int32_t pushed = etl_vm_push_i32(stack, &sp, value);
+                if (pushed < 0) {
+                    return pushed;
+                }
+            } else {
+                if (sp != 0) {
+                    return -13;
+                }
+                *result = value;
+                return 0;
             }
-            *result = value;
-            return 0;
         } else {
             return -5;
         }

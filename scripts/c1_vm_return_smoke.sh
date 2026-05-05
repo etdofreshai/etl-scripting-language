@@ -43,12 +43,12 @@ python3 -m compiler0 compile "$td/c1_bytecode_pipeline.etl" -o "$td/c1_bytecode_
 cc -Wall -Werror "$td/c1_bytecode_pipeline.c" runtime/etl_runtime.c -I runtime -o "$td/c1_bytecode_pipeline"
 "$td/c1_bytecode_pipeline"
 
-if [ "$(wc -c < "$bytecode_path")" -ne 26 ]; then
-  echo "c1_vm_return_smoke: FAIL - expected 26 byte bytecode output" >&2
+if [ "$(wc -c < "$bytecode_path")" -ne 51 ]; then
+  echo "c1_vm_return_smoke: FAIL - expected 51 byte bytecode output" >&2
   exit 1
 fi
 
-if [ "$(tr -d '\n' < "$bytecode_path")" != "ETLB1;I1;I2;I9;I4;-;*;+;R;" ]; then
+if [ "$(tr -d '\n' < "$bytecode_path")" != "ETLB1;T1;Dmain,0;Cmain;R;@main;I1;I2;I9;I4;-;*;+;R;" ]; then
   echo "c1_vm_return_smoke: FAIL - unexpected bytecode payload" >&2
   exit 1
 fi
