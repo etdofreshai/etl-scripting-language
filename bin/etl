@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stable user-facing ETL CLI wrapper.
+#
+# This is a tiny POSIX shell stub. The real logic lives in
+# scripts/etl_cli.sh so the implementation can evolve without
+# changing the binary's path.
+
+set -eu
+
+# Resolve repo root from this script's location.
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+
+exec "$repo_root/scripts/etl_cli.sh" "$@"
