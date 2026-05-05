@@ -84,6 +84,8 @@ make examples
 > C/ASM/WAT backend subset.
 > `make selfhost` runs the full compiler-1 pipeline; `make headless-ready` is
 > the integration gate.
+> See `docs/support-matrix.md` for the current works/experimental/unsupported
+> matrix across language features, backends, runtime tooling, and gates.
 | 6  | SDL3 shim + headless screenshot harness + Conway's Life               | `make visual` (Life golden matches)                 | 6–8    |
 | 7  | App ladder: calculator → breakout → snake → asteroids → pong → CLI    | `make examples`                                     | 18–24  |
 | 8  | C-backend hardening + Linux/macOS/Windows CI matrix                   | matrix green                                        | 4–6    |
