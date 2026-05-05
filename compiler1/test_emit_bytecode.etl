@@ -1,0 +1,101 @@
+fn check_bytecode_byte(buf i8[1024], index i32, value i32) bool
+  ret buf[index] == value
+end
+
+fn main() i32
+  let source i8[131072] = "fn main() i32 ret 1 + 2 * (9 - 4) end"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let out i8[1024]
+  let n i32 = lex(source, 37, tokens, 32768)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 32768)
+  if an < 0
+    ret 2
+  end
+  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
+  if emitted != 26
+    ret 3
+  end
+  if not check_bytecode_byte(out, 0, 69)
+    ret 4
+  end
+  if not check_bytecode_byte(out, 1, 84)
+    ret 5
+  end
+  if not check_bytecode_byte(out, 2, 76)
+    ret 6
+  end
+  if not check_bytecode_byte(out, 3, 66)
+    ret 7
+  end
+  if not check_bytecode_byte(out, 4, 49)
+    ret 8
+  end
+  if not check_bytecode_byte(out, 5, 59)
+    ret 9
+  end
+  if not check_bytecode_byte(out, 6, 73)
+    ret 10
+  end
+  if not check_bytecode_byte(out, 7, 49)
+    ret 11
+  end
+  if not check_bytecode_byte(out, 8, 59)
+    ret 12
+  end
+  if not check_bytecode_byte(out, 9, 73)
+    ret 13
+  end
+  if not check_bytecode_byte(out, 10, 50)
+    ret 14
+  end
+  if not check_bytecode_byte(out, 11, 59)
+    ret 15
+  end
+  if not check_bytecode_byte(out, 12, 73)
+    ret 16
+  end
+  if not check_bytecode_byte(out, 13, 57)
+    ret 17
+  end
+  if not check_bytecode_byte(out, 14, 59)
+    ret 18
+  end
+  if not check_bytecode_byte(out, 15, 73)
+    ret 19
+  end
+  if not check_bytecode_byte(out, 16, 52)
+    ret 20
+  end
+  if not check_bytecode_byte(out, 17, 59)
+    ret 21
+  end
+  if not check_bytecode_byte(out, 18, 45)
+    ret 22
+  end
+  if not check_bytecode_byte(out, 19, 59)
+    ret 23
+  end
+  if not check_bytecode_byte(out, 20, 42)
+    ret 24
+  end
+  if not check_bytecode_byte(out, 21, 59)
+    ret 25
+  end
+  if not check_bytecode_byte(out, 22, 43)
+    ret 26
+  end
+  if not check_bytecode_byte(out, 23, 59)
+    ret 27
+  end
+  if not check_bytecode_byte(out, 24, 82)
+    ret 28
+  end
+  if not check_bytecode_byte(out, 25, 59)
+    ret 29
+  end
+  ret 26
+end

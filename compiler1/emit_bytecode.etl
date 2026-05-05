@@ -1,0 +1,314 @@
+fn emit_bytecode_append_byte(out i8[1024], pos i32, out_cap i32, value i8) i32
+  if pos < 0
+    ret EMIT_ERR_CAPACITY()
+  end
+  if pos >= out_cap
+    ret EMIT_ERR_CAPACITY()
+  end
+  out[pos] = value
+  ret pos + 1
+end
+
+fn emit_bytecode_return_i32_imm() i32 ret 16 end
+
+fn emit_bytecode_append_text(out i8[1024], pos i32, out_cap i32, text i8[64], len i32) i32
+  let i i32 = 0
+  let p i32 = pos
+  while i < len
+    p = emit_bytecode_append_byte(out, p, out_cap, text[i])
+    if p < 0
+      ret p
+    end
+    i = i + 1
+  end
+  ret p
+end
+
+fn emit_bytecode_append_i32(out i8[1024], pos i32, out_cap i32, value i32) i32
+  let p i32 = pos
+  let zero i8[64] = "0"
+  let digits_text i8[64] = "0123456789"
+  if value < 0
+    ret EMIT_ERR_UNSUPPORTED()
+  end
+  if value == 0
+    ret emit_bytecode_append_text(out, p, out_cap, zero, 1)
+  end
+  let digits i32[16]
+  let n i32 = 0
+  while value > 0
+    if n >= 16
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    digits[n] = value % 10
+    value = value / 10
+    n = n + 1
+  end
+  while n > 0
+    n = n - 1
+    p = emit_bytecode_append_byte(out, p, out_cap, digits_text[digits[n]])
+    if p < 0
+      ret p
+    end
+  end
+  ret p
+end
+
+fn emit_bytecode_names_match(source i8[131072], tokens Token[32768], left i32, right i32) i32
+  if left == right
+    ret 1
+  end
+  if tokens[left].len != tokens[right].len
+    ret 0
+  end
+  let i i32 = 0
+  while i < tokens[left].len
+    if source[tokens[left].start + i] != source[tokens[right].start + i]
+      ret 0
+    end
+    i = i + 1
+  end
+  ret 1
+end
+
+fn emit_bytecode_lookup_local(source i8[131072], tokens Token[32768], scope i32[64], name i32) i32
+  let count i32 = scope[0]
+  let i i32 = 1
+  while i <= count
+    if emit_bytecode_names_match(source, tokens, scope[i], name) == 1
+      ret i - 1
+    end
+    i = i + 1
+  end
+  ret -1
+end
+
+fn emit_bytecode_add_local(scope i32[64], name i32) i32
+  let count i32 = scope[0]
+  if count >= 32
+    ret EMIT_ERR_UNSUPPORTED()
+  end
+  scope[0] = count + 1
+  scope[count + 1] = name
+  ret count
+end
+
+fn emit_bytecode_emit_load_local(out i8[1024], pos i32, out_cap i32, slot i32) i32
+  let load_op i8[64] = "L"
+  let sep i8[64] = ";"
+  let p i32 = emit_bytecode_append_text(out, pos, out_cap, load_op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_i32(out, p, out_cap, slot)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+end
+
+fn emit_bytecode_emit_store_local(out i8[1024], pos i32, out_cap i32, slot i32) i32
+  let load_op i8[64] = "L"
+  let store_marker i8[64] = "=;"
+  let p i32 = emit_bytecode_append_text(out, pos, out_cap, load_op, 1)
+  if p < 0
+    ret p
+  end
+  p = emit_bytecode_append_i32(out, p, out_cap, slot)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_append_text(out, p, out_cap, store_marker, 2)
+end
+
+fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], node i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
+  if node < 0
+    ret EMIT_ERR_BAD_AST()
+  end
+  if ast[node].kind == AN_INT()
+    let push_op i8[64] = "I"
+    let sep i8[64] = ";"
+    let p i32 = emit_bytecode_append_text(out, pos, out_cap, push_op, 1)
+    if p < 0
+      ret p
+    end
+    p = emit_bytecode_append_i32(out, p, out_cap, ast[node].a)
+    if p < 0
+      ret p
+    end
+    ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+  end
+  if ast[node].kind == AN_NAME()
+    let slot i32 = emit_bytecode_lookup_local(source, tokens, scope, ast[node].a)
+    if slot < 0
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    ret emit_bytecode_emit_load_local(out, pos, out_cap, slot)
+  end
+  if ast[node].kind == AN_BINARY()
+    let p i32 = emit_bytecode_emit_expr(source, tokens, ast, ast[node].b, out, pos, out_cap, scope)
+    if p < 0
+      ret p
+    end
+    p = emit_bytecode_emit_expr(source, tokens, ast, ast[node].c, out, p, out_cap, scope)
+    if p < 0
+      ret p
+    end
+    let sep i8[64] = ";"
+    if ast[node].a == TK_PLUS()
+      let op i8[64] = "+"
+      p = emit_bytecode_append_text(out, p, out_cap, op, 1)
+      if p < 0
+        ret p
+      end
+      ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+    end
+    if ast[node].a == TK_MINUS()
+      let op i8[64] = "-"
+      p = emit_bytecode_append_text(out, p, out_cap, op, 1)
+      if p < 0
+        ret p
+      end
+      ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+    end
+    if ast[node].a == TK_STAR()
+      let op i8[64] = "*"
+      p = emit_bytecode_append_text(out, p, out_cap, op, 1)
+      if p < 0
+        ret p
+      end
+      ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+    end
+    if ast[node].a == TK_SLASH()
+      let op i8[64] = "/"
+      p = emit_bytecode_append_text(out, p, out_cap, op, 1)
+      if p < 0
+        ret p
+      end
+      ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+    end
+    if ast[node].a == TK_PERCENT()
+      let op i8[64] = "%"
+      p = emit_bytecode_append_text(out, p, out_cap, op, 1)
+      if p < 0
+        ret p
+      end
+      ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
+    end
+  end
+  ret EMIT_ERR_UNSUPPORTED()
+end
+
+fn emit_bytecode_emit_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], stmt i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
+  if stmt < 0
+    ret EMIT_ERR_BAD_AST()
+  end
+  let kind i32 = ast[stmt].kind
+  if kind == AN_LET()
+    if ast[stmt].c < 0
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    let p i32 = emit_bytecode_emit_expr(source, tokens, ast, ast[stmt].c, out, pos, out_cap, scope)
+    if p < 0
+      ret p
+    end
+    let slot i32 = emit_bytecode_add_local(scope, ast[stmt].a)
+    if slot < 0
+      ret slot
+    end
+    ret emit_bytecode_emit_store_local(out, p, out_cap, slot)
+  end
+  if kind == AN_ASSIGN()
+    let target i32 = ast[stmt].a
+    if target < 0
+      ret EMIT_ERR_BAD_AST()
+    end
+    if ast[target].kind != AN_NAME()
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    let p2 i32 = emit_bytecode_emit_expr(source, tokens, ast, ast[stmt].b, out, pos, out_cap, scope)
+    if p2 < 0
+      ret p2
+    end
+    let slot2 i32 = emit_bytecode_lookup_local(source, tokens, scope, ast[target].a)
+    if slot2 < 0
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    ret emit_bytecode_emit_store_local(out, p2, out_cap, slot2)
+  end
+  if kind == AN_RET()
+    let p3 i32 = emit_bytecode_emit_expr(source, tokens, ast, ast[stmt].a, out, pos, out_cap, scope)
+    if p3 < 0
+      ret p3
+    end
+    let ret_op i8[64] = "R;"
+    ret emit_bytecode_append_text(out, p3, out_cap, ret_op, 2)
+  end
+  ret EMIT_ERR_UNSUPPORTED()
+end
+
+fn emit_bytecode_emit_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
+  if list < 0
+    ret pos
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let p i32 = emit_bytecode_emit_stmt_list(source, tokens, ast, ast[list].b, out, pos, out_cap, scope)
+  if p < 0
+    ret p
+  end
+  ret emit_bytecode_emit_stmt(source, tokens, ast, ast[list].a, out, p, out_cap, scope)
+end
+
+fn emit_bytecode_find_main(ast AstNode[32768], list i32) i32
+  if list < 0
+    ret EMIT_ERR_UNSUPPORTED()
+  end
+  if ast[list].kind != AN_LIST()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let prior i32 = emit_bytecode_find_main(ast, ast[list].b)
+  if prior >= 0
+    ret prior
+  end
+  let decl i32 = ast[list].a
+  if ast[decl].kind == AN_FN()
+    ret decl
+  end
+  ret EMIT_ERR_UNSUPPORTED()
+end
+
+fn emit_bytecode_emit_fn(source i8[131072], tokens Token[32768], ast AstNode[32768], fn_node i32, out i8[1024], pos i32, out_cap i32) i32
+  if ast[fn_node].kind != AN_FN()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let body i32 = ast[fn_node].c
+  if ast[body].kind != AN_BLOCK()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let stmt_list i32 = ast[body].a
+  let scope i32[64]
+  scope[0] = 0
+  ret emit_bytecode_emit_stmt_list(source, tokens, ast, stmt_list, out, pos, out_cap, scope)
+end
+
+fn emit_bytecode(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, out i8[1024], out_cap i32) i32
+  if ast_count <= 0
+    ret EMIT_ERR_BAD_AST()
+  end
+  if ast[ast_count - 1].kind != AN_PROGRAM()
+    ret EMIT_ERR_BAD_AST()
+  end
+  let p i32 = 0
+  let header i8[64] = "ETLB1;"
+  p = emit_bytecode_append_text(out, p, out_cap, header, 6)
+  if p < 0
+    ret p
+  end
+  let main_fn i32 = emit_bytecode_find_main(ast, ast[ast_count - 1].a)
+  if main_fn < 0
+    ret main_fn
+  end
+  ret emit_bytecode_emit_fn(source, tokens, ast, main_fn, out, p, out_cap)
+end

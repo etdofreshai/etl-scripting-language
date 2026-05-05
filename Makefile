@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
 
 test:
 	python3 -m unittest discover -s tests
@@ -46,6 +46,7 @@ smoke:
 	scripts/c1_source_to_c_scalar_param_smoke.sh
 	scripts/c1_extern_call_smoke.sh
 	scripts/c1_extern_scalar_param_smoke.sh
+	scripts/c1_emit_bytecode_smoke.sh
 
 runtime-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -o runtime/test_runtime runtime/test_runtime.c $(ETL_RUNTIME)
@@ -97,6 +98,11 @@ backend-wasm:
 	scripts/c1_wat_array_smoke.sh
 	scripts/c1_wat_struct_field_smoke.sh
 	scripts/c1_wat_struct_array_smoke.sh
+
+backend-vm:
+	scripts/c1_emit_bytecode_smoke.sh
+	scripts/c1_vm_return_smoke.sh
+	scripts/c1_vm_expr_smoke.sh
 
 headless-selfeval:
 	scripts/selfeval_smoke.sh
