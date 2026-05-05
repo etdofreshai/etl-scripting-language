@@ -24,11 +24,15 @@
  *     -11  push on full stack (limit 64 slots)
  *     -12  div/mod by zero
  *     -13  R with non-empty stack remainder
- *     -14  trailing bytes after R;
+ *     -14  reserved (older VM rejected trailing bytes after R;)
  *     -15  ran off end without R;
  *     -16  L missing slot digit
  *     -17  L slot index out of range (limit 32 slots)
  *     -18  L malformed: missing ';' after load or '=;' after store
+ *     -19  label/jump missing label digit
+ *     -20  label/jump missing ';'
+ *     -21  jump target label not found
+ *     -22  execution step bound exceeded
  *
  * The interpreter is intentionally bounded and deterministic; it does not
  * allocate, perform any I/O, or access memory outside its parameters.
