@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check
 
 test:
 	python3 -m unittest discover -s tests
@@ -138,6 +138,20 @@ autopilot-help:
 
 examples-cli:
 	scripts/examples_cli_smoke.sh
+
+# Aggregate examples gate. Runs CLI examples, visual examples, and the
+# runtime-compile (VM) example end-to-end. Visual gracefully skips the
+# SDL3 branch when SDL3 is not installed.
+examples: examples-cli visual
+	scripts/c1_runtime_compile_smoke.sh
+
+# Release-readiness gate. Aggregates check + selfhost + every backend
+# gate + examples + visual. Fails if any non-optional gate fails. The
+# selfhost-selfcompile and selfhost-bootstrap probes are NOT included
+# here because they are designed to fail loudly until the c1 emit_c
+# expansion long-tail closes; their status lives in
+# build/fixedpoint/{selfcompile,bootstrap}-status.md.
+release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples
 
 visual:
 	scripts/visual_smoke.sh
