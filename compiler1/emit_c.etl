@@ -263,21 +263,38 @@ fn emit_c_same_name(source i8[131072], tokens Token[32768], left i32, right i32)
   ret true
 end
 
-fn emit_c_find_local(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
+fn emit_c_find_in_chain(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, name_token i32) i32
   if list < 0
     ret -1
-  end
-  let prior i32 = emit_c_find_local(source, tokens, ast, ast[list].b, name_token)
-  if prior >= 0
-    ret prior
   end
   let stmt i32 = ast[list].a
   if ast[stmt].kind == AN_LET()
     if emit_c_same_name(source, tokens, ast[stmt].a, name_token)
-      ret emit_c_count_prior_lets(ast, ast[list].b)
+      ret stmt
     end
   end
-  ret -1
+  ret emit_c_find_in_chain(source, tokens, ast, ast[list].b, name_token)
+end
+
+fn emit_c_chain_tail(ast AstNode[32768], list i32) i32
+  if list < 0
+    ret -1
+  end
+  if ast[list].b < 0
+    ret list
+  end
+  ret emit_c_chain_tail(ast, ast[list].b)
+end
+
+fn emit_c_find_local(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, outer i32, name_token i32) i32
+  let inner i32 = emit_c_find_in_chain(source, tokens, ast, list, name_token)
+  if inner >= 0
+    ret inner
+  end
+  if outer < 0
+    ret -1
+  end
+  ret emit_c_find_in_chain(source, tokens, ast, outer, name_token)
 end
 
 fn emit_c_append_local_name(out i8[262144], pos i32, out_cap i32, index i32) i32
@@ -345,7 +362,7 @@ fn emit_c_binary_op(i32_op i32, out i8[262144], pos i32, out_cap i32) i32
   ret -1
 end
 
-fn emit_c_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -355,7 +372,7 @@ fn emit_c_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_c_call_args(source, tokens, ast, ast_count, ast[list].b, locals, out, pos, out_cap)
+  let p i32 = emit_c_call_args(source, tokens, ast, ast_count, ast[list].b, locals, outer, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -366,10 +383,10 @@ fn emit_c_call_args(source i8[131072], tokens Token[32768], ast AstNode[32768], 
       ret -1
     end
   end
-  ret emit_c_expr(source, tokens, ast, ast_count, ast[list].a, locals, out, p, out_cap)
+  ret emit_c_expr(source, tokens, ast, ast_count, ast[list].a, locals, outer, out, p, out_cap)
 end
 
-fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -389,7 +406,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     ret emit_c_append_text(out, pos, out_cap, size_text, 1)
   end
   if ast[node].kind == AN_NAME()
-    let local i32 = emit_c_find_local(source, tokens, ast, locals, ast[node].a)
+    let local i32 = emit_c_find_local(source, tokens, ast, locals, outer, ast[node].a)
     if local >= 0
       ret emit_c_append_local_name(out, pos, out_cap, local)
     end
@@ -406,7 +423,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     if p < 0
       ret -1
     end
-    p = emit_c_call_args(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_c_call_args(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -415,7 +432,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
   if ast[node].kind == AN_INDEX()
     let open i8[64] = "["
     let close_text i8[64] = "]"
-    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -423,7 +440,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     if p < 0
       ret -1
     end
-    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -431,7 +448,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
   end
   if ast[node].kind == AN_FIELD_ACCESS()
     let dot i8[64] = "."
-    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+    let p i32 = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, pos, out_cap)
     if p < 0
       ret -1
     end
@@ -449,7 +466,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
       if p < 0
         ret -1
       end
-      p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+      p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
       if p < 0
         ret -1
       end
@@ -465,7 +482,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     if p < 0
       ret -1
     end
-    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -478,7 +495,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     if p < 0
       ret -1
     end
-    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -486,7 +503,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     if p < 0
       ret -1
     end
-    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    p = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -495,7 +512,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
   ret emit_c_diag(ast[node].kind, node, 0)
 end
 
-fn emit_c_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -508,14 +525,14 @@ fn emit_c_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
 end
 
-fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret emit_c_diag(0, node, 300)
   end
@@ -529,7 +546,7 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
   if ast[typ].kind != AN_TYPE()
     ret emit_c_diag(ast[typ].kind, typ, 303)
   end
-  let local i32 = emit_c_find_local(source, tokens, ast, locals, ast[node].a)
+  let local i32 = emit_c_find_local(source, tokens, ast, locals, outer, ast[node].a)
   if local < 0
     ret emit_c_diag(ast[node].kind, node, 304)
   end
@@ -627,7 +644,7 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
   if p < 0
     ret emit_c_diag(ast[node].kind, node, 305)
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p, out_cap)
   if p < 0
     ret emit_c_diag(ast[ast[node].c].kind, ast[node].c, 306)
   end
@@ -714,7 +731,7 @@ fn emit_c_struct(source i8[131072], tokens Token[32768], ast AstNode[32768], ast
   ret emit_c_append_text(out, p, out_cap, tail, 3)
 end
 
-fn emit_c_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -728,7 +745,7 @@ fn emit_c_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -736,14 +753,14 @@ fn emit_c_assign(source i8[131072], tokens Token[32768], ast AstNode[32768], ast
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
 end
 
-fn emit_c_expr_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_expr_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -756,24 +773,36 @@ fn emit_c_expr_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
 end
 
-fn emit_c_nested_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_nested_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
   if ast[node].kind != AN_BLOCK()
     ret -1
   end
-  ret emit_c_stmt_list(source, tokens, ast, ast_count, ast[node].a, locals, out, pos, out_cap)
+  let inner_list i32 = ast[node].a
+  if inner_list < 0
+    ret pos
+  end
+  let tail i32 = emit_c_chain_tail(ast, inner_list)
+  if tail < 0
+    ret emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, -1, out, pos, out_cap)
+  end
+  let saved_b i32 = ast[tail].b
+  ast[tail].b = locals
+  let r i32 = emit_c_stmt_list(source, tokens, ast, ast_count, inner_list, locals, inner_list, -1, out, pos, out_cap)
+  ast[tail].b = saved_b
+  ret r
 end
 
-fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if list < 0
     ret pos
   end
@@ -783,7 +812,7 @@ fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if ast[list].kind != AN_LIST()
     ret -1
   end
-  let p i32 = emit_c_elif_list(source, tokens, ast, ast_count, ast[list].b, locals, out, pos, out_cap)
+  let p i32 = emit_c_elif_list(source, tokens, ast, ast_count, ast[list].b, locals, outer, out, pos, out_cap)
   if p < 0
     ret -1
   end
@@ -799,7 +828,7 @@ fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[enode].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[enode].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -808,7 +837,7 @@ fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if p < 0
     ret -1
   end
-  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[enode].b, locals, out, p, out_cap)
+  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[enode].b, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -816,7 +845,7 @@ fn emit_c_elif_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   ret emit_c_append_text(out, p, out_cap, close, 3)
 end
 
-fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -828,7 +857,7 @@ fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_cou
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -837,7 +866,7 @@ fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_cou
   if p < 0
     ret -1
   end
-  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -847,7 +876,7 @@ fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_cou
     ret -1
   end
   let elifs i32 = ast[ast[node].b].c
-  p = emit_c_elif_list(source, tokens, ast, ast_count, elifs, locals, out, p, out_cap)
+  p = emit_c_elif_list(source, tokens, ast, ast_count, elifs, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -857,7 +886,7 @@ fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_cou
     if p < 0
       ret -1
     end
-    p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
+    p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p, out_cap)
     if p < 0
       ret -1
     end
@@ -870,7 +899,7 @@ fn emit_c_if(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_cou
   ret emit_c_append_text(out, p, out_cap, nl, 1)
 end
 
-fn emit_c_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret -1
   end
@@ -882,7 +911,7 @@ fn emit_c_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_
   if p < 0
     ret -1
   end
-  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, out, p, out_cap)
+  p = emit_c_expr(source, tokens, ast, ast_count, ast[node].a, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -891,7 +920,7 @@ fn emit_c_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_
   if p < 0
     ret -1
   end
-  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, out, p, out_cap)
+  p = emit_c_nested_block(source, tokens, ast, ast_count, ast[node].b, locals, outer, out, p, out_cap)
   if p < 0
     ret -1
   end
@@ -899,47 +928,47 @@ fn emit_c_while(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_
   ret emit_c_append_text(out, p, out_cap, close, 4)
 end
 
-fn emit_c_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
     ret emit_c_diag(0, node, 220)
   end
   if ast[node].kind == AN_LET()
-    let r i32 = emit_c_let(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_let(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 221)
     end
     ret r
   end
   if ast[node].kind == AN_RET()
-    let r i32 = emit_c_return(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_return(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 222)
     end
     ret r
   end
   if ast[node].kind == AN_ASSIGN()
-    let r i32 = emit_c_assign(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_assign(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 223)
     end
     ret r
   end
   if ast[node].kind == AN_EXPR_STMT()
-    let r i32 = emit_c_expr_stmt(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_expr_stmt(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 224)
     end
     ret r
   end
   if ast[node].kind == AN_IF()
-    let r i32 = emit_c_if(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_if(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 225)
     end
     ret r
   end
   if ast[node].kind == AN_WHILE()
-    let r i32 = emit_c_while(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_while(source, tokens, ast, ast_count, node, locals, outer, out, pos, out_cap)
     if r < 0
       ret emit_c_diag(ast[node].kind, node, 226)
     end
@@ -948,8 +977,11 @@ fn emit_c_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
   ret emit_c_diag(ast[node].kind, node, 1)
 end
 
-fn emit_c_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
+fn emit_c_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, stop_at i32, locals i32, outer i32, out i8[262144], pos i32, out_cap i32) i32
   if list < 0
+    ret pos
+  end
+  if list == stop_at
     ret pos
   end
   if list >= ast_count
@@ -958,11 +990,11 @@ fn emit_c_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if ast[list].kind != AN_LIST()
     ret emit_c_diag(ast[list].kind, list, 201)
   end
-  let p i32 = emit_c_stmt_list(source, tokens, ast, ast_count, ast[list].b, locals, out, pos, out_cap)
+  let p i32 = emit_c_stmt_list(source, tokens, ast, ast_count, ast[list].b, stop_at, locals, outer, out, pos, out_cap)
   if p < 0
     ret emit_c_diag(ast[list].kind, list, 202)
   end
-  ret emit_c_stmt(source, tokens, ast, ast_count, ast[list].a, locals, out, p, out_cap)
+  ret emit_c_stmt(source, tokens, ast, ast_count, ast[list].a, locals, outer, out, p, out_cap)
 end
 
 fn emit_c_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
@@ -982,7 +1014,7 @@ fn emit_c_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_
   if ast[list].kind != AN_LIST()
     ret emit_c_diag(ast[list].kind, list, 214)
   end
-  ret emit_c_stmt_list(source, tokens, ast, ast_count, list, list, out, pos, out_cap)
+  ret emit_c_stmt_list(source, tokens, ast, ast_count, list, -1, list, -1, out, pos, out_cap)
 end
 
 fn emit_c_param_list(source i8[131072], tokens Token[32768], ast AstNode[32768], list i32, out i8[262144], pos i32, out_cap i32) i32

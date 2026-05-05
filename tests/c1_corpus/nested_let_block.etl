@@ -1,0 +1,12 @@
+fn main() i32
+  let outer i32 = 5
+  if outer > 0
+    let inner i32 = 7
+    outer = outer + inner
+    if inner > 0
+      let deep i32 = 13
+      outer = outer + deep
+    end
+  end
+  ret outer
+end
