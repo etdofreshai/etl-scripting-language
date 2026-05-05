@@ -11,7 +11,7 @@ cat compiler1/emit_c.etl >> "$td/test_emit_c_all.etl"
 cat compiler1/test_emit_c.etl >> "$td/test_emit_c_all.etl"
 
 python3 -m compiler0 compile "$td/test_emit_c_all.etl" -o "$td/test_emit_c.c"
-cc -Wall -Werror "$td/test_emit_c.c" -I runtime -o "$td/test_emit_c"
+cc -Wall -Werror "$td/test_emit_c.c" runtime/etl_runtime.c -I runtime -o "$td/test_emit_c"
 
 set +e
 "$td/test_emit_c"

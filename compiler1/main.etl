@@ -1,5 +1,7 @@
 extern fn etl_read_file(path i8[64], buf i8[131072], cap i32) i32
 extern fn etl_write_file(path i8[64], buf i8[262144], len i32) i32
+extern fn etl_eprint(buf i8[64], len i32)
+extern fn etl_eprint_i32(value i32)
 
 type Token struct
   kind i32

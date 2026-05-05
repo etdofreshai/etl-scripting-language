@@ -1,3 +1,18 @@
+fn emit_c_diag(kind i32, node i32, site i32) i32
+  let prefix i8[64] = "c1 emit_c: unsupported kind "
+  let mid_node i8[64] = " node "
+  let mid_site i8[64] = " site "
+  let nl i8[64] = "\n"
+  etl_eprint(prefix, 28)
+  etl_eprint_i32(kind)
+  etl_eprint(mid_node, 6)
+  etl_eprint_i32(node)
+  etl_eprint(mid_site, 6)
+  etl_eprint_i32(site)
+  etl_eprint(nl, 1)
+  ret -1
+end
+
 fn emit_c_append_byte(out i8[262144], pos i32, out_cap i32, ch i8) i32
   if pos < 0
     ret -1
@@ -88,6 +103,27 @@ fn emit_c_type_is_i32(source i8[131072], tokens Token[32768], ast AstNode[32768]
   ret false
 end
 
+fn emit_c_type_is_i32_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  let i32_name i8[16] = "i32"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3)
+    ret true
+  end
+  let integer_name i8[16] = "integer"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7)
+    ret true
+  end
+  ret false
+end
+
 fn emit_c_type_is_bool(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
@@ -164,7 +200,35 @@ fn emit_c_type_is_struct_value(source i8[131072], tokens Token[32768], ast AstNo
   if emit_c_type_is_i32(source, tokens, ast, typ)
     ret false
   end
+  if emit_c_type_is_i32_array(source, tokens, ast, typ)
+    ret false
+  end
   if emit_c_type_is_bool(source, tokens, ast, typ)
+    ret false
+  end
+  ret true
+end
+
+fn emit_c_type_is_struct_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b <= 0
+    ret false
+  end
+  if emit_c_type_is_i32(source, tokens, ast, typ)
+    ret false
+  end
+  if emit_c_type_is_bool(source, tokens, ast, typ)
+    ret false
+  end
+  if emit_c_type_is_i8_scalar(source, tokens, ast, typ)
+    ret false
+  end
+  if emit_c_type_is_byte_array(source, tokens, ast, typ)
     ret false
   end
   ret true
@@ -428,7 +492,7 @@ fn emit_c_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_c
     end
     ret emit_c_append_text(out, p, out_cap, rparen, 1)
   end
-  ret -1
+  ret emit_c_diag(ast[node].kind, node, 0)
 end
 
 fn emit_c_return(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
@@ -453,21 +517,21 @@ end
 
 fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 300)
   end
   if ast[node].kind != AN_LET()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 301)
   end
   let typ i32 = ast[node].b
   if typ < 0 or typ >= ast_count
-    ret -1
+    ret emit_c_diag(0, typ, 302)
   end
   if ast[typ].kind != AN_TYPE()
-    ret -1
+    ret emit_c_diag(ast[typ].kind, typ, 303)
   end
   let local i32 = emit_c_find_local(source, tokens, ast, locals, ast[node].a)
   if local < 0
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 304)
   end
   let decl_text i8[64] = "  int "
   let bool_decl_text i8[64] = "  bool "
@@ -493,7 +557,7 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
           p = emit_c_append_text(out, p, out_cap, byte_decl_text, 14)
         else
           if ast[node].c >= 0
-            ret -1
+            ret emit_c_diag(ast[node].kind, node, 10)
           end
           p = emit_c_append_text(out, p, out_cap, struct_text, 9)
           if p < 0
@@ -533,7 +597,7 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
     end
     if ast[node].c >= 0
       if ast[ast[node].c].kind != AN_STRING()
-        ret -1
+        ret emit_c_diag(ast[ast[node].c].kind, node, 11)
       end
       p = emit_c_append_text(out, p, out_cap, eq_text, 3)
       if p < 0
@@ -555,17 +619,17 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
   end
   if ast[node].c < 0
     if is_i32 != 0
-      ret -1
+      ret emit_c_diag(ast[node].kind, node, 12)
     end
     ret emit_c_append_text(out, p, out_cap, semi_text, 2)
   end
   p = emit_c_append_text(out, p, out_cap, eq_text, 3)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 305)
   end
   p = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, out, p, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[ast[node].c].kind, ast[node].c, 306)
   end
   ret emit_c_append_text(out, p, out_cap, semi_text, 2)
 end
@@ -599,13 +663,13 @@ fn emit_c_struct_fields(source i8[131072], tokens Token[32768], ast AstNode[3276
     ret -1
   end
   if ast[typ].b > 0
-    ret -1
+    ret emit_c_diag(ast[field].kind, field, 40)
   end
   let i32_name i8[16] = "i32"
   let integer_name i8[16] = "integer"
   if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, i32_name, 3) == false
     if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, integer_name, 7) == false
-      ret -1
+      ret emit_c_diag(ast[field].kind, field, 41)
     end
   end
   let head i8[64] = "  int "
@@ -623,10 +687,10 @@ end
 
 fn emit_c_struct(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 42)
   end
   if ast[node].kind != AN_STRUCT()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 43)
   end
   let head i8[64] = "struct "
   let open i8[64] = " {\n"
@@ -837,27 +901,51 @@ end
 
 fn emit_c_stmt(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 220)
   end
   if ast[node].kind == AN_LET()
-    ret emit_c_let(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_let(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 221)
+    end
+    ret r
   end
   if ast[node].kind == AN_RET()
-    ret emit_c_return(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_return(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 222)
+    end
+    ret r
   end
   if ast[node].kind == AN_ASSIGN()
-    ret emit_c_assign(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_assign(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 223)
+    end
+    ret r
   end
   if ast[node].kind == AN_EXPR_STMT()
-    ret emit_c_expr_stmt(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_expr_stmt(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 224)
+    end
+    ret r
   end
   if ast[node].kind == AN_IF()
-    ret emit_c_if(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_if(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 225)
+    end
+    ret r
   end
   if ast[node].kind == AN_WHILE()
-    ret emit_c_while(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    let r i32 = emit_c_while(source, tokens, ast, ast_count, node, locals, out, pos, out_cap)
+    if r < 0
+      ret emit_c_diag(ast[node].kind, node, 226)
+    end
+    ret r
   end
-  ret -1
+  ret emit_c_diag(ast[node].kind, node, 1)
 end
 
 fn emit_c_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, list i32, locals i32, out i8[262144], pos i32, out_cap i32) i32
@@ -865,34 +953,34 @@ fn emit_c_stmt_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
     ret pos
   end
   if list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 200)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 201)
   end
   let p i32 = emit_c_stmt_list(source, tokens, ast, ast_count, ast[list].b, locals, out, pos, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 202)
   end
   ret emit_c_stmt(source, tokens, ast, ast_count, ast[list].a, locals, out, p, out_cap)
 end
 
 fn emit_c_block(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 210)
   end
   if ast[node].kind != AN_BLOCK()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 211)
   end
   if ast[node].b < 1
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 212)
   end
   let list i32 = ast[node].a
   if list < 0 or list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 213)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 214)
   end
   ret emit_c_stmt_list(source, tokens, ast, ast_count, list, list, out, pos, out_cap)
 end
@@ -930,25 +1018,43 @@ fn emit_c_param_list(source i8[131072], tokens Token[32768], ast AstNode[32768],
     if emit_c_type_is_i32(source, tokens, ast, ast[param].b)
       p = emit_c_append_text(out, p, out_cap, int_text, 4)
     else
-      if emit_c_type_is_bool(source, tokens, ast, ast[param].b)
-        p = emit_c_append_text(out, p, out_cap, bool_text, 5)
+      if emit_c_type_is_i32_array(source, tokens, ast, ast[param].b)
+        let int_ptr_text i8[64] = "int *"
+        p = emit_c_append_text(out, p, out_cap, int_ptr_text, 5)
       else
-        if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
-          p = emit_c_append_text(out, p, out_cap, byte_text, 12)
+        if emit_c_type_is_bool(source, tokens, ast, ast[param].b)
+          p = emit_c_append_text(out, p, out_cap, bool_text, 5)
         else
-          if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
-            ret -1
+          if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
+            p = emit_c_append_text(out, p, out_cap, byte_text, 12)
+          else
+            if emit_c_type_is_struct_array(source, tokens, ast, ast[param].b)
+              p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+              if p < 0
+                ret -1
+              end
+              p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let ptr_space i8[64] = " *"
+              p = emit_c_append_text(out, p, out_cap, ptr_space, 2)
+            else
+              if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
+                ret emit_c_diag(ast[param].kind, ast[param].b, 30)
+              end
+              p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+              if p < 0
+                ret -1
+              end
+              p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+              if p < 0
+                ret -1
+              end
+              let space i8[64] = " "
+              p = emit_c_append_text(out, p, out_cap, space, 1)
+            end
           end
-          p = emit_c_append_text(out, p, out_cap, struct_text, 7)
-          if p < 0
-            ret -1
-          end
-          p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
-          if p < 0
-            ret -1
-          end
-          let space i8[64] = " "
-          p = emit_c_append_text(out, p, out_cap, space, 1)
         end
       end
     end
@@ -984,11 +1090,23 @@ fn emit_c_function_signature(source i8[131072], tokens Token[32768], ast AstNode
   if ast[ret_type].kind != AN_TYPE()
     ret -1
   end
-  if emit_c_type_is_i32(source, tokens, ast, ret_type) == false
-    ret -1
-  end
   let int_head i8[64] = "int "
-  let p i32 = emit_c_append_text(out, pos, out_cap, int_head, 4)
+  let bool_head i8[64] = "bool "
+  let byte_head i8[64] = "signed char "
+  let p i32 = pos
+  if emit_c_type_is_i32(source, tokens, ast, ret_type)
+    p = emit_c_append_text(out, p, out_cap, int_head, 4)
+  else
+    if emit_c_type_is_bool(source, tokens, ast, ret_type)
+      p = emit_c_append_text(out, p, out_cap, bool_head, 5)
+    else
+      if emit_c_type_is_i8_scalar(source, tokens, ast, ret_type)
+        p = emit_c_append_text(out, p, out_cap, byte_head, 12)
+      else
+        ret emit_c_diag(ast[ret_type].kind, ret_type, 20)
+      end
+    end
+  end
   if p < 0
     ret -1
   end
@@ -1016,28 +1134,28 @@ end
 
 fn emit_c_function(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 44)
   end
   if ast[node].kind != AN_FN()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 45)
   end
   let body i32 = ast[node].c
   if body < 0 or body >= ast_count
-    ret -1
+    ret emit_c_diag(0, body, 46)
   end
   let tail i8[64] = "}\n"
   let p i32 = emit_c_function_signature(source, tokens, ast, ast_count, node, out, pos, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 47)
   end
   let close_head i8[64] = " {\n"
   p = emit_c_append_text(out, p, out_cap, close_head, 3)
   if p < 0
-    ret -1
+    ret emit_c_diag(0, p, 48)
   end
   p = emit_c_block(source, tokens, ast, ast_count, body, out, p, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 49)
   end
   ret emit_c_append_text(out, p, out_cap, tail, 2)
 end
@@ -1047,14 +1165,14 @@ fn emit_c_function_prototypes(source i8[131072], tokens Token[32768], ast AstNod
     ret pos
   end
   if list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 70)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 71)
   end
   let p i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(0, list, 72)
   end
   let decl i32 = ast[list].a
   if ast[decl].kind != AN_FN()
@@ -1062,7 +1180,7 @@ fn emit_c_function_prototypes(source i8[131072], tokens Token[32768], ast AstNod
   end
   p = emit_c_function_signature(source, tokens, ast, ast_count, decl, out, p, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[decl].kind, decl, 73)
   end
   let semi i8[64] = ";\n"
   ret emit_c_append_text(out, p, out_cap, semi, 2)
@@ -1073,14 +1191,14 @@ fn emit_c_struct_forwards(source i8[131072], tokens Token[32768], ast AstNode[32
     ret pos
   end
   if list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 60)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 61)
   end
   let p i32 = emit_c_struct_forwards(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(0, list, 62)
   end
   let decl i32 = ast[list].a
   if ast[decl].kind != AN_STRUCT()
@@ -1139,10 +1257,10 @@ end
 
 fn emit_c_extern_function(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 53)
   end
   if ast[node].kind != AN_EXTERN_FN()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 54)
   end
   let p i32 = pos
   if ast[node].c >= 0
@@ -1166,10 +1284,10 @@ fn emit_c_extern_function(source i8[131072], tokens Token[32768], ast AstNode[32
   end
   let params i32 = ast[node].b
   if params < 0 or params >= ast_count
-    ret -1
+    ret emit_c_diag(0, params, 55)
   end
   if ast[params].kind != AN_BLOCK()
-    ret -1
+    ret emit_c_diag(ast[params].kind, params, 56)
   end
   if ast[params].b == 0
     let void_arg i8[64] = "void"
@@ -1189,14 +1307,14 @@ fn emit_c_decl_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
     ret pos
   end
   if list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 50)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 51)
   end
   let p i32 = emit_c_decl_list(source, tokens, ast, ast_count, ast[list].b, out, pos, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 52)
   end
   let decl i32 = ast[list].a
   if ast[decl].kind == AN_EXTERN_FN()
@@ -1208,48 +1326,48 @@ fn emit_c_decl_list(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   if ast[decl].kind == AN_FN()
     ret emit_c_function(source, tokens, ast, ast_count, decl, out, p, out_cap)
   end
-  ret -1
+  ret emit_c_diag(ast[decl].kind, decl, 2)
 end
 
 fn emit_c_program(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, node i32, out i8[262144], pos i32, out_cap i32) i32
   if node < 0 or node >= ast_count
-    ret -1
+    ret emit_c_diag(0, node, 80)
   end
   if ast[node].kind != AN_PROGRAM()
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 81)
   end
   if ast[node].b < 1
-    ret -1
+    ret emit_c_diag(ast[node].kind, node, 82)
   end
   let list i32 = ast[node].a
   if list < 0 or list >= ast_count
-    ret -1
+    ret emit_c_diag(0, list, 83)
   end
   if ast[list].kind != AN_LIST()
-    ret -1
+    ret emit_c_diag(ast[list].kind, list, 84)
   end
   let include_bool i8[64] = "#include <stdbool.h>\n"
   let p i32 = emit_c_append_text(out, pos, out_cap, include_bool, 21)
   if p < 0
-    ret -1
+    ret emit_c_diag(0, p, 85)
   end
   p = emit_c_struct_forwards(source, tokens, ast, ast_count, list, out, p, out_cap)
   if p < 0
-    ret -1
+    ret emit_c_diag(0, list, 86)
   end
   let p2 i32 = emit_c_function_prototypes(source, tokens, ast, ast_count, list, out, p, out_cap)
   if p2 < 0
-    ret -1
+    ret emit_c_diag(0, list, 87)
   end
   ret emit_c_decl_list(source, tokens, ast, ast_count, list, out, p2, out_cap)
 end
 
 fn emit_c(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_count i32, out i8[262144], out_cap i32) i32
   if ast_count <= 0
-    ret -1
+    ret emit_c_diag(0, ast_count, 90)
   end
   if out_cap <= 0
-    ret -1
+    ret emit_c_diag(0, out_cap, 91)
   end
   ret emit_c_program(source, tokens, ast, ast_count, ast_count - 1, out, 0, out_cap)
 end

@@ -108,6 +108,17 @@ if [ "$emit_rc" -ne 0 ] || [ "$emit_bytes" -eq 0 ]; then
     15) blocker_summary="driver: etl_write_file failed writing /dev/stdout" ;;
   esac
 
+  # If c1 produced a stderr diagnostic line ("c1 emit_c: unsupported kind K node N site S"),
+  # promote the FIRST such line into the blocker summary — that is the actual leaf
+  # rejection inside emit_c, much more actionable than the generic phase guess.
+  diag_first=""
+  if [ -s "$emit_err" ]; then
+    diag_first=$(grep -m1 'c1 emit_c: unsupported kind' "$emit_err" 2>/dev/null || true)
+  fi
+  if [ -n "$diag_first" ]; then
+    blocker_summary="${blocker_summary} — first leaf diagnostic: ${diag_first}"
+  fi
+
   {
     echo "# c1 self-compile smoke status: BLOCKED at c1-emit"
     echo
@@ -115,7 +126,7 @@ if [ "$emit_rc" -ne 0 ] || [ "$emit_bytes" -eq 0 ]; then
     echo "- c1 exit code: \`${emit_rc}\`"
     echo "- Emitted C size: \`${emit_bytes}\` bytes"
     echo "- Concatenated source size: \`${concat_bytes}\` bytes"
-    echo "- Concatenation order: main.etl + lex.etl + parse.etl + sema.etl + emit_c.etl"
+    echo "- Concatenation order: main.etl + lex.etl + parse.etl + sema.etl + emit_c.etl + driver.etl"
     echo
     echo "## First blocker"
     echo
@@ -127,9 +138,30 @@ if [ "$emit_rc" -ne 0 ] || [ "$emit_bytes" -eq 0 ]; then
     if [ -s "$emit_err" ]; then
       head -n 30 "$emit_err"
     else
-      echo "(empty)"
+      echo "(empty — no emit_c diagnostic fired; failure may be in lex/parse/sema)"
     fi
     echo '```'
+    echo
+    echo "## emit_c diagnostic site code legend"
+    echo
+    echo "Each \`site S\` line in stderr above maps to a specific \`ret -1\` location"
+    echo "in compiler1/emit_c.etl. Codes used today:"
+    echo
+    echo "- **0/1/2** — kind-dispatch fall-through (truly unsupported AN_* kind)"
+    echo "  in emit_c_expr / emit_c_stmt / emit_c_decl_list respectively."
+    echo "- **10/11/12** — emit_c_let structural rejects: struct-let with init / array-let"
+    echo "  with non-string init / i32-let with no initializer."
+    echo "- **20/30/40/41** — return-type, param-type, struct-field-array, struct-field-non-i32"
+    echo "  unsupported in emit_c_function_signature / emit_c_param_list / emit_c_struct_fields."
+    echo "- **42-49 / 53-56** — entry rejects in emit_c_struct / emit_c_function / emit_c_extern_function."
+    echo "- **50-52 / 60-62 / 70-73 / 80-87 / 90-91** — propagation through emit_c_decl_list /"
+    echo "  emit_c_struct_forwards / emit_c_function_prototypes / emit_c_program / emit_c."
+    echo "- **200-214** — propagation through emit_c_stmt_list / emit_c_block."
+    echo "- **220-226** — emit_c_stmt dispatched-handler propagation"
+    echo "  (221=let, 222=return, 223=assign, 224=expr-stmt, 225=if, 226=while)."
+    echo "- **300-306** — emit_c_let internal entry/find-local/expr-init failures"
+    echo "  (304 = emit_c_find_local could not locate the let's name in the scope chain —"
+    echo "   typically means a let inside a nested block, which the current emitter does not track)."
   } > "$status_blocker"
 
   echo "c1_selfcompile_smoke: FAIL — first blocker (c1-emit, rc=${emit_rc}): ${blocker_summary}; see ${status_blocker}" >&2
