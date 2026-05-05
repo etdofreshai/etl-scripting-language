@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli
 
 test:
 	python3 -m unittest discover -s tests
@@ -70,6 +70,15 @@ selfhost: c1-pipeline selfhost-equiv
 # build/fixedpoint/selfcompile-status.md when it fails.
 selfhost-selfcompile:
 	scripts/c1_selfcompile_smoke.sh
+
+# c1 bootstrap chain probe (c0 -> c1 -> c2 -> c3 -> c4). Verifies that
+# three consecutive self-compilations emit byte-identical C, which is
+# the fixed-point criterion. Depends on selfhost-selfcompile being
+# green; otherwise records BLOCKED-AT-SELFCOMPILE in
+# build/fixedpoint/bootstrap-status.md and fails loudly. Not wired into
+# `make check` or `make selfhost`.
+selfhost-bootstrap:
+	scripts/c1_bootstrap_smoke.sh
 
 backend-plan-smoke:
 	scripts/backend_plan_smoke.sh
