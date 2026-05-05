@@ -1,7 +1,13 @@
-# Compiler-0 Freeze Plan
+# Compiler-0 Freeze: ACHIEVED
 
-This document tracks the path from the current state to declaring
-compiler-0 (the Python bootstrap) frozen.
+> **Status: c0 FROZEN as of commit 0288e0c.** Three-stage fixed point
+> reached. sha256(c1_self.c) = sha256(c2_self.c) = sha256(c3_self.c) =
+> `5b1c1914bc0e40adb6bfcd07b2e1ace6aadf31863744ec87c6e1f2948ed27523`.
+> See `build/fixedpoint/bootstrap-status.md` for the live manifest.
+
+This document originally tracked the path from the bootstrap state to
+declaring compiler-0 (the Python bootstrap) frozen. That path is now
+complete; the document is preserved for historical reference.
 
 ## Definition
 
@@ -16,7 +22,7 @@ Compiler-0 is **frozen** when:
 3. The c0 path is no longer required for ongoing compiler development.
 4. `docs/DESIGN.md` and `docs/ROADMAP.md` declare c0 maintenance-only.
 
-## Current state (as of this commit)
+## Current state (final)
 
 | Stage | Status | Evidence |
 |-------|--------|----------|
@@ -26,8 +32,10 @@ Compiler-0 is **frozen** when:
 | c1 lex on c1 source | GREEN | selfcompile probe passes lex phase |
 | c1 parse on c1 source | GREEN | selfcompile probe passes parse phase |
 | c1 sema on c1 source | GREEN | selfcompile probe passes sema phase |
-| **c1 emit_c on c1 source** | **BLOCKED at rc=14** | `build/fixedpoint/selfcompile-status.md` |
-| c0 -> c1 -> c2 -> c3 chain | NOT STARTED | bootstrap probe gates on selfcompile |
+| c1 emit_c on c1 source | GREEN | 112,575 bytes emitted |
+| cc on emitted C | GREEN | c2 binary built |
+| c1 -> c2 -> c3 self-emitted-C bytes identical | GREEN | sha256 match across 3 stages |
+| c0 -> c1 -> c2 -> c3 -> c4 chain | GREEN | `make selfhost-bootstrap` passes |
 
 ## The single remaining blocker
 
@@ -89,10 +97,18 @@ source. The work is fundamentally incremental — there is no single
 edit that completes it. Estimated 18–28 narrow waves per
 `docs/fixed-point-plan.md`.
 
-## Why c0 is not yet frozen in this revision
+## Freeze achieved (final state)
 
-The supervisor goal that drove the recent commits (the runtime VM
-path, host bridge, CLI/visual examples, support matrix, bootstrap
-probe, etc.) was scoped to make the rest of the goal-state language
-visible and testable. The c1 emit_c expansion is the documented
-multi-week effort that gates actual c0 freeze.
+The supervisor session that opened with `make selfhost-selfcompile`
+failing at the skeleton blocker landed the following narrow chunks
+that together produced the fixed point:
+
+1. `d166c7a` — real `compiler1/driver.etl` (advanced past skeleton)
+2. `de778ef` — stderr diagnostic naming the next AN_* blocker
+3. `b0e35f2` — nested-block scope chaining (advanced emit_c past lets in if/while bodies; c1 emit_c then produced 112KB of C)
+4. `0288e0c` — i32[N] type classification fix (the cc-phase blocker); reached three-stage fixed point
+
+After 0288e0c, `make selfhost-selfcompile` and `make selfhost-bootstrap`
+both pass. compiler-0 is therefore frozen for the purposes of this
+project: future compiler development happens in compiler1/ written in
+ETL. compiler0/ is preserved as the historical Python bootstrap.

@@ -56,18 +56,18 @@ Makefile gates:
 |---|---|---|
 | `make check` | GREEN | Unit tests, core smokes, compiler-1 focused smokes, bytecode emit smoke, runtime C tests. |
 | `make selfhost` | GREEN | `c1-pipeline`, `selfhost-equiv`, and `scripts/c1_smoke.sh`. |
-| `make selfhost-equiv` | GREEN | 32-fixture c0/C vs c1/C equivalence corpus. |
-| `make selfhost-selfcompile` | IN-PROGRESS | Probe exists and records the current blocker; expected to fail until c1 has a real stdin-driven compile driver. |
-| `make selfhost-bootstrap` | NOT-IMPLEMENTED | No Makefile target yet. |
-| `make backend-vm` | GREEN | Bytecode emit, VM return, and VM expression/local equivalence smokes. |
+| `make selfhost-equiv` | GREEN | 33-fixture c0/C vs c1/C equivalence corpus (incl. nested_let_block, i32_array_param). |
+| `make selfhost-selfcompile` | GREEN | c1 emits its own source as 112,575 bytes of valid C; cc builds c2 successfully. |
+| `make selfhost-bootstrap` | GREEN | Three-stage fixed point achieved: sha256(c1_self.c)==sha256(c2_self.c)==sha256(c3_self.c). c0 is frozen as historical bootstrap. |
+| `make backend-vm` | GREEN | Bytecode emit + VM return + expr/locals + control flow + functions + runtime-compile equivalence smokes. |
 | `make backend-subset` | GREEN | 18 shared C/ASM/WAT cases. |
 | `make backend-asm` | GREEN | Focused x86-64 System V assembly smokes. |
 | `make backend-wasm` | GREEN | Focused WAT/WASM text smokes; execution depends on optional tools. |
-| `make examples-cli` | GREEN | Runs `scripts/examples_cli_smoke.sh`. |
+| `make examples-cli` | GREEN | 4-case CLI suite: hello, calculator, file_transform, config_rules. |
+| `make visual` | GREEN | tick_demo + software_pixel; SDL3 branch SKIPs cleanly when SDL3 absent. |
+| `make examples` | GREEN | examples-cli + visual + runtime-compile (VM) example. |
+| `make release-check` | GREEN | Aggregates check + selfhost + every backend gate + examples. |
 | `make headless-ready` | GREEN | Integration target wired through current readiness gates. |
-| `make visual` | NOT-IMPLEMENTED | No Makefile target yet. |
-| `make examples` | NOT-IMPLEMENTED | No Makefile target yet. |
-| `make release-check` | NOT-IMPLEMENTED | No Makefile target yet. |
 
 ## Optional dependencies
 
