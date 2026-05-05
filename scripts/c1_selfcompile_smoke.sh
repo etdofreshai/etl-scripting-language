@@ -29,26 +29,46 @@ c2_bin="build/fixedpoint/c2"
 rm -f "$emit_out" "$emit_err" "$cc_err" "$status_pass" "$status_blocker" "$c2_bin"
 
 # ---------------------------------------------------------------------------
-# Stage 1: build c1 via the canonical c0+cc pipeline.
-# scripts/build_etl.sh runs python -m compiler0 compile … && cc … and is the
-# canonical way to build the c1 binary. We build from compiler1/main.etl, the
-# same entrypoint scripts/c1_pipeline_smoke.sh and scripts/c1_smoke.sh use.
+# Stage 1: build a real c1 via concatenate-then-c0+cc.
+#
+# The historical c1 binary built from compiler1/main.etl alone is just the
+# "hello\n" → "h" smoke skeleton — its fn main() does not run the
+# lex→parse→sema→emit_c pipeline, so it cannot self-compile. The real
+# self-hosting compiler is the concatenation of all c1 source files plus
+# compiler1/driver.etl, which provides the actual stdin→stdout fn main().
+#
+# Concatenation order (kept identical to the input we pipe in stage 3):
+#   main.etl prelude  (skeleton fn main() stripped via sed)
+#   lex.etl
+#   parse.etl
+#   sema.etl
+#   emit_c.etl
+#   driver.etl  (real fn main(): /dev/stdin → lex → parse → sema → emit_c → /dev/stdout)
 # ---------------------------------------------------------------------------
-echo "c1_selfcompile_smoke: build c1 via scripts/build_etl.sh"
-scripts/build_etl.sh compiler1/main.etl "$td/c1"
+echo "c1_selfcompile_smoke: build real c1 (concatenated) via scripts/build_etl.sh"
+c1_src="$td/c1_real_source.etl"
+sed '/^fn main()/,$d' compiler1/main.etl >  "$c1_src"
+cat compiler1/lex.etl                    >> "$c1_src"
+cat compiler1/parse.etl                  >> "$c1_src"
+cat compiler1/sema.etl                   >> "$c1_src"
+cat compiler1/emit_c.etl                 >> "$c1_src"
+cat compiler1/driver.etl                 >> "$c1_src"
+scripts/build_etl.sh "$c1_src" "$td/c1"
 
 # ---------------------------------------------------------------------------
-# Stage 2: concatenate the canonical c1 source set.
-# Order matches docs/fixed-point-plan.md "Stage A" description and the
-# concatenation order used by scripts/c1_source_to_c_smoke.sh:
-#   main.etl  +  lex.etl  +  parse.etl  +  sema.etl  +  emit_c.etl
+# Stage 2: concatenate the SOURCE we will feed back into c1.
+# This is the same canonical c1 source set, but as INPUT to the compiler we
+# just built — i.e. c1 reading c1's own source. driver.etl is the real entry
+# point, so it must be in the input too (and at the end so its fn main()
+# overrides any earlier one stripped from main.etl by future refactors).
 # ---------------------------------------------------------------------------
 concat="$td/c1_full_source.etl"
-cat compiler1/main.etl    >  "$concat"
-cat compiler1/lex.etl     >> "$concat"
-cat compiler1/parse.etl   >> "$concat"
-cat compiler1/sema.etl    >> "$concat"
-cat compiler1/emit_c.etl  >> "$concat"
+sed '/^fn main()/,$d' compiler1/main.etl >  "$concat"
+cat compiler1/lex.etl                    >> "$concat"
+cat compiler1/parse.etl                  >> "$concat"
+cat compiler1/sema.etl                   >> "$concat"
+cat compiler1/emit_c.etl                 >> "$concat"
+cat compiler1/driver.etl                 >> "$concat"
 
 concat_bytes=$(wc -c < "$concat")
 echo "c1_selfcompile_smoke: concatenated c1 source = ${concat_bytes} bytes"
@@ -71,13 +91,22 @@ fi
 
 if [ "$emit_rc" -ne 0 ] || [ "$emit_bytes" -eq 0 ]; then
   blocker_summary="c1 emit phase exited with code ${emit_rc} (emitted ${emit_bytes} bytes)"
-  # Heuristic: the current compiler1/main.etl is still the "hello\n" → "h"
-  # skeleton that exits 1 silently for any input that is not exactly
-  # "hello\n". If we observe rc=1, no stdout, and no stderr, name that
-  # specific blocker so the next chunk has a clear target.
-  if [ "$emit_rc" -eq 1 ] && [ "$emit_bytes" -eq 0 ] && [ ! -s "$emit_err" ]; then
-    blocker_summary="compiler1/main.etl is still the 'hello\\n' → 'h' skeleton harness; it does not yet implement a compile-from-stdin driver (lex/parse/sema/emit_c → /dev/stdout)"
-  fi
+  # The driver.etl returns deterministic exit codes per failure phase:
+  #   10 = etl_read_file failed
+  #   11 = lex failed
+  #   12 = parse failed
+  #   13 = sema failed
+  #   14 = emit_c failed
+  #   15 = etl_write_file failed
+  # Translate these into a hint so the next chunk has a clear target.
+  case "$emit_rc" in
+    10) blocker_summary="driver: etl_read_file failed reading /dev/stdin" ;;
+    11) blocker_summary="driver: lex() failed on c1 source (likely token-buffer or unrecognized-token blocker)" ;;
+    12) blocker_summary="driver: parse() failed on c1 source (likely AST-buffer or grammar blocker)" ;;
+    13) blocker_summary="driver: sema() rejected c1 source (likely typed shape unsupported by current sema)" ;;
+    14) blocker_summary="driver: emit_c() rejected c1 source (likely AST shape not yet emitted by emit_c.etl)" ;;
+    15) blocker_summary="driver: etl_write_file failed writing /dev/stdout" ;;
+  esac
 
   {
     echo "# c1 self-compile smoke status: BLOCKED at c1-emit"
