@@ -1,0 +1,71 @@
+All 16 gates green; ready for v0.1.0-rc1 tag.
+
+Run date: 2026-05-08
+Branch: mission/etl-l5/F7.1-all-gates-green
+Feature: F7.1-all-gates-green
+Milestone: M7-release
+VAL-IDs: VAL-REL-001
+
+=== GATE: make check ===
+exit: 0
+summary: Ran 263 tests in 0.726s — OK; corpus smoke 17/17 passed; runtime-test ok
+
+=== GATE: scripts/c1_equiv_smoke.sh ===
+exit: 0
+summary: c1_equiv_smoke: summary 34/34 passed, 0 failed
+
+=== GATE: make selfhost ===
+exit: 0
+summary: c1_equiv_smoke: summary 34/34 passed, 0 failed; c1_smoke: ok
+
+=== GATE: make selfhost-selfcompile ===
+exit: 0
+summary: concatenated c1 source = 108103 bytes; emitted C looks non-empty (124025 bytes); ok
+
+=== GATE: make selfhost-bootstrap ===
+exit: 0
+summary: stage 3: PASS — three-stage fixed point achieved (sha=60265cdc6063); c1_bootstrap_smoke: ok
+
+=== GATE: make backend-vm ===
+exit: 0
+summary: c1_etl_vm_smoke: ok (ETL-VM executes all fixtures correctly); c1_dynarr_equiv_smoke: 3 passed; c1_tagged_union_equiv_smoke: 2 passed
+
+=== GATE: make backend-asm ===
+exit: 0
+summary: c1_asm_array_smoke: ok (9 cases); c1_asm_struct_field_smoke: ok; c1_asm_struct_array_smoke: ok
+
+=== GATE: make backend-wasm ===
+exit: 0
+summary: c1_wat_return_smoke: ok (23 cases passed); c1_wat_array_smoke: ok (10 cases passed); c1_wat_struct_array_smoke: ok
+
+=== GATE: make backend-subset ===
+exit: 0
+summary: backend_subset_smoke: ok (16 four-backend cases + 2 three-backend cases across C, VM, ASM, and WAT)
+
+=== GATE: make headless-ready ===
+exit: 0
+summary: selfeval-all: PASS (selfeval + software graphics; SDL3 graphics SKIP); sdl3-visual: PASS (frame byte-equal to golden)
+
+=== GATE: make examples-cli ===
+exit: 0
+summary: examples_cli_smoke: ok; cli_calculator_smoke: ok; cli_file_transform_smoke: ok; cli_config_rules_smoke: ok
+
+=== GATE: make visual ===
+exit: 0
+summary: life-golden: PASS (Life golden matches, deterministic across 2 runs); sdl3-visual: PASS (frame byte-equal to golden)
+
+=== GATE: make examples ===
+exit: 0
+summary: examples_cli_smoke: ok; visual_smoke: ok; c1_runtime_compile_smoke: ok (4 cases)
+
+=== GATE: make vm-equivalence ===
+exit: 0
+summary: vm_equivalence_smoke: summary — 21 passed, 0 failed, 0 skipped (21 compared); ok (≥10 fixtures, both VMs agree on all)
+
+=== GATE: scripts/triple_equiv_smoke.sh ===
+exit: 0
+summary: triple_equiv_smoke: summary — 20 passed, 0 failed, 0 skipped (20 compared); ok (≥20 fixtures, all three pipelines agree)
+
+=== GATE: make release-check ===
+exit: 0
+summary: release_smoke_x86_64: OK (exit 42); release_smoke_aarch64: 7/7 passed; release_validate_macos: 2/2 passed; release_smoke_wasi: ok (exit 42); release_smoke_wasm_browser: PASS (proc_exit 42)
