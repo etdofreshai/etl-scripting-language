@@ -1,6 +1,16 @@
 ETL_RUNTIME = runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check
+ETL_VM_ETL_RUNTIME = runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c runtime/vm_bridge.c
+
+# Build the ETL-implemented VM binary from compiler1/vm.etl via compiler0.
+# This is the parallel ETL implementation of the bytecode interpreter.
+bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
+	python3 -m compiler0 compile compiler1/vm.etl -o build/vm_etl.c
+	cc -std=c11 -Wall -Wextra -Werror build/vm_etl.c $(ETL_VM_ETL_RUNTIME) -I runtime -o bin/etl-vm-etl
+
+etl-vm-etl: bin/etl-vm-etl
+
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check etl-vm-etl
 
 test:
 	python3 -m unittest discover -s tests
@@ -119,6 +129,7 @@ backend-vm:
 	scripts/c1_runtime_compile_smoke.sh
 	scripts/c1_dynarr_equiv_smoke.sh
 	scripts/c1_tagged_union_equiv_smoke.sh
+	scripts/c1_etl_vm_smoke.sh
 
 headless-selfeval:
 	scripts/selfeval_smoke.sh
