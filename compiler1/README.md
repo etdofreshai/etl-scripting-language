@@ -12,7 +12,7 @@ stage harnesses and prove a small source-to-C path.
 | `lex.etl`    | Lexer module for the compiler-1 subset.          |
 | `parse.etl`  | Parser module for the compiler-1 subset.         |
 | `sema.etl`   | Semantic analysis module for compiler-1 AST validation. |
-| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, typed `bool`/`i8` locals, local arrays/structs, byte strings, extern byte buffers, extern scalar bool/i8/byte params, narrow user-defined byte-array params, and narrow by-value struct params. |
+| `emit_c.etl` | C emitter for the current selfhost corpus subset: multi-function `i32`, typed `bool`/`i8` locals, local arrays/structs, byte strings, extern byte buffers, extern scalar bool/i8/byte params, narrow user-defined byte-array params, narrow by-value struct params, and M1 opaque-type externs (`ptr`/`str`/`dynarr`/`etlval`). |
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
 | `emit_asm.etl` | ASM backend emitter (x86-64 System V active smoke subset). Not linked into default build. |
 | `emit_wasm.etl` | WASM backend emitter (WAT text active subset). Not linked into default build. |
@@ -70,6 +70,21 @@ beyond this bootstrap shape, either:
 
 The choice will be made when it's needed.
 
+## M1 typed extern support
+
+Compiler-1 recognizes four opaque types beyond the core primitives:
+
+| Type | Internal tag | C backend emission | VM backend |
+|---|---|---|---|
+| `ptr` | `TY_PTR` | `void*` | `HA;`/`HF;` opcodes via 64-slot alloc table |
+| `str` | `TY_STR` | `EtlString*` | `HS*` sub-opcodes via 64-slot str table |
+| `dynarr` | `TY_DYNARR` | `EtlDynArr*` | `HD*` sub-opcodes via 64-slot dynarr table |
+| `etlval` | `TY_ETLVAL` | `EtlVal*` | `HV*` sub-opcodes via tagged-union dispatch |
+
+All four types are available in `extern fn` parameter and return positions, in local `let` bindings, and in regular user-function parameter and return positions (compiler-1 only — compiler-0 does not support these types).
+
+The C backend preamble unconditionally includes `<etl_string.h>`, `<etl_dynarr.h>`, and `<etl_etlval.h>` alongside `<stdbool.h>`. Runtime objects must be freed by the caller via the corresponding `*_free` externs.
+
 ## Smoke test
 
 ```sh
@@ -80,4 +95,6 @@ This runs `scripts/c1_pipeline_smoke.sh`, `scripts/c1_equiv_smoke.sh`, and
 `scripts/c1_smoke.sh`. The broader `make check` smoke set includes focused
 source-to-C probes for arrays, structs, byte strings, extern byte buffers,
 scalar `bool`/`i8`/`byte` parameters, extern scalar `bool`/`i8`/`byte`
-parameter emission, and user-defined byte-array parameters.
+parameter emission, and user-defined byte-array parameters. Dedicated
+equivalence smokes cover M1 opaque types: `scripts/c1_string_equiv_smoke.sh`,
+`scripts/c1_dynarr_equiv_smoke.sh`, `scripts/c1_tagged_union_equiv_smoke.sh`.
