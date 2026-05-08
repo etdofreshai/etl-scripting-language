@@ -12,13 +12,13 @@ cat compiler1/parse.etl >> "$td/c1_bytecode_pipeline.etl"
 cat compiler1/backend_defs.etl >> "$td/c1_bytecode_pipeline.etl"
 cat compiler1/emit_bytecode.etl >> "$td/c1_bytecode_pipeline.etl"
 cat >> "$td/c1_bytecode_pipeline.etl" <<HARNESS
-extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+extern fn etl_write_file1024(path i8[64], buf i8[65536], len i32) i32
 
 fn main() i32
   let source i8[131072] = "fn main() i32 ret 1 + 2 * (9 - 4) end"
   let tokens Token[32768]
   let ast AstNode[32768]
-  let out i8[1024]
+  let out i8[65536]
   let n i32 = lex(source, 37, tokens, 32768)
   if n < 0
     ret 1
@@ -27,7 +27,7 @@ fn main() i32
   if an < 0
     ret 2
   end
-  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
+  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 65536)
   if emitted < 0
     ret 3
   end
