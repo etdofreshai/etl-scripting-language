@@ -35,8 +35,8 @@ echo "examples_cli_smoke: bin/etl check $hello"
 bin/etl check "$hello"
 
 run_expect "hello: bin/etl run $hello" 42 bin/etl run "$hello"
-run_expect "calculator: bin/etl run examples/cli/calculator.etl" 9 \
-  bin/etl run examples/cli/calculator.etl
+run_expect "calculator: bin/etl run examples/cli/calculator.etl (EOF -> 0)" 0 \
+  bash -c 'bin/etl run examples/cli/calculator.etl < /dev/null'
 run_expect "file_transform: echo -n hello | bin/etl run examples/cli/file_transform.etl" 5 \
   bash -c 'printf %s hello | bin/etl run examples/cli/file_transform.etl'
 run_expect "config_rules: bin/etl run examples/cli/config_rules.etl" 5 \

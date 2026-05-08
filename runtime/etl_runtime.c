@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 void etl_print_i32(int32_t value) {
   printf("%d\n", value);
@@ -173,4 +174,138 @@ void etl_panic(int8_t *msg) {
     fprintf(stderr, "panic: %s\n", (const char *)msg);
   }
   exit(1);
+}
+
+/* --- Calculator REPL helpers --- */
+
+/* etl_read_line: reads one line from stdin into buf (up to cap-1 bytes).
+ * Strips the trailing newline.
+ * Returns number of bytes stored (0 for empty line), or -1 on EOF/error. */
+int32_t etl_read_line(int8_t *buf, int32_t cap) {
+  if (buf == NULL || cap <= 0) return -1;
+  if (fgets((char *)buf, (int)cap, stdin) == NULL) return -1;
+  int32_t n = (int32_t)strlen((char *)buf);
+  /* strip trailing newline */
+  while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == '\r')) {
+    buf[--n] = 0;
+  }
+  return n;
+}
+
+/* Recursive-descent parser state */
+typedef struct {
+  const char *s;
+  int         pos;
+  int         len;
+  int         err; /* 1 if parse error */
+} CalcState;
+
+static void calc_skip_ws(CalcState *st) {
+  while (st->pos < st->len && isspace((unsigned char)st->s[st->pos]))
+    st->pos++;
+}
+
+static int32_t calc_expr(CalcState *st);
+
+static int32_t calc_primary(CalcState *st) {
+  calc_skip_ws(st);
+  if (st->pos >= st->len) { st->err = 1; return 0; }
+  char c = st->s[st->pos];
+  if (c == '(') {
+    st->pos++;
+    int32_t v = calc_expr(st);
+    calc_skip_ws(st);
+    if (st->pos >= st->len || st->s[st->pos] != ')') { st->err = 1; return 0; }
+    st->pos++;
+    return v;
+  }
+  if (c == '-') {
+    st->pos++;
+    return -calc_primary(st);
+  }
+  if (isdigit((unsigned char)c)) {
+    int32_t v = 0;
+    while (st->pos < st->len && isdigit((unsigned char)st->s[st->pos])) {
+      v = v * 10 + (st->s[st->pos] - '0');
+      st->pos++;
+    }
+    return v;
+  }
+  st->err = 1;
+  return 0;
+}
+
+static int32_t calc_term(CalcState *st) {
+  int32_t v = calc_primary(st);
+  while (!st->err) {
+    calc_skip_ws(st);
+    if (st->pos >= st->len) break;
+    char op = st->s[st->pos];
+    if (op != '*' && op != '/') break;
+    st->pos++;
+    int32_t r = calc_primary(st);
+    if (st->err) break;
+    if (op == '*') v = v * r;
+    else {
+      if (r == 0) { st->err = 1; fputs("error: division by zero\n", stderr); return 0; }
+      v = v / r;
+    }
+  }
+  return v;
+}
+
+static int32_t calc_expr(CalcState *st) {
+  int32_t v = calc_term(st);
+  while (!st->err) {
+    calc_skip_ws(st);
+    if (st->pos >= st->len) break;
+    char op = st->s[st->pos];
+    if (op != '+' && op != '-') break;
+    st->pos++;
+    int32_t r = calc_term(st);
+    if (st->err) break;
+    if (op == '+') v = v + r;
+    else           v = v - r;
+  }
+  return v;
+}
+
+/* etl_calc_eval: parses and evaluates the expression in buf[0..len-1].
+ * Prints the result to stdout on success.
+ * Prints an error message to stderr on failure.
+ * Returns 0 on success, -1 on error. */
+int32_t etl_calc_eval(int8_t *buf, int32_t len) {
+  if (buf == NULL || len < 0) {
+    fputs("error: bad input\n", stderr);
+    return -1;
+  }
+  /* skip blank lines */
+  int all_ws = 1;
+  for (int i = 0; i < len; i++) {
+    if (!isspace((unsigned char)((char *)buf)[i])) { all_ws = 0; break; }
+  }
+  if (all_ws) return 0;
+  CalcState st;
+  st.s   = (const char *)buf;
+  st.pos = 0;
+  st.len = (int)len;
+  st.err = 0;
+  int32_t result = calc_expr(&st);
+  if (st.err) {
+    fputs("error: malformed expression\n", stderr);
+    return -1;
+  }
+  calc_skip_ws(&st);
+  if (st.pos < st.len) {
+    fputs("error: unexpected token\n", stderr);
+    return -1;
+  }
+  printf("%d\n", result);
+  return 0;
+}
+
+/* etl_calc_line: void wrapper around etl_calc_eval; suitable for ETL
+ * expression statements. */
+void etl_calc_line(int8_t *buf, int32_t len) {
+  etl_calc_eval(buf, len);
 }

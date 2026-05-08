@@ -30,4 +30,9 @@ void etl_bytes_copy(int8_t *dst, const int8_t *src, int32_t len);
 int32_t etl_bytes_find(const int8_t *buf, int32_t len, int32_t b);
 void etl_panic(int8_t *msg);
 
+/* Calculator REPL helpers */
+int32_t etl_read_line(int8_t *buf, int32_t cap);
+int32_t etl_calc_eval(int8_t *buf, int32_t len);
+void etl_calc_line(int8_t *buf, int32_t len);
+
 #endif
