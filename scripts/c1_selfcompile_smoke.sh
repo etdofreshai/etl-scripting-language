@@ -173,7 +173,7 @@ fi
 # ---------------------------------------------------------------------------
 echo "c1_selfcompile_smoke: emitted C looks non-empty (${emit_bytes} bytes); invoking cc"
 set +e
-cc -std=c11 -Wall -Wextra -Werror "$emit_out" runtime/etl_runtime.c -o "$c2_bin" 2> "$cc_err"
+cc -std=c11 -Wall -Wextra -Werror -I runtime "$emit_out" runtime/etl_runtime.c -o "$c2_bin" 2> "$cc_err"
 cc_rc=$?
 set -e
 
