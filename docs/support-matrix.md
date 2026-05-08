@@ -52,6 +52,19 @@ Column key for the grid below:
 | **dynarr (growable i32 array)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_dynarr_equiv_smoke.sh`; valgrind clean). VM: functional; BC buffer limit applies. dynarr element type is i32 only; no bounds checking. ASM/WAT: not supported. |
 | **etlval (tagged union int/bool/ptr/str)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_tagged_union_equiv_smoke.sh`; valgrind clean). VM: str variant fixture elided; BC buffer limit applies. ASM/WAT: not supported. |
 
+## Platform / distribution
+
+| Platform | Architecture | Status | Artifact | Notes |
+|---|---|---|---|---|
+| Linux x86_64 | x86_64 | BUILD + RUN | `build/release/etl-linux-x86_64.tar.gz` | Native ELF; smoke-tested via `make release-check-x86_64`. |
+| Linux aarch64 | aarch64 | BUILD + RUN (qemu) | `build/release/etl-linux-aarch64.tar.gz` | Cross-compiled via zig cc (musl); run under `.deps/qemu-aarch64-static`; gate: `make release-check-aarch64`. |
+| macOS x86_64 | x86_64 | BUILD-VALIDATED | `build/release/etl-macos-x86_64.tar.gz` | Mach-O cross-compiled via zig cc (`-target x86_64-macos`). No Apple SDK needed. Confirmed via `file`. Not executed (Linux host). Gate: `make release-check-macos`. |
+| macOS arm64 | arm64 | BUILD-VALIDATED | `build/release/etl-macos-arm64.tar.gz` | Mach-O cross-compiled via zig cc (`-target aarch64-macos`). No Apple SDK needed. Confirmed via `file`. Not executed (Linux host). Gate: `make release-check-macos`. |
+| WASM/WASI | wasm32 | BUILD + RUN (wasmtime) | WAT text + wasm binary | Via `.deps/wasmtime` + `.deps/wat2wasm`; gate: `make backend-wasm`. |
+
+**BUILD-VALIDATED**: Mach-O binary produced by zig cross-compile and confirmed via `file` output.
+No execution on the CI/Linux host. Requires a macOS host to verify runtime behavior.
+
 ## Runtime / tooling
 
 CLI subcommands:
