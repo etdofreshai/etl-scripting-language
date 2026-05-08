@@ -256,6 +256,96 @@ These file and panic declarations intentionally use mutable `int8_t *` in v0 bec
 
 For now, non-void functions use a simple final-return rule: the last statement must be `return`, or the last statement must be an `if` / `elif` / `else` chain where the `if` branch, every `elif` branch, and the `else` branch all end in `return`. An `if` / `elif` chain without `else` does not satisfy the function-body return check by itself; a later `return` is required. `while` loops never satisfy this return check by themselves because the loop body might not run. Full reachability analysis is intentionally out of scope for v0.
 
+## Opaque types (M1 capabilities — v0)
+
+M1 adds four opaque runtime types accessible exclusively through `external function` calls. They introduce no new ETL syntax; all operations go through the normal extern-call surface. Compiler-0 (Python) does not support these types; equivalence smoke tests for M1 types compare the compiler-1 C backend against the compiler-1 VM backend (not c0/C vs c1/C).
+
+### `ptr` — opaque heap pointer
+
+`ptr` (legacy spelling `pointer`) is an opaque handle to a heap allocation. In compiler-1 it is assigned `TY_PTR` and emitted as `void*` by the C backend.
+
+Supported operations (via externs):
+
+```etl
+external function alloc(n integer) ptr
+external function free(p ptr)
+```
+
+Limitations:
+- No arithmetic, no dereference, no field access, no null comparison via operators. All such operations must go through extern functions.
+- `ptr` is accepted in extern fn parameter and return positions and in local `let` bindings. It is not accepted in fixed-size array element types or struct fields in v0.
+
+### `str` — heap-backed mutable string
+
+`str` is an opaque handle to an `EtlString*` heap allocation (defined in `runtime/etl_string.h`). It is assigned `TY_STR` in compiler-1 and emitted as `EtlString*` by the C backend.
+
+Supported extern surface:
+
+| Extern | Signature | Notes |
+|---|---|---|
+| `str_new` | `(literal ptr) str` | C backend: copies bytes from the ptr. VM backend: ignores input ptr, creates empty string (see limitation below). |
+| `str_len` | `(s str) integer` | Returns length in bytes. |
+| `str_concat` | `(a str, b str) str` | Allocates a new concatenated string. |
+| `str_at` | `(s str, i integer) byte` | Returns byte at index. |
+| `str_eq` | `(a str, b str) boolean` | True if contents are identical. |
+| `str_free` | `(s str)` | Frees the heap string. |
+
+Limitations:
+- **VM `str_new` ignores the input `ptr`**: the VM has no way to dereference arbitrary host pointers to read string literals. The VM creates an empty string. Programs that need meaningful string content in the VM backend must construct it via `str_concat` or other operations. The C backend does not have this limitation.
+- `str` is accepted in extern fn parameter/return positions and in local `let` bindings. Not supported in compiler-0.
+
+### `dynarr` — growable i32 array
+
+`dynarr` is an opaque handle to an `EtlDynArr*` heap allocation (defined in `runtime/etl_dynarr.h`). It is assigned `TY_DYNARR` in compiler-1 and emitted as `EtlDynArr*` by the C backend.
+
+Supported extern surface:
+
+| Extern | Signature | Notes |
+|---|---|---|
+| `dynarr_new` | `() dynarr` | Allocates an empty dynamic array. |
+| `dynarr_push` | `(a dynarr, v integer)` | Appends one element. |
+| `dynarr_len` | `(a dynarr) integer` | Returns element count. |
+| `dynarr_get` | `(a dynarr, i integer) integer` | Returns element at index. |
+| `dynarr_set` | `(a dynarr, i integer, v integer)` | Sets element at index. |
+| `dynarr_free` | `(a dynarr)` | Frees the array and its backing buffer. |
+
+Limitations:
+- Element type is `i32` only. Generic element types are not supported in v0.
+- No iterator protocol, no map/filter, no ETL syntax additions.
+- Not supported in compiler-0.
+
+### `etlval` — tagged union over int/bool/ptr/str
+
+`etlval` is an opaque handle to an `EtlVal*` heap allocation (defined in `runtime/etl_etlval.h`). It is a tagged union that can hold one of four variants: `int`, `bool`, `ptr`, or `str`. Tag constants: 0=int, 1=bool, 2=ptr, 3=str.
+
+Supported extern surface:
+
+| Extern | Signature | Notes |
+|---|---|---|
+| `etlval_int` | `(v integer) etlval` | Constructs an int variant. |
+| `etlval_bool` | `(v boolean) etlval` | Constructs a bool variant. |
+| `etlval_ptr` | `(v ptr) etlval` | Constructs a ptr variant. |
+| `etlval_str` | `(v str) etlval` | Constructs a str variant; etlval owns the EtlString. |
+| `etlval_tag` | `(v etlval) integer` | Returns the tag (0–3). |
+| `etlval_as_int` | `(v etlval) integer` | Extracts the int payload. |
+| `etlval_as_bool` | `(v etlval) boolean` | Extracts the bool payload. |
+| `etlval_as_ptr` | `(v etlval) ptr` | Extracts the ptr payload. |
+| `etlval_as_str` | `(v etlval) str` | Extracts the str payload (handle remains owned by etlval). |
+| `etlval_free` | `(v etlval)` | Frees the EtlVal struct; also frees the inner EtlString if tag==3. |
+
+Limitations:
+- `etlval` is accepted in extern fn parameter/return positions and in local `let` bindings, and in regular user-function parameter and return positions (compiler-1 only).
+- Not supported in compiler-0.
+- The VM fixture for the `str` variant (etlval_str) is elided due to the 1024-byte bytecode buffer limit. The runtime and VM HV* opcodes for the str variant are implemented and tested indirectly.
+
+### Common M1 limitations
+
+- All four types are available via the extern-call surface only. No new ETL syntax was added.
+- Compiler-0 (Python) does not support `str`, `dynarr`, or `etlval`. Equivalence smokes for these types run c1/C vs c1/VM only.
+- The VM bytecode buffer is currently 1024 bytes, which limits fixture complexity for combined opaque-type programs. Tracked as tech debt; buffer expansion is required before VM-in-ETL (M2) is feasible.
+- ASM and WAT backends do not yet support any M1 opaque type calls.
+
+
 ## Operator precedence (lowest to highest)
 
 | Precedence | Operators                              | Associativity |
