@@ -1,5 +1,6 @@
 #include "etl_vm.h"
 #include "etl_string.h"
+#include "etl_dynarr.h"
 #include <stdlib.h>
 
 /*
@@ -256,6 +257,10 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
     EtlString *str_table[ETL_VM_ALLOC_MAX];
     int32_t str_count = 0;
     for (int32_t si = 0; si < ETL_VM_ALLOC_MAX; si = si + 1) { str_table[si] = 0; }
+    /* DynArr table for HD* opcodes */
+    EtlDynArr *dynarr_table[ETL_VM_ALLOC_MAX];
+    int32_t dynarr_count = 0;
+    for (int32_t di = 0; di < ETL_VM_ALLOC_MAX; di = di + 1) { dynarr_table[di] = 0; }
     int32_t i = 6;
     int32_t func_count = 0;
     int32_t parsed_funcs = etl_vm_parse_functions(bytecode, len, &i, funcs, &func_count);
@@ -486,6 +491,9 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                 for (int32_t si = 0; si < str_count; si = si + 1) {
                     if (str_table[si] != 0) { str_free(str_table[si]); str_table[si] = 0; }
                 }
+                for (int32_t di = 0; di < dynarr_count; di = di + 1) {
+                    if (dynarr_table[di] != 0) { dynarr_free(dynarr_table[di]); dynarr_table[di] = 0; }
+                }
                 *result = value;
                 return 0;
             }
@@ -577,6 +585,85 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                     if (h > 0 && h <= str_count && str_table[h-1] != 0) {
                         str_free(str_table[h-1]);
                         str_table[h-1] = 0;
+                    }
+                } else {
+                    return -5;
+                }
+            } else if (sub == 'D') {
+                /* HD* dynarr opcodes: next char is sub-op, then ';' */
+                if (i >= len) { return -5; }
+                int8_t sub2d = bytecode[i];
+                i = i + 1;
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub2d == 'N') {
+                    /* HDN; dynarr_new: no args, push handle */
+                    if (dynarr_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlDynArr *nd = dynarr_new();
+                    if (!nd) { return -38; }
+                    dynarr_table[dynarr_count] = nd;
+                    int32_t dh = dynarr_count + 1;
+                    dynarr_count = dynarr_count + 1;
+                    int32_t pushed_n = etl_vm_push_i32(stack, &sp, dh);
+                    if (pushed_n < 0) { return pushed_n; }
+                } else if (sub2d == 'P') {
+                    /* HDP; dynarr_push: pop v, pop handle */
+                    int32_t v = 0;
+                    int32_t popped_v = etl_vm_pop_i32(stack, &sp, &v);
+                    if (popped_v < 0) { return popped_v; }
+                    int32_t dh_p = 0;
+                    int32_t popped_h = etl_vm_pop_i32(stack, &sp, &dh_p);
+                    if (popped_h < 0) { return popped_h; }
+                    if (dh_p > 0 && dh_p <= dynarr_count && dynarr_table[dh_p-1] != 0) {
+                        dynarr_push(dynarr_table[dh_p-1], v);
+                    }
+                } else if (sub2d == 'L') {
+                    /* HDL; dynarr_len: pop handle, push len */
+                    int32_t dh_l = 0;
+                    int32_t popped_hl = etl_vm_pop_i32(stack, &sp, &dh_l);
+                    if (popped_hl < 0) { return popped_hl; }
+                    int32_t dlen = 0;
+                    if (dh_l > 0 && dh_l <= dynarr_count && dynarr_table[dh_l-1] != 0) {
+                        dlen = dynarr_len(dynarr_table[dh_l-1]);
+                    }
+                    int32_t pushed_l = etl_vm_push_i32(stack, &sp, dlen);
+                    if (pushed_l < 0) { return pushed_l; }
+                } else if (sub2d == 'G') {
+                    /* HDG; dynarr_get: pop i, pop handle, push element */
+                    int32_t gi = 0;
+                    int32_t popped_gi = etl_vm_pop_i32(stack, &sp, &gi);
+                    if (popped_gi < 0) { return popped_gi; }
+                    int32_t dh_g = 0;
+                    int32_t popped_hg = etl_vm_pop_i32(stack, &sp, &dh_g);
+                    if (popped_hg < 0) { return popped_hg; }
+                    int32_t gval = 0;
+                    if (dh_g > 0 && dh_g <= dynarr_count && dynarr_table[dh_g-1] != 0) {
+                        gval = dynarr_get(dynarr_table[dh_g-1], gi);
+                    }
+                    int32_t pushed_g = etl_vm_push_i32(stack, &sp, gval);
+                    if (pushed_g < 0) { return pushed_g; }
+                } else if (sub2d == 'S') {
+                    /* HDS; dynarr_set: pop v, pop i, pop handle */
+                    int32_t sv = 0;
+                    int32_t popped_sv = etl_vm_pop_i32(stack, &sp, &sv);
+                    if (popped_sv < 0) { return popped_sv; }
+                    int32_t si2 = 0;
+                    int32_t popped_si2 = etl_vm_pop_i32(stack, &sp, &si2);
+                    if (popped_si2 < 0) { return popped_si2; }
+                    int32_t dh_s = 0;
+                    int32_t popped_hs = etl_vm_pop_i32(stack, &sp, &dh_s);
+                    if (popped_hs < 0) { return popped_hs; }
+                    if (dh_s > 0 && dh_s <= dynarr_count && dynarr_table[dh_s-1] != 0) {
+                        dynarr_set(dynarr_table[dh_s-1], si2, sv);
+                    }
+                } else if (sub2d == 'F') {
+                    /* HDF; dynarr_free: pop handle */
+                    int32_t dh_f = 0;
+                    int32_t popped_hf = etl_vm_pop_i32(stack, &sp, &dh_f);
+                    if (popped_hf < 0) { return popped_hf; }
+                    if (dh_f > 0 && dh_f <= dynarr_count && dynarr_table[dh_f-1] != 0) {
+                        dynarr_free(dynarr_table[dh_f-1]);
+                        dynarr_table[dh_f-1] = 0;
                     }
                 } else {
                     return -5;

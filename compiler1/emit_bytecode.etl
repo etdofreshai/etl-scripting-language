@@ -376,6 +376,90 @@ fn emit_bytecode_token_is_str_free(source i8[131072], tokens Token[32768], tok i
   end
   ret true
 end
+fn emit_bytecode_token_is_dynarr_new(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_new"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_push(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_push"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_len(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_len"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_get(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_get"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_set(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_set"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_free"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
 fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], node i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
   if node < 0
     ret EMIT_ERR_BAD_AST()
@@ -436,6 +520,30 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
     if emit_bytecode_token_is_str_free(source, tokens, ast[node].a)
       let hsf_op i8[64] = "HSF;"
       ret emit_bytecode_append_text(out, pcall, out_cap, hsf_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_new(source, tokens, ast[node].a)
+      let hdn_op i8[64] = "HDN;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdn_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_len(source, tokens, ast[node].a)
+      let hdl_op i8[64] = "HDL;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdl_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_get(source, tokens, ast[node].a)
+      let hdg_op i8[64] = "HDG;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdg_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_set(source, tokens, ast[node].a)
+      let hds_op i8[64] = "HDS;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hds_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_push(source, tokens, ast[node].a)
+      let hdp_op i8[64] = "HDP;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdp_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_free(source, tokens, ast[node].a)
+      let hdf_op i8[64] = "HDF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdf_op, 4)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall, out_cap, ast[node].a)
   end
@@ -731,6 +839,18 @@ fn emit_bytecode_emit_stmt(source i8[131072], tokens Token[32768], ast AstNode[3
     if emit_bytecode_token_is_str_free(source, tokens, ast[inner].a)
       let hsf_op2 i8[64] = "HSF;"
       ret emit_bytecode_append_text(out, pcall2, out_cap, hsf_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_push(source, tokens, ast[inner].a)
+      let hdp_op2 i8[64] = "HDP;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hdp_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_set(source, tokens, ast[inner].a)
+      let hds_op2 i8[64] = "HDS;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hds_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_free(source, tokens, ast[inner].a)
+      let hdf_op2 i8[64] = "HDF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hdf_op2, 4)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall2, out_cap, ast[inner].a)
   end

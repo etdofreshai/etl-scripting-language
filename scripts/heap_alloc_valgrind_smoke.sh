@@ -90,4 +90,62 @@ EOF_HARNESS
   echo "heap_alloc_valgrind_smoke: PASS $str_fixture zero leaks and zero errors"
 done
 
+
+# Also run valgrind on the dynarr fixtures (use compiler-1; compiler-0 lacks dynarr type)
+for dynarr_fixture in dynarr_basic dynarr_grow dynarr_set; do
+  dynarr_c="$td/${dynarr_fixture}.c"
+  dynarr_exe="$td/${dynarr_fixture}"
+  src_file="tests/c1_corpus/${dynarr_fixture}.etl"
+  source_text="$(escape_for_etl_string "$src_file")"
+  source_len="$(tr '\n' ' ' < "$src_file" | wc -c)"
+  harness="$td/${dynarr_fixture}_c_harness.etl"
+  harness_exe="$td/${dynarr_fixture}_c_harness"
+  sed '/^fn main()/,$d' compiler1/main.etl > "$harness"
+  cat compiler1/lex.etl >> "$harness"
+  cat compiler1/parse.etl >> "$harness"
+  cat compiler1/sema.etl >> "$harness"
+  cat compiler1/emit_c.etl >> "$harness"
+  cat >> "$harness" <<EOF_HARNESS
+extern fn etl_write_file1024(path i8[64], buf i8[262144], len i32) i32
+
+fn main() i32
+  let source i8[131072] = "$source_text"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let out i8[262144]
+  let n i32 = lex(source, $source_len, tokens, 32768)
+  if n < 0
+    ret 1
+  end
+  let an i32 = parse(tokens, n, ast, 32768)
+  if an < 0
+    ret 2
+  end
+  if sema(source, tokens, ast, an) < 0
+    ret 3
+  end
+  let emitted i32 = emit_c(source, tokens, ast, an, out, 262144)
+  if emitted < 0
+    ret 4
+  end
+  let path i8[64] = "$dynarr_c"
+  if etl_write_file1024(path, out, emitted) < 0
+    ret 5
+  end
+  ret 0
+end
+EOF_HARNESS
+  scripts/build_etl.sh "$harness" "$harness_exe"
+  "$harness_exe"
+  cc -std=c11 -Wall -Werror -g "$dynarr_c" runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c -I runtime -o "$dynarr_exe"
+  echo "heap_alloc_valgrind_smoke: running valgrind on $dynarr_exe"
+  valgrind --error-exitcode=1 --leak-check=full --errors-for-leak-kinds=all "$dynarr_exe"
+  dynarr_exit=$?
+  if [ "$dynarr_exit" -ne 0 ]; then
+    echo "heap_alloc_valgrind_smoke: FAIL $dynarr_fixture valgrind errors (exit $dynarr_exit)"
+    exit 1
+  fi
+  echo "heap_alloc_valgrind_smoke: PASS $dynarr_fixture zero leaks and zero errors"
+done
+
 echo "heap_alloc_valgrind_smoke: PASS all fixtures"

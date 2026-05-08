@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 }
 EOF_C
 
-cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/etl_string.c -o "$td/vm_runner"
+cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/etl_string.c runtime/etl_dynarr.c -o "$td/vm_runner"
 
 pass=0
 fail=0

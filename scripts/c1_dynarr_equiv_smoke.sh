@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# Verify string_heap_*.etl fixtures produce identical exit codes via
+# Verify dynarr_*.etl fixtures produce identical exit codes via
 # compiler-1 C backend and VM backend.
-# compiler-0 is intentionally excluded: it does not support the str opaque type.
+# compiler-0 is intentionally excluded: it does not support the dynarr opaque type.
 set -euo pipefail
 
 td="$(mktemp -d)"
 trap 'rm -rf "$td"' EXIT
 
 fixtures=(
-  string_heap_basic.etl
-  string_heap_concat.etl
-  string_heap_eq.etl
+  dynarr_basic.etl
+  dynarr_grow.etl
+  dynarr_set.etl
 )
 
 pass=0
 fail=0
 
-# Build VM runner
+# Build VM runner (includes etl_dynarr for HD* opcodes)
 cat > "$td/vm_runner.c" <<'EOF_C'
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,7 +140,7 @@ for fixture in "${fixtures[@]}"; do
   harness_bc_exe="$td/${name}_bc_harness"
 
   if [ ! -f "$src" ]; then
-    echo "c1_string_equiv_smoke: FAIL $fixture missing" >&2
+    echo "c1_dynarr_equiv_smoke: FAIL $fixture missing" >&2
     fail=$((fail + 1))
     continue
   fi
@@ -150,16 +150,16 @@ for fixture in "${fixtures[@]}"; do
   scripts/build_etl.sh "$harness_c" "$harness_c_exe"
   "$harness_c_exe"
   if [ ! -s "$c1_c" ]; then
-    echo "c1_string_equiv_smoke: FAIL $fixture compiler-1 emitted no C" >&2
+    echo "c1_dynarr_equiv_smoke: FAIL $fixture compiler-1 emitted no C" >&2
     fail=$((fail + 1))
     continue
   fi
-  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c runtime/etl_string.c -I runtime -o "$c1_exe"
+  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c -I runtime -o "$c1_exe"
 
   scripts/build_etl.sh "$harness_bc" "$harness_bc_exe"
   "$harness_bc_exe"
   if [ ! -s "$bc_path" ]; then
-    echo "c1_string_equiv_smoke: FAIL $fixture bytecode file empty or missing" >&2
+    echo "c1_dynarr_equiv_smoke: FAIL $fixture bytecode file empty or missing" >&2
     fail=$((fail + 1))
     continue
   fi
@@ -172,15 +172,15 @@ for fixture in "${fixtures[@]}"; do
   set -e
 
   if [ "$c1_status" = "$vm_status" ]; then
-    echo "c1_string_equiv_smoke: PASS $fixture (C=$c1_status VM=$vm_status)"
+    echo "c1_dynarr_equiv_smoke: PASS $fixture (C=$c1_status VM=$vm_status)"
     pass=$((pass + 1))
   else
-    echo "c1_string_equiv_smoke: FAIL $fixture C=$c1_status VM=$vm_status" >&2
+    echo "c1_dynarr_equiv_smoke: FAIL $fixture C=$c1_status VM=$vm_status" >&2
     fail=$((fail + 1))
   fi
 done
 
-echo "c1_string_equiv_smoke: $pass passed, $fail failed"
+echo "c1_dynarr_equiv_smoke: $pass passed, $fail failed"
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

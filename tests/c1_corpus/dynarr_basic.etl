@@ -1,0 +1,31 @@
+extern fn dynarr_new() dynarr
+extern fn dynarr_push(a dynarr, v i32)
+extern fn dynarr_len(a dynarr) i32
+extern fn dynarr_get(a dynarr, i i32) i32
+extern fn dynarr_free(a dynarr)
+
+fn main() i32
+  let a dynarr = dynarr_new()
+  dynarr_push(a, 10)
+  dynarr_push(a, 20)
+  dynarr_push(a, 30)
+  let n i32 = dynarr_len(a)
+  if n != 3
+    dynarr_free(a)
+    ret 1
+  end
+  let v0 i32 = dynarr_get(a, 0)
+  let v1 i32 = dynarr_get(a, 1)
+  let v2 i32 = dynarr_get(a, 2)
+  dynarr_free(a)
+  if v0 != 10
+    ret 2
+  end
+  if v1 != 20
+    ret 3
+  end
+  if v2 != 30
+    ret 4
+  end
+  ret 0
+end

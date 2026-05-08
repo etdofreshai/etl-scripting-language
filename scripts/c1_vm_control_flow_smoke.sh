@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 }
 CHARNESS
 
-cc -std=c11 -Wall -Wextra -Werror "$td/run_vm.c" runtime/etl_vm.c runtime/etl_string.c -I runtime -o "$td/run_vm"
+cc -std=c11 -Wall -Wextra -Werror "$td/run_vm.c" runtime/etl_vm.c runtime/etl_string.c runtime/etl_dynarr.c -I runtime -o "$td/run_vm"
 
 run_program() {
   local exe="$1"

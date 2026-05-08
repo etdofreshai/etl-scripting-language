@@ -20,6 +20,7 @@ fn TY_STRING() i32 ret 2 end
 fn TY_VOID() i32 ret 3 end
 fn TY_PTR() i32 ret 4 end
 fn TY_STR() i32 ret 5 end
+fn TY_DYNARR() i32 ret 6 end
 
 fn sema_init() i32
   ret SEMA_OK()
@@ -177,6 +178,23 @@ fn sema_type_is_str(source i8[131072], tokens Token[32768], ast AstNode[32768], 
   ret false
 end
 
+fn sema_type_is_dynarr(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let dynarr_name i8[16] = "dynarr"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, dynarr_name, 6)
+    ret true
+  end
+  ret false
+end
+
 fn sema_type_to_scalar_ty(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) i32
   if sema_type_is_i32(source, tokens, ast, typ)
     ret TY_I32()
@@ -192,6 +210,9 @@ fn sema_type_to_scalar_ty(source i8[131072], tokens Token[32768], ast AstNode[32
   end
   if sema_type_is_str(source, tokens, ast, typ)
     ret TY_STR()
+  end
+  if sema_type_is_dynarr(source, tokens, ast, typ)
+    ret TY_DYNARR()
   end
   ret SEMA_ERROR()
 end
@@ -377,7 +398,9 @@ fn sema_count_extern_params(source i8[131072], tokens Token[32768], ast AstNode[
           if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
             if sema_type_is_ptr(source, tokens, ast, ast[param].b) == false
               if sema_type_is_str(source, tokens, ast, ast[param].b) == false
-                ret -1
+                if sema_type_is_dynarr(source, tokens, ast, ast[param].b) == false
+                  ret -1
+                end
               end
             end
           end
