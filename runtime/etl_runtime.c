@@ -309,3 +309,61 @@ int32_t etl_calc_eval(int8_t *buf, int32_t len) {
 void etl_calc_line(int8_t *buf, int32_t len) {
   etl_calc_eval(buf, len);
 }
+
+/* --- argv helpers (Linux: read /proc/self/cmdline) --- */
+/* Lazily parsed; first call populates g_etl_args[]. */
+
+#define ETL_MAX_ARGS 64
+#define ETL_ARG_BUF  4096
+
+static int32_t  g_etl_argc = -1;
+static char     g_etl_argbuf[ETL_ARG_BUF];
+static char    *g_etl_args[ETL_MAX_ARGS];
+
+static void etl_argv_init(void) {
+  if (g_etl_argc >= 0) return;
+  g_etl_argc = 0;
+  FILE *f = fopen("/proc/self/cmdline", "rb");
+  if (f == NULL) return;
+  size_t n = fread(g_etl_argbuf, 1, ETL_ARG_BUF - 1, f);
+  fclose(f);
+  if (n == 0) return;
+  g_etl_argbuf[n] = '\0';
+  size_t i = 0;
+  while (i < n && g_etl_argc < ETL_MAX_ARGS) {
+    g_etl_args[g_etl_argc++] = &g_etl_argbuf[i];
+    while (i < n && g_etl_argbuf[i] != '\0') i++;
+    i++; /* skip NUL */
+  }
+}
+
+int32_t etl_argc(void) {
+  etl_argv_init();
+  return g_etl_argc;
+}
+
+/* Copy argument i into buf (NUL-terminated). Returns length or -1. */
+int32_t etl_argv_copy(int32_t i, int8_t *buf, int32_t cap) {
+  etl_argv_init();
+  if (i < 0 || i >= g_etl_argc || buf == NULL || cap <= 0) return -1;
+  const char *src = g_etl_args[i];
+  int32_t len = (int32_t)strlen(src);
+  if (len >= cap) len = cap - 1;
+  memcpy(buf, src, (size_t)len);
+  buf[len] = '\0';
+  return len;
+}
+
+/* --- String transform helpers --- */
+
+void etl_toupper_buf(int8_t *buf, int32_t len) {
+  if (buf == NULL || len <= 0) return;
+  for (int32_t i = 0; i < len; i++) {
+    unsigned char c = (unsigned char)buf[i];
+    if (c >= 'a' && c <= 'z') buf[i] = (int8_t)(c - 32);
+  }
+}
+
+void etl_argv_get(int32_t i, int8_t *buf, int32_t cap) {
+  etl_argv_copy(i, buf, cap);
+}
