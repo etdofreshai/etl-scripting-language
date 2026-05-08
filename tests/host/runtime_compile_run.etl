@@ -1,0 +1,33 @@
+// tests/host/runtime_compile_run.etl
+//
+// End-to-end test: compile a small ETL source string via the host bridge
+// (etl_compile_module) and execute it through the ETL-implemented VM
+// (etl_run_main_i32, routed via ETL_VM_ETL env var to bin/etl-vm-etl).
+//
+// Source: "fn main() i32 ret 6 * 7 end"  (27 bytes) -> expected result == 42
+//
+// Returns 0 if the host-bridge round-trip produces the expected result.
+// Returns 1 if etl_compile_module fails (negative bc_len).
+// Returns 2 if the VM result does not match the expected value (42).
+//
+// Extern declarations map to runtime/etl_host_etl_api.c wrappers.
+// One compile+run per process invocation avoids the sequential limit
+// on etl_compile_module in the same process (known limitation; see F2.4 handoff).
+
+extern fn host_compile_module(src i8[256], src_len i32, bc i8[4096], bc_cap i32) i32
+extern fn host_run_main_i32(bc i8[4096], bc_len i32) i32
+
+fn main() i32
+  // "fn main() i32 ret 6 * 7 end" is 27 bytes (no null terminator)
+  let src i8[256] = "fn main() i32 ret 6 * 7 end"
+  let bc i8[4096]
+  let bc_len i32 = host_compile_module(src, 27, bc, 4096)
+  if bc_len < 0
+    ret 1
+  end
+  let result i32 = host_run_main_i32(bc, bc_len)
+  if result == 42
+    ret 0
+  end
+  ret 2
+end

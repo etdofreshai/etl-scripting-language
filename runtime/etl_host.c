@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 /*
  * Implementation of the temporary C host bridge.
@@ -25,8 +26,27 @@
  *   -9  emitted bytecode larger than bytecode_cap
  *
  * etl_run_main_i32:
- *   forwards the return code of etl_vm_run_main_i32 (negative on
- *   error, 0 on success).
+ *   Routes through the ETL-implemented VM (bin/etl-vm-etl) when the
+ *   ETL_VM_ETL environment variable points to its path.  Falls back to
+ *   the C oracle VM (etl_vm_run_main_i32) only when ETL_VM_ETL is unset
+ *   or empty — preserving the oracle for equivalence gates.
+ *
+ *   Returns 0 on success or a negative error code:
+ *   -100  could not create bytecode temp file for subprocess
+ *   -101  could not write bytecode to temp file for subprocess
+ *   -102  ETL VM subprocess command string too long
+ *   -103  ETL VM subprocess terminated abnormally
+ *   Negative values from etl_vm_run_main_i32 pass through unchanged.
+ *
+ * Architectural note (F2.4):
+ *   Approach A (subprocess) was chosen for F2.4.  The ETL VM is invoked as a
+ *   child process via system(): bytecode is written to a temp file,
+ *   bin/etl-vm-etl is fed that file on stdin, and its exit code is captured.
+ *   Trade-off: adds a fork+exec boundary per etl_run_main_i32 call, which is
+ *   acceptable for the current milestone (M2) where host programs are small
+ *   and infrequent.  Approach B (library link — compile vm.etl to a static
+ *   object callable in-process) is deferred to M3 when sample apps may
+ *   require lower latency.
  */
 
 static int write_all(int fd, const int8_t *buf, int32_t len) {
@@ -104,6 +124,51 @@ int32_t etl_compile_module(const int8_t *source,
 int32_t etl_run_main_i32(const int8_t *bytecode,
                          int32_t bytecode_len,
                          int32_t *result_out) {
+    const char *etl_vm = getenv("ETL_VM_ETL");
+    if (etl_vm != NULL && etl_vm[0] != '\0') {
+        /*
+         * Approach A: subprocess.
+         * Write bytecode to a temp file, feed it to the ETL VM binary on
+         * stdin, capture its exit code as the i32 result.
+         */
+        char bc_path[] = "/tmp/etl_run_bc_XXXXXX";
+        int bfd = mkstemp(bc_path);
+        if (bfd < 0) return -100;
+        if (write_all(bfd, bytecode, bytecode_len) != 0) {
+            close(bfd);
+            unlink(bc_path);
+            return -101;
+        }
+        close(bfd);
+
+        char cmd[2048];
+        int written = snprintf(cmd, sizeof(cmd),
+                               "%s < %s 2>/dev/null",
+                               etl_vm, bc_path);
+        if (written < 0 || (size_t)written >= sizeof(cmd)) {
+            unlink(bc_path);
+            return -102;
+        }
+
+        int sys_rc = system(cmd);
+        unlink(bc_path);
+
+        /* Decode the wait status from system() */
+        int exit_code;
+        if (WIFEXITED(sys_rc)) {
+            exit_code = WEXITSTATUS(sys_rc);
+        } else {
+            return -103;
+        }
+
+        if (result_out != NULL) *result_out = (int32_t)exit_code;
+        return 0;
+    }
+
+    /*
+     * Fallback: C oracle VM.  Used by vm-equivalence and triple-equivalence
+     * gates that deliberately do not set ETL_VM_ETL.
+     */
     int32_t local_result = 0;
     int32_t status = etl_vm_run_main_i32(bytecode,
                                           bytecode_len,
