@@ -10,7 +10,7 @@ bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
 
 etl-vm-etl: bin/etl-vm-etl
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
 
 test:
 	python3 -m unittest discover -s tests
@@ -177,13 +177,25 @@ examples-cli:
 examples: examples-cli visual
 	scripts/c1_runtime_compile_smoke.sh
 
+# Build the Linux x86_64 release tarball.
+# Stages into build/release/etl-linux-x86_64/ and tarballs to
+# build/release/etl-linux-x86_64.tar.gz.
+# Reproducible: --sort=name --owner=0 --group=0 --mtime.
+release-tarball-x86_64: bin/etl-vm-etl
+	scripts/build_release_tarball_x86_64.sh
+
+# Smoke-test the release tarball: untar to temp dir, compile+run a
+# hello-world ETL program, verify exit 42.
+release-check-x86_64: release-tarball-x86_64
+	scripts/release_smoke_x86_64.sh
+
 # Release-readiness gate. Aggregates check + selfhost + every backend
-# gate + examples + visual. Fails if any non-optional gate fails. The
-# selfhost-selfcompile and selfhost-bootstrap probes are NOT included
-# here because they are designed to fail loudly until the c1 emit_c
-# expansion long-tail closes; their status lives in
+# gate + examples + visual + x86_64 release tarball smoke. Fails if any
+# non-optional gate fails. The selfhost-selfcompile and selfhost-bootstrap
+# probes are NOT included here because they are designed to fail loudly
+# until the c1 emit_c expansion long-tail closes; their status lives in
 # build/fixedpoint/{selfcompile,bootstrap}-status.md.
-release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples
+release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples release-check-x86_64
 
 visual:
 	scripts/visual_smoke.sh
