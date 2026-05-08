@@ -10,7 +10,7 @@ bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
 
 etl-vm-etl: bin/etl-vm-etl
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 release-check-aarch64 release-tarball-aarch64 etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
 
 test:
 	python3 -m unittest discover -s tests
@@ -196,6 +196,15 @@ release-check-x86_64: release-tarball-x86_64
 # until the c1 emit_c expansion long-tail closes; their status lives in
 # build/fixedpoint/{selfcompile,bootstrap}-status.md.
 release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples release-check-x86_64
+
+# Build the Linux aarch64 release tarball via zig cc cross-compile.
+release-tarball-aarch64:
+	scripts/build_release_tarball_aarch64.sh
+
+# Smoke-test the aarch64 release: cross-compile c1 corpus subset and run
+# each fixture under .deps/qemu-aarch64-static, verify exit codes match.
+release-check-aarch64:
+	scripts/release_smoke_aarch64.sh
 
 visual:
 	scripts/visual_smoke.sh
