@@ -1,0 +1,1718 @@
+// ETL VM — bytecode interpreter implemented in ETL.
+// Reads bytecode from stdin, executes it, exits with the i32 return value of main.
+//
+// Scope: integer arithmetic, comparisons, locals, branches, function calls,
+//        HA/HF heap-handle tracking, HS*/HD*/HV* stub ops (stack discipline only).
+//
+// Limits mirror the C VM:
+//   stack depth:  64
+//   locals/frame: 32
+//   functions:    32
+//   frames:       32
+//   func name:    32 bytes
+//   steps:        100000
+
+extern fn etl_read_file(path i8[64], buf i8[65536], cap i32) i32
+extern fn etl_exit(code i32)
+extern fn etl_eprint(buf i8[64], len i32)
+extern fn etl_eprint_i32(value i32)
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+fn vm_is_digit(ch i8) i32
+  if ch >= 48
+    if ch <= 57
+      ret 1
+    end
+  end
+  ret 0
+end
+
+// Parse a non-negative decimal integer from buf starting at pos[0].
+// Advances pos[0] past the digits. Returns the parsed value, or -6 on error.
+fn vm_parse_i32_at(buf i8[65536], len i32, pos i32[1]) i32
+  let i i32 = pos[0]
+  if i >= len
+    ret -6
+  end
+  if vm_is_digit(buf[i]) == 0
+    ret -6
+  end
+  let value i32 = 0
+  let running i32 = 1
+  while running == 1
+    if i >= len
+      running = 0
+    end
+    if running == 1
+      if vm_is_digit(buf[i]) == 0
+        running = 0
+      end
+    end
+    if running == 1
+      value = value * 10 + (buf[i] - 48)
+      i = i + 1
+    end
+  end
+  pos[0] = i
+  ret value
+end
+
+// Compare buf[start..start+nlen] with names[base..base+mlen].
+fn vm_name_equals(buf i8[65536], start i32, nlen i32, names i8[1024], base i32, mlen i32) i32
+  if nlen != mlen
+    ret 0
+  end
+  let k i32 = 0
+  while k < nlen
+    if buf[start + k] != names[base + k]
+      ret 0
+    end
+    k = k + 1
+  end
+  ret 1
+end
+
+// Scan forward from position i through buf until ';' or end. Return position
+// of the ';', or len if not found.
+fn vm_scan_to_sep(buf i8[65536], len i32, i i32) i32
+  let running i32 = 1
+  while running == 1
+    if i >= len
+      running = 0
+    end
+    if running == 1
+      if buf[i] == 59
+        running = 0
+      end
+    end
+    if running == 1
+      i = i + 1
+    end
+  end
+  ret i
+end
+
+// Find the byte offset just after '@<name>;' for the given name.
+// names[base..base+nlen] is the target name.
+fn vm_find_body(buf i8[65536], len i32, names i8[1024], base i32, nlen i32) i32
+  let i i32 = 6
+  let found i32 = -24
+  while i < len
+    if buf[i] == 64
+      // '@'
+      let name_start i32 = i + 1
+      let sep_pos i32 = vm_scan_to_sep(buf, len, name_start)
+      let body_len i32 = sep_pos - name_start
+      if sep_pos < len
+        if vm_name_equals(buf, name_start, body_len, names, base, nlen) == 1
+          found = sep_pos + 1
+          i = len
+        end
+      end
+      if i < len
+        if sep_pos < len
+          i = sep_pos + 1
+        end
+        if sep_pos >= len
+          i = len
+        end
+      end
+    end
+    if i < len
+      if buf[i] != 64
+        i = i + 1
+      end
+    end
+  end
+  ret found
+end
+
+// Find the byte offset just after ':<label>;'.
+fn vm_find_label(buf i8[65536], len i32, label i32) i32
+  let i i32 = 6
+  let found i32 = -21
+  while i < len
+    if buf[i] == 58
+      // ':'
+      let pos i32[1]
+      pos[0] = i + 1
+      let lv i32 = vm_parse_i32_at(buf, len, pos)
+      if lv < 0
+        found = -19
+        i = len
+      end
+      if i < len
+        let after_digits i32 = pos[0]
+        if after_digits >= len
+          found = -20
+          i = len
+        end
+        if i < len
+          if buf[after_digits] != 59
+            found = -20
+            i = len
+          end
+          if i < len
+            if lv == label
+              found = after_digits + 1
+              i = len
+            end
+            if i < len
+              i = after_digits + 1
+            end
+          end
+        end
+      end
+    end
+    if i < len
+      if buf[i] != 58
+        i = i + 1
+      end
+    end
+  end
+  ret found
+end
+
+// ── stack ops ──────────────────────────────────────────────────────────────
+
+fn vm_push(stack i32[64], sp i32[1], value i32) i32
+  if sp[0] >= 64
+    ret -11
+  end
+  stack[sp[0]] = value
+  sp[0] = sp[0] + 1
+  ret 0
+end
+
+fn vm_pop(stack i32[64], sp i32[1], out i32[1]) i32
+  if sp[0] <= 0
+    ret -10
+  end
+  sp[0] = sp[0] - 1
+  out[0] = stack[sp[0]]
+  ret 0
+end
+
+// ── main interpreter ───────────────────────────────────────────────────────
+
+fn vm_run(buf i8[65536], len i32) i32
+  // Validate header "ETLB1;"
+  if len < 8
+    ret -2
+  end
+  if buf[0] != 69
+    ret -3
+  end
+  if buf[1] != 84
+    ret -3
+  end
+  if buf[2] != 76
+    ret -3
+  end
+  if buf[3] != 66
+    ret -3
+  end
+  if buf[4] != 49
+    ret -3
+  end
+  if buf[5] != 59
+    ret -5
+  end
+
+  // ip
+  let ip i32[1]
+  ip[0] = 6
+
+  // Function table (parallel arrays; f_name is flat 32×32 chars)
+  let f_nlen i32[32]
+  let f_argc i32[32]
+  let f_ip   i32[32]
+  let f_name i8[1024]
+  let func_count i32 = 0
+
+  // Parse function table if present
+  if ip[0] < len
+    if buf[ip[0]] == 84
+      // 'T'
+      ip[0] = ip[0] + 1
+      let pos i32[1]
+      pos[0] = ip[0]
+      let cnt i32 = vm_parse_i32_at(buf, len, pos)
+      if cnt < 0
+        ret -25
+      end
+      if cnt > 32
+        ret -26
+      end
+      ip[0] = pos[0]
+      if ip[0] >= len
+        ret -27
+      end
+      if buf[ip[0]] != 59
+        ret -27
+      end
+      ip[0] = ip[0] + 1
+      let fi i32 = 0
+      while fi < cnt
+        if ip[0] >= len
+          ret -28
+        end
+        if buf[ip[0]] != 68
+          ret -28
+        end
+        ip[0] = ip[0] + 1
+        // Read name until ','
+        let base i32 = fi * 32
+        let nl i32 = 0
+        let rn i32 = 1
+        while rn == 1
+          if ip[0] >= len
+            rn = 0
+          end
+          if rn == 1
+            if buf[ip[0]] == 44
+              rn = 0
+            end
+          end
+          if rn == 1
+            if nl >= 32
+              ret -29
+            end
+            f_name[base + nl] = buf[ip[0]]
+            nl = nl + 1
+            ip[0] = ip[0] + 1
+          end
+        end
+        if nl <= 0
+          ret -30
+        end
+        if ip[0] >= len
+          ret -30
+        end
+        if buf[ip[0]] != 44
+          ret -30
+        end
+        ip[0] = ip[0] + 1
+        f_nlen[fi] = nl
+        let pos2 i32[1]
+        pos2[0] = ip[0]
+        let ac i32 = vm_parse_i32_at(buf, len, pos2)
+        if ac < 0
+          ret -31
+        end
+        if ac > 32
+          ret -32
+        end
+        ip[0] = pos2[0]
+        if ip[0] >= len
+          ret -33
+        end
+        if buf[ip[0]] != 59
+          ret -33
+        end
+        ip[0] = ip[0] + 1
+        f_argc[fi] = ac
+        let fip i32 = vm_find_body(buf, len, f_name, base, nl)
+        if fip < 0
+          ret fip
+        end
+        f_ip[fi] = fip
+        fi = fi + 1
+      end
+      func_count = cnt
+    end
+  end
+
+  // Value stack
+  let stack i32[64]
+  let sp i32[1]
+  sp[0] = 0
+
+  // Call frames
+  let frames_rip    i32[32]
+  let frames_locals i32[1024]
+  let frame_depth i32 = 0
+  let li i32 = 0
+  while li < 32
+    frames_locals[li] = 0
+    li = li + 1
+  end
+
+  // Allocation handle counters (stub tracking)
+  let ha_count i32 = 0
+  let hs_count i32 = 0
+  let hd_count i32 = 0
+  let hv_count i32 = 0
+
+  let steps i32 = 0
+  let running2 i32 = 1
+  let vm_result i32 = -15
+
+  while running2 == 1
+    if ip[0] >= len
+      running2 = 0
+    end
+    if running2 == 1
+      steps = steps + 1
+      if steps > 100000
+        vm_result = -22
+        running2 = 0
+      end
+    end
+    if running2 == 1
+      let op i8 = buf[ip[0]]
+      ip[0] = ip[0] + 1
+
+      // ── I<n>;  push integer ─────────────────────────────────────────
+      if op == 73
+        let pos3 i32[1]
+        pos3[0] = ip[0]
+        let v i32 = vm_parse_i32_at(buf, len, pos3)
+        if v < 0
+          vm_result = v
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = pos3[0]
+          if ip[0] >= len
+            vm_result = -7
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -7
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rc0 i32 = vm_push(stack, sp, v)
+          if rc0 < 0
+            vm_result = rc0
+            running2 = 0
+          end
+        end
+      end
+
+      // ── binary ops ──────────────────────────────────────────────────
+      // '+' == 43
+      if op == 43
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv i32[1]
+          let lv i32[1]
+          let rc1 i32 = vm_pop(stack, sp, rv)
+          if rc1 < 0
+            vm_result = rc1
+            running2 = 0
+          end
+          if running2 == 1
+            rc1 = vm_pop(stack, sp, lv)
+            if rc1 < 0
+              vm_result = rc1
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            rc1 = vm_push(stack, sp, lv[0] + rv[0])
+            if rc1 < 0
+              vm_result = rc1
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '-' == 45
+      if op == 45
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv2 i32[1]
+          let lv2 i32[1]
+          let rc2 i32 = vm_pop(stack, sp, rv2)
+          if rc2 < 0
+            vm_result = rc2
+            running2 = 0
+          end
+          if running2 == 1
+            rc2 = vm_pop(stack, sp, lv2)
+            if rc2 < 0
+              vm_result = rc2
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            rc2 = vm_push(stack, sp, lv2[0] - rv2[0])
+            if rc2 < 0
+              vm_result = rc2
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '*' == 42
+      if op == 42
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv3 i32[1]
+          let lv3 i32[1]
+          let rc3 i32 = vm_pop(stack, sp, rv3)
+          if rc3 < 0
+            vm_result = rc3
+            running2 = 0
+          end
+          if running2 == 1
+            rc3 = vm_pop(stack, sp, lv3)
+            if rc3 < 0
+              vm_result = rc3
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            rc3 = vm_push(stack, sp, lv3[0] * rv3[0])
+            if rc3 < 0
+              vm_result = rc3
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '/' == 47
+      if op == 47
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv4 i32[1]
+          let lv4 i32[1]
+          let rc4 i32 = vm_pop(stack, sp, rv4)
+          if rc4 < 0
+            vm_result = rc4
+            running2 = 0
+          end
+          if running2 == 1
+            rc4 = vm_pop(stack, sp, lv4)
+            if rc4 < 0
+              vm_result = rc4
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            if rv4[0] == 0
+              vm_result = -12
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            rc4 = vm_push(stack, sp, lv4[0] / rv4[0])
+            if rc4 < 0
+              vm_result = rc4
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '%' == 37
+      if op == 37
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv5 i32[1]
+          let lv5 i32[1]
+          let rc5 i32 = vm_pop(stack, sp, rv5)
+          if rc5 < 0
+            vm_result = rc5
+            running2 = 0
+          end
+          if running2 == 1
+            rc5 = vm_pop(stack, sp, lv5)
+            if rc5 < 0
+              vm_result = rc5
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            if rv5[0] == 0
+              vm_result = -12
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            rc5 = vm_push(stack, sp, lv5[0] % rv5[0])
+            if rc5 < 0
+              vm_result = rc5
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // 'q' == 113  ==
+      if op == 113
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rq i32[1]
+          let lq i32[1]
+          let rcq i32 = vm_pop(stack, sp, rq)
+          if rcq < 0
+            vm_result = rcq
+            running2 = 0
+          end
+          if running2 == 1
+            rcq = vm_pop(stack, sp, lq)
+            if rcq < 0
+              vm_result = rcq
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let eqv i32 = 0
+            if lq[0] == rq[0]
+              eqv = 1
+            end
+            rcq = vm_push(stack, sp, eqv)
+            if rcq < 0
+              vm_result = rcq
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // 'n' == 110  !=
+      if op == 110
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rn2 i32[1]
+          let ln2 i32[1]
+          let rcn i32 = vm_pop(stack, sp, rn2)
+          if rcn < 0
+            vm_result = rcn
+            running2 = 0
+          end
+          if running2 == 1
+            rcn = vm_pop(stack, sp, ln2)
+            if rcn < 0
+              vm_result = rcn
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let nev i32 = 0
+            if ln2[0] != rn2[0]
+              nev = 1
+            end
+            rcn = vm_push(stack, sp, nev)
+            if rcn < 0
+              vm_result = rcn
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '<' == 60
+      if op == 60
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rlt i32[1]
+          let llt i32[1]
+          let rclt i32 = vm_pop(stack, sp, rlt)
+          if rclt < 0
+            vm_result = rclt
+            running2 = 0
+          end
+          if running2 == 1
+            rclt = vm_pop(stack, sp, llt)
+            if rclt < 0
+              vm_result = rclt
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let ltv i32 = 0
+            if llt[0] < rlt[0]
+              ltv = 1
+            end
+            rclt = vm_push(stack, sp, ltv)
+            if rclt < 0
+              vm_result = rclt
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // 'l' == 108  <=
+      if op == 108
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rle i32[1]
+          let lle i32[1]
+          let rcle i32 = vm_pop(stack, sp, rle)
+          if rcle < 0
+            vm_result = rcle
+            running2 = 0
+          end
+          if running2 == 1
+            rcle = vm_pop(stack, sp, lle)
+            if rcle < 0
+              vm_result = rcle
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let lev i32 = 0
+            if lle[0] <= rle[0]
+              lev = 1
+            end
+            rcle = vm_push(stack, sp, lev)
+            if rcle < 0
+              vm_result = rcle
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '>' == 62
+      if op == 62
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rgt i32[1]
+          let lgt i32[1]
+          let rcgt i32 = vm_pop(stack, sp, rgt)
+          if rcgt < 0
+            vm_result = rcgt
+            running2 = 0
+          end
+          if running2 == 1
+            rcgt = vm_pop(stack, sp, lgt)
+            if rcgt < 0
+              vm_result = rcgt
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let gtv i32 = 0
+            if lgt[0] > rgt[0]
+              gtv = 1
+            end
+            rcgt = vm_push(stack, sp, gtv)
+            if rcgt < 0
+              vm_result = rcgt
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // 'g' == 103  >=
+      if op == 103
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rge i32[1]
+          let lge i32[1]
+          let rcge i32 = vm_pop(stack, sp, rge)
+          if rcge < 0
+            vm_result = rcge
+            running2 = 0
+          end
+          if running2 == 1
+            rcge = vm_pop(stack, sp, lge)
+            if rcge < 0
+              vm_result = rcge
+              running2 = 0
+            end
+          end
+          if running2 == 1
+            let gev i32 = 0
+            if lge[0] >= rge[0]
+              gev = 1
+            end
+            rcge = vm_push(stack, sp, gev)
+            if rcge < 0
+              vm_result = rcge
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // '!' == 33  logical not
+      if op == 33
+        if ip[0] >= len
+          vm_result = -8
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -8
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let rv6 i32[1]
+          let rc6 i32 = vm_pop(stack, sp, rv6)
+          if rc6 < 0
+            vm_result = rc6
+            running2 = 0
+          end
+          if running2 == 1
+            let notv i32 = 0
+            if rv6[0] == 0
+              notv = 1
+            end
+            rc6 = vm_push(stack, sp, notv)
+            if rc6 < 0
+              vm_result = rc6
+              running2 = 0
+            end
+          end
+        end
+      end
+
+      // ── L<n>;  load  /  L<n>=;  store ─────────────────────────────
+      if op == 76
+        let posl i32[1]
+        posl[0] = ip[0]
+        let slot i32 = vm_parse_i32_at(buf, len, posl)
+        if slot < 0
+          vm_result = -16
+          running2 = 0
+        end
+        if running2 == 1
+          if slot >= 32
+            vm_result = -17
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = posl[0]
+          if ip[0] >= len
+            vm_result = -18
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          let local_base i32 = frame_depth * 32
+          let is_store i32 = 0
+          if buf[ip[0]] == 61
+            is_store = 1
+          end
+          if is_store == 1
+            // '='  store
+            ip[0] = ip[0] + 1
+            if ip[0] >= len
+              vm_result = -18
+              running2 = 0
+            end
+            if running2 == 1
+              if buf[ip[0]] != 59
+                vm_result = -18
+                running2 = 0
+              end
+            end
+            if running2 == 1
+              ip[0] = ip[0] + 1
+              let sv i32[1]
+              let rcs i32 = vm_pop(stack, sp, sv)
+              if rcs < 0
+                vm_result = rcs
+                running2 = 0
+              end
+              if running2 == 1
+                frames_locals[local_base + slot] = sv[0]
+              end
+            end
+          end
+          if running2 == 1
+            if is_store == 0
+              // load
+              if buf[ip[0]] != 59
+                vm_result = -18
+                running2 = 0
+              end
+              if running2 == 1
+                ip[0] = ip[0] + 1
+                let rcl i32 = vm_push(stack, sp, frames_locals[local_base + slot])
+                if rcl < 0
+                  vm_result = rcl
+                  running2 = 0
+                end
+              end
+            end
+          end
+        end
+      end
+
+      // ── :<n>;  label (no-op) ────────────────────────────────────────
+      if op == 58
+        let posc i32[1]
+        posc[0] = ip[0]
+        let lbl i32 = vm_parse_i32_at(buf, len, posc)
+        if lbl < 0
+          vm_result = -19
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = posc[0]
+          if ip[0] >= len
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+        end
+      end
+
+      // ── J<n>;  unconditional jump ───────────────────────────────────
+      if op == 74
+        let posj i32[1]
+        posj[0] = ip[0]
+        let jlbl i32 = vm_parse_i32_at(buf, len, posj)
+        if jlbl < 0
+          vm_result = -19
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = posj[0]
+          if ip[0] >= len
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let tgt i32 = vm_find_label(buf, len, jlbl)
+          if tgt < 0
+            vm_result = tgt
+            running2 = 0
+          end
+          if running2 == 1
+            ip[0] = tgt
+          end
+        end
+      end
+
+      // ── F<n>;  jump-if-false ────────────────────────────────────────
+      if op == 70
+        let posf i32[1]
+        posf[0] = ip[0]
+        let flbl i32 = vm_parse_i32_at(buf, len, posf)
+        if flbl < 0
+          vm_result = -19
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = posf[0]
+          if ip[0] >= len
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -20
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let fv i32[1]
+          let rcf i32 = vm_pop(stack, sp, fv)
+          if rcf < 0
+            vm_result = rcf
+            running2 = 0
+          end
+          if running2 == 1
+            if fv[0] == 0
+              let ftgt i32 = vm_find_label(buf, len, flbl)
+              if ftgt < 0
+                vm_result = ftgt
+                running2 = 0
+              end
+              if running2 == 1
+                ip[0] = ftgt
+              end
+            end
+          end
+        end
+      end
+
+      // ── @<name>;  body marker (no-op at runtime) ────────────────────
+      if op == 64
+        let sep2 i32 = vm_scan_to_sep(buf, len, ip[0])
+        if sep2 >= len
+          vm_result = -23
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = sep2 + 1
+        end
+      end
+
+      // ── C<name>;  call ──────────────────────────────────────────────
+      if op == 67
+        let name_start i32 = ip[0]
+        let sep3 i32 = vm_scan_to_sep(buf, len, name_start)
+        let name_len i32 = sep3 - name_start
+        if sep3 >= len
+          vm_result = -35
+          running2 = 0
+        end
+        if running2 == 1
+          ip[0] = sep3 + 1
+          // Find function
+          let fn_idx i32 = -34
+          let fi2 i32 = 0
+          while fi2 < func_count
+            if vm_name_equals(buf, name_start, name_len, f_name, fi2 * 32, f_nlen[fi2]) == 1
+              fn_idx = fi2
+              fi2 = func_count
+            end
+            fi2 = fi2 + 1
+          end
+          if fn_idx < 0
+            vm_result = fn_idx
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          let fn_idx2 i32 = 0
+          let fi3 i32 = 0
+          while fi3 < func_count
+            if vm_name_equals(buf, name_start, name_len, f_name, fi3 * 32, f_nlen[fi3]) == 1
+              fn_idx2 = fi3
+              fi3 = func_count
+            end
+            fi3 = fi3 + 1
+          end
+          if frame_depth + 1 >= 32
+            vm_result = -36
+            running2 = 0
+          end
+          if running2 == 1
+            frame_depth = frame_depth + 1
+            frames_rip[frame_depth] = ip[0]
+            let new_base i32 = frame_depth * 32
+            let lj i32 = 0
+            while lj < 32
+              frames_locals[new_base + lj] = 0
+              lj = lj + 1
+            end
+            let ai i32 = f_argc[fn_idx2] - 1
+            while ai >= 0
+              let av i32[1]
+              let rca i32 = vm_pop(stack, sp, av)
+              if rca < 0
+                vm_result = rca
+                running2 = 0
+              end
+              if running2 == 1
+                frames_locals[new_base + ai] = av[0]
+              end
+              ai = ai - 1
+            end
+            if running2 == 1
+              ip[0] = f_ip[fn_idx2]
+            end
+          end
+        end
+      end
+
+      // ── R;  return ──────────────────────────────────────────────────
+      if op == 82
+        if ip[0] >= len
+          vm_result = -9
+          running2 = 0
+        end
+        if running2 == 1
+          if buf[ip[0]] != 59
+            vm_result = -9
+            running2 = 0
+          end
+        end
+        if running2 == 1
+          ip[0] = ip[0] + 1
+          let retv i32[1]
+          let rcr i32 = vm_pop(stack, sp, retv)
+          if rcr < 0
+            vm_result = rcr
+            running2 = 0
+          end
+          if running2 == 1
+            let orig_depth i32 = frame_depth
+            if frame_depth > 0
+              ip[0] = frames_rip[frame_depth]
+              frame_depth = frame_depth - 1
+              rcr = vm_push(stack, sp, retv[0])
+              if rcr < 0
+                vm_result = rcr
+                running2 = 0
+              end
+            end
+            if running2 == 1
+              if orig_depth == 0
+                if sp[0] != 0
+                  vm_result = -13
+                  running2 = 0
+                end
+                if running2 == 1
+                  vm_result = retv[0]
+                  running2 = 0
+                end
+              end
+            end
+          end
+        end
+      end
+
+      // ── H*  heap/string/dynarr/etlval ops ──────────────────────────
+      if op == 72
+        if ip[0] >= len
+          vm_result = -5
+          running2 = 0
+        end
+        if running2 == 1
+          let sub i8 = buf[ip[0]]
+          ip[0] = ip[0] + 1
+
+          // HA; alloc
+          if sub == 65
+            if ip[0] >= len
+              vm_result = -5
+              running2 = 0
+            end
+            if running2 == 1
+              if buf[ip[0]] != 59
+                vm_result = -5
+                running2 = 0
+              end
+            end
+            if running2 == 1
+              ip[0] = ip[0] + 1
+              let szv i32[1]
+              let rcah i32 = vm_pop(stack, sp, szv)
+              if rcah < 0
+                vm_result = rcah
+                running2 = 0
+              end
+              if running2 == 1
+                let ha_handle i32 = 0
+                if szv[0] > 0
+                  ha_count = ha_count + 1
+                  ha_handle = ha_count
+                end
+                rcah = vm_push(stack, sp, ha_handle)
+                if rcah < 0
+                  vm_result = rcah
+                  running2 = 0
+                end
+              end
+            end
+          end
+
+          // HF; free
+          if sub == 70
+            if ip[0] >= len
+              vm_result = -5
+              running2 = 0
+            end
+            if running2 == 1
+              if buf[ip[0]] != 59
+                vm_result = -5
+                running2 = 0
+              end
+            end
+            if running2 == 1
+              ip[0] = ip[0] + 1
+              let fhv i32[1]
+              let rcfh i32 = vm_pop(stack, sp, fhv)
+              if rcfh < 0
+                vm_result = rcfh
+                running2 = 0
+              end
+            end
+          end
+
+          // HS* string ops
+          if sub == 83
+            if ip[0] >= len
+              vm_result = -5
+              running2 = 0
+            end
+            if running2 == 1
+              let sub2 i8 = buf[ip[0]]
+              ip[0] = ip[0] + 1
+              if ip[0] >= len
+                vm_result = -5
+                running2 = 0
+              end
+              if running2 == 1
+                if buf[ip[0]] != 59
+                  vm_result = -5
+                  running2 = 0
+                end
+              end
+              if running2 == 1
+                ip[0] = ip[0] + 1
+                // HSN: str_new → pop ptr_handle, push str_handle
+                if sub2 == 78
+                  let _snh i32[1]
+                  let rcns i32 = vm_pop(stack, sp, _snh)
+                  if rcns < 0
+                    vm_result = rcns
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    hs_count = hs_count + 1
+                    rcns = vm_push(stack, sp, hs_count)
+                    if rcns < 0
+                      vm_result = rcns
+                      running2 = 0
+                    end
+                  end
+                end
+                // HSL: str_len → pop handle, push 0
+                if sub2 == 76
+                  let _slh i32[1]
+                  let rcsl i32 = vm_pop(stack, sp, _slh)
+                  if rcsl < 0
+                    vm_result = rcsl
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcsl = vm_push(stack, sp, 0)
+                    if rcsl < 0
+                      vm_result = rcsl
+                      running2 = 0
+                    end
+                  end
+                end
+                // HSC: str_concat → pop b,a, push new handle
+                if sub2 == 67
+                  let _shb i32[1]
+                  let _sha i32[1]
+                  let rcsc i32 = vm_pop(stack, sp, _shb)
+                  if rcsc < 0
+                    vm_result = rcsc
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcsc = vm_pop(stack, sp, _sha)
+                    if rcsc < 0
+                      vm_result = rcsc
+                      running2 = 0
+                    end
+                  end
+                  if running2 == 1
+                    hs_count = hs_count + 1
+                    rcsc = vm_push(stack, sp, hs_count)
+                    if rcsc < 0
+                      vm_result = rcsc
+                      running2 = 0
+                    end
+                  end
+                end
+                // HSA: str_at → pop idx,handle, push 0
+                if sub2 == 65
+                  let _sai i32[1]
+                  let _sah i32[1]
+                  let rcsa i32 = vm_pop(stack, sp, _sai)
+                  if rcsa < 0
+                    vm_result = rcsa
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcsa = vm_pop(stack, sp, _sah)
+                    if rcsa < 0
+                      vm_result = rcsa
+                      running2 = 0
+                    end
+                  end
+                  if running2 == 1
+                    rcsa = vm_push(stack, sp, 0)
+                    if rcsa < 0
+                      vm_result = rcsa
+                      running2 = 0
+                    end
+                  end
+                end
+                // HSE: str_eq → pop b,a, push 0
+                if sub2 == 69
+                  let _seb i32[1]
+                  let _sea i32[1]
+                  let rcse i32 = vm_pop(stack, sp, _seb)
+                  if rcse < 0
+                    vm_result = rcse
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcse = vm_pop(stack, sp, _sea)
+                    if rcse < 0
+                      vm_result = rcse
+                      running2 = 0
+                    end
+                  end
+                  if running2 == 1
+                    rcse = vm_push(stack, sp, 0)
+                    if rcse < 0
+                      vm_result = rcse
+                      running2 = 0
+                    end
+                  end
+                end
+                // HSF: str_free → pop handle
+                if sub2 == 70
+                  let _sfh i32[1]
+                  let rcsf i32 = vm_pop(stack, sp, _sfh)
+                  if rcsf < 0
+                    vm_result = rcsf
+                    running2 = 0
+                  end
+                end
+              end
+            end
+          end
+
+          // HD* dynarr ops
+          if sub == 68
+            if ip[0] >= len
+              vm_result = -5
+              running2 = 0
+            end
+            if running2 == 1
+              let sub2d i8 = buf[ip[0]]
+              ip[0] = ip[0] + 1
+              if ip[0] >= len
+                vm_result = -5
+                running2 = 0
+              end
+              if running2 == 1
+                if buf[ip[0]] != 59
+                  vm_result = -5
+                  running2 = 0
+                end
+              end
+              if running2 == 1
+                ip[0] = ip[0] + 1
+                // HDN: dynarr_new → push handle
+                if sub2d == 78
+                  hd_count = hd_count + 1
+                  let rcdn i32 = vm_push(stack, sp, hd_count)
+                  if rcdn < 0
+                    vm_result = rcdn
+                    running2 = 0
+                  end
+                end
+                // HDP: dynarr_push → pop v, handle
+                if sub2d == 80
+                  let _dpv i32[1]
+                  let _dph i32[1]
+                  let rcdp i32 = vm_pop(stack, sp, _dpv)
+                  if rcdp < 0
+                    vm_result = rcdp
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcdp = vm_pop(stack, sp, _dph)
+                    if rcdp < 0
+                      vm_result = rcdp
+                      running2 = 0
+                    end
+                  end
+                end
+                // HDL: dynarr_len → pop handle, push 0
+                if sub2d == 76
+                  let _dlh i32[1]
+                  let rcdl i32 = vm_pop(stack, sp, _dlh)
+                  if rcdl < 0
+                    vm_result = rcdl
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcdl = vm_push(stack, sp, 0)
+                    if rcdl < 0
+                      vm_result = rcdl
+                      running2 = 0
+                    end
+                  end
+                end
+                // HDG: dynarr_get → pop i,handle, push 0
+                if sub2d == 71
+                  let _dgi i32[1]
+                  let _dgh i32[1]
+                  let rcdg i32 = vm_pop(stack, sp, _dgi)
+                  if rcdg < 0
+                    vm_result = rcdg
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcdg = vm_pop(stack, sp, _dgh)
+                    if rcdg < 0
+                      vm_result = rcdg
+                      running2 = 0
+                    end
+                  end
+                  if running2 == 1
+                    rcdg = vm_push(stack, sp, 0)
+                    if rcdg < 0
+                      vm_result = rcdg
+                      running2 = 0
+                    end
+                  end
+                end
+                // HDS: dynarr_set → pop v,i,handle
+                if sub2d == 83
+                  let _dsv i32[1]
+                  let _dsi i32[1]
+                  let _dsh i32[1]
+                  let rcds i32 = vm_pop(stack, sp, _dsv)
+                  if rcds < 0
+                    vm_result = rcds
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcds = vm_pop(stack, sp, _dsi)
+                    if rcds < 0
+                      vm_result = rcds
+                      running2 = 0
+                    end
+                  end
+                  if running2 == 1
+                    rcds = vm_pop(stack, sp, _dsh)
+                    if rcds < 0
+                      vm_result = rcds
+                      running2 = 0
+                    end
+                  end
+                end
+                // HDF: dynarr_free → pop handle
+                if sub2d == 70
+                  let _dfh i32[1]
+                  let rcdf i32 = vm_pop(stack, sp, _dfh)
+                  if rcdf < 0
+                    vm_result = rcdf
+                    running2 = 0
+                  end
+                end
+              end
+            end
+          end
+
+          // HV* etlval ops
+          if sub == 86
+            if ip[0] >= len
+              vm_result = -5
+              running2 = 0
+            end
+            if running2 == 1
+              let sub2v i8 = buf[ip[0]]
+              ip[0] = ip[0] + 1
+              // single-char sub-ops: I B P S T F → next char must be ';'
+              // two-char: A? → next char is sub3, then ';'
+              if sub2v == 65
+                // HVA?: two-char sub-op
+                if ip[0] >= len
+                  vm_result = -5
+                  running2 = 0
+                end
+                if running2 == 1
+                  ip[0] = ip[0] + 1
+                  // sub3 consumed; advance to ';'
+                  if ip[0] >= len
+                    vm_result = -5
+                    running2 = 0
+                  end
+                end
+                if running2 == 1
+                  if buf[ip[0]] != 59
+                    vm_result = -5
+                    running2 = 0
+                  end
+                end
+                if running2 == 1
+                  ip[0] = ip[0] + 1
+                  let _vah i32[1]
+                  let rcva i32 = vm_pop(stack, sp, _vah)
+                  if rcva < 0
+                    vm_result = rcva
+                    running2 = 0
+                  end
+                  if running2 == 1
+                    rcva = vm_push(stack, sp, 0)
+                    if rcva < 0
+                      vm_result = rcva
+                      running2 = 0
+                    end
+                  end
+                end
+              end
+              if sub2v != 65
+                // single-char sub-ops
+                if ip[0] >= len
+                  vm_result = -5
+                  running2 = 0
+                end
+                if running2 == 1
+                  if buf[ip[0]] != 59
+                    vm_result = -5
+                    running2 = 0
+                  end
+                end
+                if running2 == 1
+                  ip[0] = ip[0] + 1
+                  // HVI HVB HVP HVS: push new handle
+                  if sub2v == 73
+                    let _viv i32[1]
+                    let rcvi i32 = vm_pop(stack, sp, _viv)
+                    if rcvi < 0
+                      vm_result = rcvi
+                      running2 = 0
+                    end
+                    if running2 == 1
+                      hv_count = hv_count + 1
+                      rcvi = vm_push(stack, sp, hv_count)
+                      if rcvi < 0
+                        vm_result = rcvi
+                        running2 = 0
+                      end
+                    end
+                  end
+                  if sub2v == 66
+                    let _vbv i32[1]
+                    let rcvb i32 = vm_pop(stack, sp, _vbv)
+                    if rcvb < 0
+                      vm_result = rcvb
+                      running2 = 0
+                    end
+                    if running2 == 1
+                      hv_count = hv_count + 1
+                      rcvb = vm_push(stack, sp, hv_count)
+                      if rcvb < 0
+                        vm_result = rcvb
+                        running2 = 0
+                      end
+                    end
+                  end
+                  if sub2v == 80
+                    let _vph i32[1]
+                    let rcvp i32 = vm_pop(stack, sp, _vph)
+                    if rcvp < 0
+                      vm_result = rcvp
+                      running2 = 0
+                    end
+                    if running2 == 1
+                      hv_count = hv_count + 1
+                      rcvp = vm_push(stack, sp, hv_count)
+                      if rcvp < 0
+                        vm_result = rcvp
+                        running2 = 0
+                      end
+                    end
+                  end
+                  if sub2v == 83
+                    let _vsh i32[1]
+                    let rcvs i32 = vm_pop(stack, sp, _vsh)
+                    if rcvs < 0
+                      vm_result = rcvs
+                      running2 = 0
+                    end
+                    if running2 == 1
+                      hv_count = hv_count + 1
+                      rcvs = vm_push(stack, sp, hv_count)
+                      if rcvs < 0
+                        vm_result = rcvs
+                        running2 = 0
+                      end
+                    end
+                  end
+                  // HVT: etlval_tag → pop handle, push -1 (stub)
+                  if sub2v == 84
+                    let _vth i32[1]
+                    let rcvt i32 = vm_pop(stack, sp, _vth)
+                    if rcvt < 0
+                      vm_result = rcvt
+                      running2 = 0
+                    end
+                    if running2 == 1
+                      rcvt = vm_push(stack, sp, -1)
+                      if rcvt < 0
+                        vm_result = rcvt
+                        running2 = 0
+                      end
+                    end
+                  end
+                  // HVF: etlval_free → pop handle
+                  if sub2v == 70
+                    let _vfh i32[1]
+                    let rcvf i32 = vm_pop(stack, sp, _vfh)
+                    if rcvf < 0
+                      vm_result = rcvf
+                      running2 = 0
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+
+    end
+  end
+
+  ret vm_result
+end
+
+fn main() i32
+  let stdin_path i8[64] = "/dev/stdin"
+  let buf i8[65536]
+  let n i32 = etl_read_file(stdin_path, buf, 65536)
+  if n < 0
+    let errmsg i8[64] = "etl-vm: read error\n"
+    etl_eprint(errmsg, 19)
+    etl_exit(1)
+  end
+  let result i32 = vm_run(buf, n)
+  if result < 0
+    let errmsg2 i8[64] = "etl-vm: vm error\n"
+    etl_eprint(errmsg2, 17)
+    etl_eprint_i32(result)
+    let nl i8[64] = "\n"
+    etl_eprint(nl, 1)
+    etl_exit(2)
+  end
+  if result > 255
+    result = 255
+  end
+  etl_exit(result)
+  ret 0
+end
