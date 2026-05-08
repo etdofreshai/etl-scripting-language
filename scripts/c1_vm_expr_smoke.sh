@@ -141,13 +141,14 @@ build_c1_emit_bytecode_harness() {
   cat compiler1/backend_defs.etl >> "$harness"
   cat compiler1/emit_bytecode.etl >> "$harness"
   cat >> "$harness" <<EOF
-extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+
+extern fn etl_write_file1024(path i8[64], buf i8[65536], len i32) i32
 
 fn main() i32
   let source i8[131072] = "$source_text"
   let tokens Token[32768]
   let ast AstNode[32768]
-  let out i8[1024]
+  let out i8[65536]
   let n i32 = lex(source, $source_len, tokens, 32768)
   if n < 0
     ret 1
@@ -156,7 +157,7 @@ fn main() i32
   if an < 0
     ret 2
   end
-  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
+  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 65536)
   if emitted < 0
     ret 3
   end

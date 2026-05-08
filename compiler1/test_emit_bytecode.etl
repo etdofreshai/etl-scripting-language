@@ -1,4 +1,4 @@
-fn check_bytecode_byte(buf i8[1024], index i32, value i32) bool
+fn check_bytecode_byte(buf i8[65536], index i32, value i32) bool
   ret buf[index] == value
 end
 
@@ -6,7 +6,7 @@ fn main() i32
   let source i8[131072] = "fn main() i32 ret 1 + 2 * (9 - 4) end"
   let tokens Token[32768]
   let ast AstNode[32768]
-  let out i8[1024]
+  let out i8[65536]
   let n i32 = lex(source, 37, tokens, 32768)
   if n < 0
     ret 1
@@ -15,7 +15,7 @@ fn main() i32
   if an < 0
     ret 2
   end
-  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
+  let emitted i32 = emit_bytecode(source, tokens, ast, an, out, 65536)
   if emitted != 51
     ret 3
   end

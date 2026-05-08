@@ -1,4 +1,4 @@
-extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+extern fn etl_write_file1024(path i8[64], buf i8[65536], len i32) i32
 
 fn main() i32
   let stdin_path i8[64] = "/dev/stdin"
@@ -9,7 +9,7 @@ fn main() i32
   end
   let tokens Token[32768]
   let ast AstNode[32768]
-  let out i8[1024]
+  let out i8[65536]
   let n_tok i32 = lex(source, n_read, tokens, 32768)
   if n_tok < 0
     ret 11
@@ -21,7 +21,7 @@ fn main() i32
   if sema(source, tokens, ast, an) < 0
     ret 13
   end
-  let n_out i32 = emit_bytecode(source, tokens, ast, an, out, 1024)
+  let n_out i32 = emit_bytecode(source, tokens, ast, an, out, 65536)
   if n_out < 0
     ret 14
   end

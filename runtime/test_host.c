@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     const char *src_arg = (argc > 1) ? argv[1] : default_src;
     int32_t src_len = (int32_t)strlen(src_arg);
 
-    static int8_t bytecode[1024];
+    static int8_t bytecode[65536];
     int32_t bc_len = etl_compile_module((const int8_t *)src_arg, src_len, bytecode, sizeof(bytecode));
     if (bc_len < 0) {
         fprintf(stderr, "test_host: etl_compile_module failed (%d)\n", bc_len);
