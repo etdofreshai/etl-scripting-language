@@ -1,4 +1,4 @@
-ETL_RUNTIME = runtime/etl_runtime.c
+ETL_RUNTIME = runtime/etl_runtime.c runtime/etl_string.c
 
 .PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check
 
@@ -114,6 +114,8 @@ backend-vm:
 	scripts/c1_vm_expr_smoke.sh
 	scripts/c1_vm_control_flow_smoke.sh
 	scripts/c1_vm_function_smoke.sh
+	scripts/c1_vm_heap_alloc_smoke.sh
+	scripts/c1_vm_string_smoke.sh
 	scripts/c1_runtime_compile_smoke.sh
 
 headless-selfeval:
