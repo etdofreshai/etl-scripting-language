@@ -1,0 +1,158 @@
+fn compute_a(x i32) i32
+  let a i32 = x + 1
+  let b i32 = a * 2
+  let c i32 = b + 3
+  let d i32 = c * 4
+  let e i32 = d + 5
+  let f i32 = e * 6
+  let g i32 = f + 7
+  let h i32 = g * 8
+  let i i32 = h + 9
+  let j i32 = i * 10
+  let k i32 = j + 11
+  let l i32 = k * 12
+  let m i32 = l + 13
+  let n i32 = m + 14
+  let o i32 = n + 15
+  ret o
+end
+
+fn compute_b(x i32) i32
+  let a i32 = x * 3
+  let b i32 = a + 7
+  let c i32 = b * 5
+  let d i32 = c + 11
+  let e i32 = d * 7
+  let f i32 = e + 13
+  let g i32 = f * 9
+  let h i32 = g + 17
+  let i i32 = h * 11
+  let j i32 = i + 19
+  let k i32 = j * 13
+  let l i32 = k + 23
+  let m i32 = l * 15
+  let n i32 = m + 29
+  let o i32 = n * 17
+  ret o
+end
+
+fn compute_c(x i32) i32
+  let a i32 = x + 100
+  let b i32 = a - 50
+  let c i32 = b * 2
+  let d i32 = c - 10
+  let e i32 = d + 30
+  let f i32 = e * 3
+  let g i32 = f - 20
+  let h i32 = g + 40
+  let i i32 = h * 4
+  let j i32 = i - 30
+  let k i32 = j + 50
+  let l i32 = k * 5
+  let m i32 = l - 40
+  let n i32 = m + 60
+  let o i32 = n * 6
+  ret o
+end
+
+fn compute_d(x i32) i32
+  let a i32 = x + 200
+  let b i32 = a * 2
+  let c i32 = b - 150
+  let d i32 = c * 3
+  let e i32 = d - 200
+  let f i32 = e * 4
+  let g i32 = f - 250
+  let h i32 = g * 5
+  let i i32 = h - 300
+  let j i32 = i * 6
+  let k i32 = j - 350
+  let l i32 = k * 7
+  let m i32 = l - 400
+  let n i32 = m * 8
+  let o i32 = n - 450
+  ret o
+end
+
+fn chain_a(v i32) i32
+  let a i32 = v + 1
+  let b i32 = a + 2
+  let c i32 = b + 3
+  let d i32 = c + 4
+  let e i32 = d + 5
+  let f i32 = e + 6
+  let g i32 = f + 7
+  let h i32 = g + 8
+  let i i32 = h + 9
+  let j i32 = i + 10
+  ret j
+end
+
+fn chain_b(v i32) i32
+  let a i32 = v * 1
+  let b i32 = a * 2
+  let c i32 = b * 3
+  let d i32 = c * 4
+  let e i32 = d + 1
+  let f i32 = e - 1
+  let g i32 = f + 2
+  let h i32 = g - 2
+  let i i32 = h + 3
+  let j i32 = i - 3
+  ret j
+end
+
+fn chain_c(v i32) i32
+  let a i32 = v + 11
+  let b i32 = a + 12
+  let c i32 = b + 13
+  let d i32 = c + 14
+  let e i32 = d + 15
+  let f i32 = e + 16
+  let g i32 = f + 17
+  let h i32 = g + 18
+  let i i32 = h + 19
+  let j i32 = i + 20
+  ret j
+end
+
+fn chain_d(v i32) i32
+  let a i32 = v * 2
+  let b i32 = a + 3
+  let c i32 = b * 4
+  let d i32 = c + 5
+  let e i32 = d * 6
+  let f i32 = e + 7
+  let g i32 = f * 8
+  let h i32 = g + 9
+  let i i32 = h * 10
+  let j i32 = i + 11
+  ret j
+end
+
+fn combine(a i32, b i32, c i32) i32
+  let x i32 = a + b
+  let y i32 = x + c
+  let z i32 = y * 2
+  let w i32 = z - a
+  let v i32 = w - b
+  let u i32 = v - c
+  ret u
+end
+
+fn main() i32
+  let r1 i32 = compute_a(0)
+  let r2 i32 = compute_b(1)
+  let r3 i32 = compute_c(2)
+  let r4 i32 = compute_d(3)
+  let r5 i32 = chain_a(0)
+  let r6 i32 = chain_b(1)
+  let r7 i32 = chain_c(2)
+  let r8 i32 = chain_d(3)
+  let r9 i32 = combine(r5, r6, 10)
+  let total i32 = r1 + r2 + r3 + r4 + r7 + r8 + r9
+  if total > 0
+    ret 42
+  end
+  ret 0
+end
