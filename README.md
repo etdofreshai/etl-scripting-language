@@ -2,6 +2,8 @@
 
 ETL is a minimal LLM-oriented scripting/systems language designed to bootstrap into a self-hosting compiler.
 
+See [docs/support-matrix.md](docs/support-matrix.md) for the works/experimental/unsupported matrix.
+
 This repository absorbed the companion `etl-scripting` repo. Earlier
 design documents and example programs from that line of work are
 preserved under `docs/legacy/` and `examples/legacy/` for reference.
@@ -77,6 +79,25 @@ This runs the baseline checks, compiler-1 self-host smoke, backend plan,
 shared backend subset, WAT/WASM smoke, and full headless self-evaluation.
 See `docs/selfeval.md` for the exact readiness contract and optional
 tooling notes.
+
+Run the example suite (CLI examples + visual examples + the runtime-compile
+VM example) with:
+
+```bash
+make examples
+```
+
+Run the full release-readiness aggregate gate (check + selfhost + every
+backend gate + examples):
+
+```bash
+make release-check
+```
+
+The fixed-point probes `make selfhost-selfcompile` and
+`make selfhost-bootstrap` run separately and are designed to fail loudly
+until c1's emit_c covers the remaining AST shapes used in c1's own
+source. Their status lives in `build/fixedpoint/`.
 
 ## semantic checks
 

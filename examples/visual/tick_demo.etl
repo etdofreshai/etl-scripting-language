@@ -1,0 +1,11 @@
+function main() integer
+  let state integer = 0
+  let tick integer = 0
+
+  while tick < 10
+    state = (state + tick + 3) % 7
+    tick = tick + 1
+  end
+
+  return state
+end

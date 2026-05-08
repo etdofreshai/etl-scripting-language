@@ -1,0 +1,7 @@
+fn main() i32
+  let flag bool = true
+  if flag
+    ret 1
+  end
+  ret 0
+end

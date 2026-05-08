@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check
 
 test:
 	python3 -m unittest discover -s tests
@@ -34,12 +34,19 @@ smoke:
 	scripts/c1_source_to_c_array_smoke.sh
 	scripts/c1_source_to_c_array_var_index_smoke.sh
 	scripts/c1_source_to_c_byte_array_assign_smoke.sh
+	scripts/c1_source_to_c_byte_array_param_smoke.sh
+	scripts/c1_source_to_c_bool_param_smoke.sh
 	scripts/c1_source_to_c_byte_string_smoke.sh
+	scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh
 	scripts/c1_source_to_c_byte_string_var_index_smoke.sh
 	scripts/c1_source_to_c_byte_string_extern_smoke.sh
 	scripts/c1_source_to_c_struct_field_smoke.sh
 	scripts/c1_source_to_c_struct_array_smoke.sh
+	scripts/c1_source_to_c_struct_param_smoke.sh
+	scripts/c1_source_to_c_scalar_param_smoke.sh
 	scripts/c1_extern_call_smoke.sh
+	scripts/c1_extern_scalar_param_smoke.sh
+	scripts/c1_emit_bytecode_smoke.sh
 
 runtime-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -o runtime/test_runtime runtime/test_runtime.c $(ETL_RUNTIME)
@@ -58,11 +65,29 @@ equiv: selfhost-equiv
 selfhost: c1-pipeline selfhost-equiv
 	scripts/c1_smoke.sh
 
+# c1 self-compile probe. Allowed to fail loudly today: not wired into
+# `make check` or `make selfhost`. Records the next blocker into
+# build/fixedpoint/selfcompile-status.md when it fails.
+selfhost-selfcompile:
+	scripts/c1_selfcompile_smoke.sh
+
+# c1 bootstrap chain probe (c0 -> c1 -> c2 -> c3 -> c4). Verifies that
+# three consecutive self-compilations emit byte-identical C, which is
+# the fixed-point criterion. Depends on selfhost-selfcompile being
+# green; otherwise records BLOCKED-AT-SELFCOMPILE in
+# build/fixedpoint/bootstrap-status.md and fails loudly. Not wired into
+# `make check` or `make selfhost`.
+selfhost-bootstrap:
+	scripts/c1_bootstrap_smoke.sh
+
 backend-plan-smoke:
 	scripts/backend_plan_smoke.sh
 
 backend-asm:
 	scripts/c1_emit_asm_smoke.sh
+	scripts/c1_asm_function_call_smoke.sh
+	scripts/c1_asm_extern_call_smoke.sh
+	scripts/c1_asm_extern_scalar_param_smoke.sh
 	scripts/c1_asm_array_smoke.sh
 	scripts/c1_asm_struct_field_smoke.sh
 	scripts/c1_asm_struct_array_smoke.sh
@@ -76,9 +101,20 @@ backend-subset:
 
 backend-wasm:
 	scripts/c1_wat_return_smoke.sh
+	scripts/c1_wat_function_call_smoke.sh
+	scripts/c1_wat_extern_import_smoke.sh
+	scripts/c1_wat_extern_call_smoke.sh
 	scripts/c1_wat_array_smoke.sh
 	scripts/c1_wat_struct_field_smoke.sh
 	scripts/c1_wat_struct_array_smoke.sh
+
+backend-vm:
+	scripts/c1_emit_bytecode_smoke.sh
+	scripts/c1_vm_return_smoke.sh
+	scripts/c1_vm_expr_smoke.sh
+	scripts/c1_vm_control_flow_smoke.sh
+	scripts/c1_vm_function_smoke.sh
+	scripts/c1_runtime_compile_smoke.sh
 
 headless-selfeval:
 	scripts/selfeval_smoke.sh
@@ -99,3 +135,23 @@ headless-ready: check selfhost backend-plan backend-subset backend-wasm selfeval
 
 autopilot-help:
 	@scripts/project_autopilot_supervisor.py --help
+
+examples-cli:
+	scripts/examples_cli_smoke.sh
+
+# Aggregate examples gate. Runs CLI examples, visual examples, and the
+# runtime-compile (VM) example end-to-end. Visual gracefully skips the
+# SDL3 branch when SDL3 is not installed.
+examples: examples-cli visual
+	scripts/c1_runtime_compile_smoke.sh
+
+# Release-readiness gate. Aggregates check + selfhost + every backend
+# gate + examples + visual. Fails if any non-optional gate fails. The
+# selfhost-selfcompile and selfhost-bootstrap probes are NOT included
+# here because they are designed to fail loudly until the c1 emit_c
+# expansion long-tail closes; their status lives in
+# build/fixedpoint/{selfcompile,bootstrap}-status.md.
+release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples
+
+visual:
+	scripts/visual_smoke.sh

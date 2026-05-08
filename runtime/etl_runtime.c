@@ -49,7 +49,7 @@ int32_t etl_append_bytes(int8_t *dst, int32_t dst_len, int32_t dst_cap,
   return dst_len + src_len;
 }
 
-void etl_eprint(const int8_t *buf, int32_t len) {
+void etl_eprint(int8_t *buf, int32_t len) {
   if (buf == NULL || len <= 0) {
     return;
   }

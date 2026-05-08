@@ -95,7 +95,9 @@ full v0 language:
 
 Compiler-1 (`compiler1/*.etl`) written in ETL, compiled by compiler-0 to C,
 then to a native binary. Currently covers lexing, parsing, semantic analysis,
-and C emission for a growing subset.
+and C emission for a growing subset, including user-defined `i32`,
+`bool`/`i8`/`byte`, narrow byte-array, narrow by-value struct parameters, and
+extern scalar `bool`/`i8`/`byte` parameter emission.
 
 **Gate**: `make selfhost` (c1-pipeline + selfhost-equiv + c1-smoke).
 
@@ -104,17 +106,26 @@ and C emission for a growing subset.
 **Status: Active smoke subset.**
 
 Emits x86-64 assembly for small `main` programs with integer return,
-arithmetic, local initialization, local assignment, simple `if`/`else`,
-simple `while`, all comparison operators, boolean literals, eager logical
-expressions (`and`, `or`, `not`), local `i32` array declaration plus
-constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
+arithmetic, local initialization, local assignment, `if`/`elif`/`else`
+chains, `while` loops, all comparison operators, boolean literals, eager
+logical expressions (`and`, `or`, `not`), local `i32` array declaration
+plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
 array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]`
 string literal initialization with constant-index reads, and local struct
 declarations with `i32`-only field store/load via `mov` with RBP offsets,
 and local fixed struct array indexed field store/load via computed base
-offset with `imul` struct-size scaling.
-No function parameters, `elif`, extern calls, runtime strings, pointer
-decay, extern/param byte arrays, nested structs,
+offset with `imul` struct-size scaling. Also emits multiple user-defined
+helper functions with `i32`/`integer` parameters, scalar `bool`/`boolean`
+and `i8`/`byte` helper parameters, i32 returns, and direct calls
+using System V integer argument registers. Helper `byte[N]`/`i8[N]` array
+parameters can be passed as saved base pointers and read/written through
+indexed `movsbq`/`movb`. Source `extern fn` declarations with `i32`/`integer` params, scalar
+`bool`/`boolean` and `i8`/`byte` params, and `i32` return are lowered to
+direct `call` to named symbols resolved by the linker.
+No void-return extern declarations, non-scalar function parameters or returns
+beyond existing byte-array helper slices and struct local support, array/struct
+parameters or returns, varargs, indirect calls, runtime strings, pointer decay
+beyond the helper-call byte array slice, extern byte arrays, nested structs,
 non-i32 struct fields, bounds checks, or dynamic arrays yet.
 
 **Gate**: `make backend-asm` (exercises ASM emitter via compiler-1).
@@ -124,25 +135,39 @@ non-i32 struct fields, bounds checks, or dynamic arrays yet.
 **Status: Active WAT subset.**
 
 Emits WAT text for `main` programs with integer/boolean return, arithmetic,
-all comparisons, logical operators, `let` locals, assignment, `if`/`else`,
+all comparisons, logical operators, `let` locals, assignment, `if`/`elif`/`else`,
 `while` loops, boolean literals, local `i32` array declaration plus
 constant-index and variable-index read/write, local `byte[N]`/`i8[N]`
 array indexed assignment/read via `i32.store8`/`i32.load8_s`, local
 `i8[N]` string literal initialization with constant-index reads, local
 struct declarations with `i32`-only field store/load via
-`i32.store`/`i32.load` with offset, and local fixed struct array indexed
-field store/load. No function parameters, `elif`,
-extern calls, runtime strings, pointer decay, extern/param byte arrays,
-nested structs, non-i32 struct fields, bounds checks, or
+`i32.store`/`i32.load` with offset, local fixed struct array indexed
+field store/load, multiple user-defined `i32`-parameter/`i32`-return
+helper functions with direct intra-module calls (`_start` exported as
+`main`), scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped
+as `i32` params/locals, and source `extern fn` declarations with `i32`/`integer` params
+and `i32` return lowered to `(import "env" "name" (func $name ... (result i32)))`
+with `call $name`. Helper `byte[N]`/`i8[N]` array parameter indexed reads/writes
+(passed as i32 base pointer, using `i32.load8_s`/`i32.store8`) are supported.
+No void-return extern import statements, runtime host
+execution, runtime strings, pointer decay, extern byte arrays,
+nested structs, non-i32 struct fields,
+struct or array parameters or returns beyond scalar bool/byte and byte-array
+indexed read/write, byte/string/pointer params
+(as opposed to byte-array param reads),
+varargs, imported memory, or broader ABI, bounds checks, or
 dynamic arrays yet. Text validation always runs.
 Runtime execution requires `wat2wasm` plus `wasmtime` or `wasmer`; otherwise
 the smoke reports reduced coverage and still passes. The active subset covers
 integer return, arithmetic, local initialization, local assignment, simple
-`if`/`else`, simple `while`, comparison, eager logical expressions, local
-`i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write,
+`if`/`elif`/`else`, simple `while`, comparison, eager logical expressions,
+local `i32` array indexing, local `byte[N]`/`i8[N]` array indexed read/write,
 local `i8[N]` string literal initialization with constant-index reads,
-local i32 struct field store/load, and local fixed struct array indexed
-field store/load.
+local i32 struct field store/load, local fixed struct array indexed
+field store/load, i32-parameter/i32-return helper function calls
+within a single module, scalar `bool`/`boolean` and `i8`/`byte` helper
+parameters mapped as `i32` params/locals, narrow i32 extern import/call emission,
+and narrow `byte[N]`/`i8[N]` array helper parameter indexed reads/writes.
 
 **Gate**: `make backend-wasm` (skip-safe for runtime tools).
 

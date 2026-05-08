@@ -85,12 +85,20 @@ ETL source
   → ETL IR
   → compact bytecode / WASM-like representation
   → C backend for portability/bootstrap
+  → bytecode VM for runtime-loaded ETL modules
   → WASM backend for web/runtime portability
   → native ASM backend later
 ```
 
 The important design goal is not necessarily "C first forever," but to
 define a minimal IR that can map cleanly to C, WASM, and assembly.
+
+The AOT compiler path remains the primary compatibility path: ETL source can
+compile ahead of time through the C backend into a native binary. That native
+binary may also embed the ETL compiler frontend plus a bytecode VM so the
+program can accept ETL source at runtime, compile it with the same lexer,
+parser, semantic checks, and IR lowering, and execute the resulting bytecode.
+This keeps runtime ETL from becoming a separate scripting dialect.
 
 ## 5. Why C Was Considered
 
@@ -252,6 +260,19 @@ The IR should be small enough to map to:
 
 The IR is the true "common language" of ETL.
 
+Both the bootstrap AOT compiler and any runtime compiler embedded inside an
+ETL application should share this frontend and IR path. The split should happen
+after semantic analysis: AOT builds emit C/WASM/native text or binary, while
+runtime-loaded modules emit bytecode for the VM.
+
+```
+ETL source
+  → lexer / parser / sema
+  → typed AST or IR
+      → C backend for AOT/native distribution
+      → bytecode backend for runtime execution in the ETL VM
+```
+
 ## 12. Tokenized / Binary Format
 
 ETL can have both:
@@ -269,6 +290,11 @@ The tokenized form could be used for:
 
 The bytecode could be stack-based, inspired by WASM, because stack-based
 bytecode is easy to encode and maps cleanly to many targets.
+
+The first runtime execution target should be a portable bytecode interpreter,
+not a native machine-code JIT. A later JIT can lower the same typed IR or
+bytecode into native code, but it should remain an optimization over the shared
+compiler core rather than a second language implementation.
 
 ## 13. Platform Compatibility Goal
 

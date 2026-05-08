@@ -1,8 +1,9 @@
 # Multi-Backend Architecture Plan
 
 This document defines the multi-backend target architecture for ETL. The goal
-is to make **C**, **ASM**, and **WASM** first-class future compilation targets
-while preserving C as the current bootstrap backend.
+is to make **C**, **ASM**, **WASM**, and a portable **ETL VM bytecode** path
+first-class future compilation targets while preserving C as the current
+bootstrap backend.
 
 ## Current state
 
@@ -10,7 +11,12 @@ while preserving C as the current bootstrap backend.
   Pipeline: `ETL source → lex → parse → AST → validate → emit_c → C text`.
 - **compiler-1** (`compiler1/*.etl`): Self-hosted ETL compiler (in progress).
   Currently has `lex.etl`, `parse.etl`, `sema.etl`, `emit_c.etl`.
-- Only the C backend is active. No IR layer exists yet.
+- The C backend is the active self-hosting path. ASM and WAT/WASM have smoke
+  subsets. No IR layer exists yet.
+- A minimal bytecode emitter scaffold exists for `fn main() i32 ret <small int>
+  end`. No runtime ETL VM exists yet. Runtime-loaded ETL code is a future target
+  and must reuse the same lexer, parser, semantic model, and IR lowering as the
+  AOT compiler path.
 
 ## Architecture overview
 
@@ -41,12 +47,24 @@ ETL source
 │   │ emit_c    │  │ emit_asm  │  │ emit_wasm  │   │
 │   │ (active)  │  │ (future)  │  │ (future)   │   │
 │   └───────────┘  └───────────┘  └───────────┘   │
+│                                                   │
+│   ┌───────────────────────────────────────────┐   │
+│   │ emit_bytecode → ETL VM                    │   │
+│   │ (future runtime execution path)           │   │
+│   └───────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────┘
      │               │               │
      ▼               ▼               ▼
    C text          ASM text       WASM binary
                                  or WAT text
 ```
+
+The AOT compiler and runtime compiler should have nearly complete overlap
+through semantic analysis. The intended runtime model is an AOT-compiled ETL
+program that links or embeds the ETL compiler frontend and VM, then compiles
+runtime-provided ETL source into portable bytecode for execution. Runtime ETL
+may be sandboxed by host policy, but it should not become a separate language
+with different syntax or type rules.
 
 ## Backend interface contract
 
@@ -81,9 +99,10 @@ codes for consistent error handling.
 
 | Backend | File | Status | Notes |
 |---------|------|--------|-------|
-| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current small language subset. |
-| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; assembled and linked by smoke tests. |
-| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, local struct declaration with i32 field store/load, and local fixed struct array indexed field store/load; smoke validates text and executes when tools are installed. |
+| C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, narrow by-value struct parameters, and extern scalar bool/i8/byte parameter emission. |
+| ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped to 8-bit or 32-bit stack slots, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via saved base pointers and `movsbq`/`movb`, and source `extern fn` declarations with `i32`/`integer` params, scalar `bool`/`boolean` and `i8`/`byte` params, and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
+| WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped as `i32` params/locals, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined `i32`/scalar-bool/byte-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
+| ETL VM bytecode | `compiler1/emit_bytecode.etl`, `runtime/etl_vm.c`, future `runtime/vm.etl` | Scaffold | Emits ASCII stack bytecode such as `ETLB1;I1;I2;I9;I4;-;*;+;R;` for a narrow integer return expression smoke and executes it through a minimal C VM helper. This is the portable runtime execution target for ETL source compiled inside an AOT-built ETL host program. Must share compiler-1 frontend/sema behavior with AOT paths; native JIT is a later optimization over this path, not the first runtime target. |
 
 ## Shared backend subset smoke
 
@@ -106,17 +125,18 @@ and eager logical operators (`and`, `or`, `not`).
 | Assignment | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | Run | Run | Validate, optionally run | Covers simple local reassignment. |
 | Multi-local assign | `fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end` | Run | Run | Validate, optionally run | Two locals with cross-assignment. |
 | If-then | `fn main() i32 let x i32 = 1 if x x = 9 end ret x end` | Run | Run | Validate, optionally run | `if` without `else`. |
-| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | No `elif`; WAT rejects `elif` today. |
+| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | `elif` chains supported in ASM (52804e9) and WAT (298b6c2). |
 | While | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
 | Comparisons (6) | `==`, `!=`, `<=`, `>`, `>=`, `<` (true and false cases) | Run | Run | Validate, optionally run | All signed comparison operators. |
 | Logical (2) | `not false or 0`, `2 and 3` | Run | Run | Validate, optionally run | Eager logical lowering, not short-circuiting. |
 
 Limitations: the shared matrix intentionally excludes functions with
-parameters, extern calls, arrays, structs, strings, `elif`, and general I/O.
-Those are covered by the C path and broader smoke tests, but they are not
-shared backend contracts yet. Keep matrix programs small enough for the
-compiler-1 harness buffers (`source i8[256]`, `tokens Token[128]`,
-`out i8[1024]`).
+parameters, extern calls, arrays, structs, strings, and general I/O. Basic
+multi-function programs plus user-defined `i32`, scalar `bool`/`i8`/`byte`,
+byte-array, and by-value struct parameters are covered by focused C/ASM/WAT-path
+smokes, but they are not shared C/ASM/WAT
+contracts yet. Keep matrix programs small enough for the compiler-1 harness
+buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
 
 ## C backend (current)
 
@@ -230,7 +250,12 @@ Premature IR abstraction is a known risk.
 | `compiler1/emit_wasm.etl`         | WAT/WASM backend emitter (locals, arithmetic, control flow). |
 | `scripts/backend_plan_smoke.sh`   | Verifies scaffolds compile via compiler-0.    |
 | `scripts/c1_emit_asm_smoke.sh`    | ASM backend smoke (arithmetic expression).    |
+| `scripts/c1_asm_extern_call_smoke.sh` | ASM i32 extern call smoke.               |
+| `scripts/c1_asm_extern_scalar_param_smoke.sh` | ASM extern scalar bool/i8/byte param smoke. |
 | `scripts/c1_wat_return_smoke.sh`  | WAT/WASM return-value and extended smoke.     |
+| `scripts/c1_wat_function_call_smoke.sh` | WAT/WASM i32 helper/user function call smoke. |
+| `scripts/c1_wat_extern_import_smoke.sh` | WAT/WASM i32 extern import emission smoke. |
+| `scripts/c1_wat_extern_call_smoke.sh` | WAT/WASM i32 extern call emission smoke. |
 | `Makefile`                        | `make backend-plan` target.                   |
 
 ## Verification
@@ -249,8 +274,8 @@ make selfhost       # Unchanged — compiler-1 pipeline must pass
 ### Chunk ASM-2: x86-64 arithmetic expressions — **Done.**
 
 ### Chunk ASM-3: x86-64 locals and control flow — **Done.**
-Locals, assignment, `if`/`else`, and `while` implemented. Note: `elif` not
-yet supported. No multi-function or parameter support yet.
+Locals, assignment, `if`/`elif`/`else`, and `while` implemented.
+No multi-function or parameter support yet.
 
 ### Chunk ASM-3B: x86-64 i32 array indexing — **Done.**
 Local `i32` array declarations with constant-index read/write and
@@ -266,9 +291,15 @@ per-element 1-byte stride. Proven by `scripts/c1_asm_array_smoke.sh`
 (722e30c, merged a387729). Scalar-after-byte-array and
 byte-array-after-i32-array stack layouts verified. Local `byte[N]`/`i8[N]`
 string literal initialization with constant-index reads proven by the same
-smoke script (141756a, merged e006f5f). Extern/param byte arrays, runtime
-strings, pointer decay, structs, struct arrays, bounds checks, and dynamic
-arrays remain unsupported in ASM.
+smoke script (141756a, merged e006f5f). Helper `byte[N]`/`i8[N]` array
+parameter indexed reads proven by the same smoke script (2f16e17, merged
+69e0a05): local byte arrays are passed with `lea`, helper params are saved
+base pointers, and reads use `movsbq`. Helper `byte[N]`/`i8[N]` array
+parameter indexed writes proven by `scripts/c1_asm_array_smoke.sh` (99c6493,
+merged 8db6ae1): `i8_array_param_write_idx` writes 42 into `buf[1]` and reads
+it back, returning native exit 42. Extern byte arrays, runtime strings,
+pointer decay beyond this helper-call slice, nested structs, non-i32 fields,
+bounds checks, and dynamic arrays remain unsupported in ASM.
 
 ### Chunk WASM-1: WAT return-only emitter — **Done.**
 
@@ -283,8 +314,16 @@ read/write proven by `scripts/c1_wat_array_smoke.sh` (ea5408c, merged
 using `i32.store8`/`i32.load8_s` proven by the same smoke script
 (cd65f69, merged 7ce9043). Local `i8[N]` string literal initialization
 with constant-index reads proven by the same smoke script (c173e18,
-merged 44ac63e). Extern/param byte arrays, structs, struct arrays,
-bounds checks, and dynamic arrays remain unsupported.
+merged 44ac63e). Helper `byte[N]`/`i8[N]` array parameter indexed reads
+(passed as i32 base pointer, using `i32.load8_s`) proven by the same
+smoke script (df35de9, merged 1d20f20): `first(text i8[4]) i32` returns
+`text[0] + text[1] - text[2]` = 96 from a local `i8[4] = "abc"`.
+Helper `byte[N]`/`i8[N]` array parameter indexed writes (using
+`i32.store8`) and readback proven by the same smoke script (a67d121,
+merged d070a1d): `i8_array_param_helper_write_idx` returns 42 after
+writing 42 into `buf[1]` and reading it back. Extern byte arrays,
+structs, struct arrays, bounds checks, and dynamic arrays remain
+unsupported.
 
 ### Chunk ASM-3D: x86-64 local i32 struct field store/load — **Done.**
 Local struct declarations with `i32`-only fields, field store via
@@ -328,6 +367,55 @@ items[i].value + 3; ret items[0].value + items[i].value`. Nested
 structs, non-i32 fields, function parameters, extern calls, bounds
 checks, and dynamic memory remain unsupported in WAT.
 
+### Chunk WASM-3: WAT i32 helper/user function calls — **Partially done (narrow i32 + scalar bool/i8/byte slice).**
+Multiple user-defined functions with `i32` parameters and `i32` return values,
+direct intra-module calls, and `_start` export proven by
+`scripts/c1_wat_function_call_smoke.sh` (cc78aaf, merged 99caf9a). Smoke
+validates `add(a,b)`, `bump(x)`, and `main` returning 42. Scalar `bool`/`boolean`
+and `i8`/`byte` helper parameters mapped as `i32` params/locals proven by the
+same smoke script (383d930, merged 91d8ef7). Smoke validates `c(f bool)`,
+`d(f boolean)`, `e(x i8)`, `g(x byte)` all lowering to `(param $v0 i32)`.
+Source `extern fn`
+declarations with `i32`/`integer` params and `i32` return lowered to
+`(import "env" "name" (func $name ... (result i32)))` with `call $name`
+proven by `scripts/c1_wat_extern_import_smoke.sh` and
+`scripts/c1_wat_extern_call_smoke.sh`. Struct and array parameters,
+void-return extern import statements, runtime
+host execution, ABI work for non-i32 params/returns, runtime
+strings, pointer decay, extern byte arrays,
+nested structs, non-i32 fields, bounds checks, and dynamic arrays
+remain unsupported in WAT.
+
+### Chunk ASM-4: x86-64 i32 helper/user function calls — **Partially done (narrow i32 + scalar bool/i8/byte + byte/i8 array helper param + extern scalar bool/i8/byte param slice).**
+Multiple user-defined functions with `i32`/`integer` parameters and `i32` return
+values, direct intra-module calls via System V AMD64 ABI (integer args in
+RDI, RSI, RDX, RCX, R8, R9; return in RAX), and `.globl` export for all user
+functions proven by `scripts/c1_asm_function_call_smoke.sh` (a30d3cd, merged
+7ff9414). Smoke exercises `add(a,b)`, `bump(x)`, and `main` returning native
+exit 42. Source `extern fn` declarations with `i32`/`integer` params and
+`i32` return lowered to direct `call` to named symbols resolved by the linker
+proven by `scripts/c1_asm_extern_call_smoke.sh` (535c56c, merged b66e5e0).
+Smoke exercises `forty_one()`, `bump(x)`, and `add_i32(a,b)` returning native
+exit 42 via external C helpers. Helper `byte[N]`/`i8[N]` array parameter
+indexed reads are also proven by `scripts/c1_asm_array_smoke.sh` (2f16e17,
+merged 69e0a05). Helper `byte[N]`/`i8[N]` array parameter indexed writes are
+proven by the same smoke script (99c6493, merged 8db6ae1). Scalar
+`bool`/`boolean` and `i8`/`byte` helper parameters proven by
+`scripts/c1_emit_asm_smoke.sh` (ca714b5, merged fc93ee5). Smoke exercises
+`choose(flag bool)`, `choose(flag boolean)`, `plus_one(ch i8)`, and
+`plus_one(ch byte)` returning correct native exit codes. Source `extern fn`
+declarations with scalar `bool`/`boolean` and `i8`/`byte` params and `i32`
+return lowered to direct `call` to named symbols resolved by the linker and
+linked against tiny C helpers proven by
+`scripts/c1_asm_extern_scalar_param_smoke.sh` (1213ecc, merged 26008a0).
+Smoke exercises `accept_bool(true)`, `accept_boolean(false)`, `plus_i8(40)`,
+and `accept_byte(0)` returning native exit 42 via external C helpers.
+Non-scalar parameter
+types (struct, non-byte arrays), void-return extern declarations,
+varargs, indirect calls, runtime strings,
+pointer decay, extern byte arrays, nested structs, non-i32 fields, bounds
+checks, and dynamic arrays remain unsupported in ASM.
+
 ### Chunk IR-1: AST-to-IR lowering
 - Define a minimal IR node format (basic blocks, three-address code).
 - Build a lowering pass: AST → IR.
@@ -335,10 +423,10 @@ checks, and dynamic memory remain unsupported in WAT.
 - Depends on: Phase 5f and at least one non-C backend at Chunk *-2.
 
 ### Future chunks
-- ASM-4: function parameters and multi-function support.
-- ASM-5: `elif` chains.
-- WASM-3: function parameters and multi-function support.
-- WASM-4: `elif` chains.
+- ASM-4: function parameters and multi-function support — **narrow i32 helper-call slice done** (a30d3cd); **narrow i32 extern call slice done** (535c56c); **narrow byte/i8 array helper param read slice done** (2f16e17); **narrow byte/i8 array helper param write slice done** (99c6493); **narrow scalar bool/i8/byte helper param slice done** (ca714b5); **narrow extern scalar bool/i8/byte param slice done** (1213ecc); general param types, void-return extern, and full ABI remain.
+- ASM-5: `elif` chains — **Done** (52804e9, merged 6e255dd).
+- WASM-3: function parameters and multi-function support — **narrow i32 helper-call slice done** (cc78aaf); **narrow i32 extern import/call slice done** (538cc0d / 64316a8); **narrow byte/i8 array helper param read slice done** (df35de9); **narrow byte/i8 array helper param write slice done** (a67d121); **narrow scalar bool/i8/byte helper param slice done** (383d930); struct/array param types, void-return extern imports, runtime host execution, and full ABI remain.
+- WASM-4: `elif` chains — **Done** (298b6c2, merged ccc1f42).
 - These can be delegated to independent workers.
 
 ## Build integration

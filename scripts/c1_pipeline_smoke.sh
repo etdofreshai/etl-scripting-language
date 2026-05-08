@@ -42,8 +42,17 @@ scripts/c1_source_to_c_array_var_index_smoke.sh
 echo "c1_pipeline: run byte-array assignment source-to-C smoke"
 scripts/c1_source_to_c_byte_array_assign_smoke.sh
 
+echo "c1_pipeline: run byte-array parameter source-to-C smoke"
+scripts/c1_source_to_c_byte_array_param_smoke.sh
+
+echo "c1_pipeline: run bool parameter source-to-C smoke"
+scripts/c1_source_to_c_bool_param_smoke.sh
+
 echo "c1_pipeline: run byte-string source-to-C smoke"
 scripts/c1_source_to_c_byte_string_smoke.sh
+
+echo "c1_pipeline: run byte-string multi-buffer source-to-C smoke"
+scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh
 
 echo "c1_pipeline: run byte-string variable-index source-to-C smoke"
 scripts/c1_source_to_c_byte_string_var_index_smoke.sh
@@ -59,6 +68,9 @@ scripts/c1_source_to_c_struct_array_smoke.sh
 
 echo "c1_pipeline: run extern-call source-to-C smoke"
 scripts/c1_extern_call_smoke.sh
+
+echo "c1_pipeline: run extern scalar parameter source-to-C smoke"
+scripts/c1_extern_scalar_param_smoke.sh
 
 echo "c1_pipeline: run compiler-0 behavior placeholder"
 scripts/build_etl.sh examples/add_main.etl "$td/add_main"

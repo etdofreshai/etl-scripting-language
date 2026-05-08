@@ -1,0 +1,18 @@
+// Evaluates three hardcoded boolean knobs into a bitmask: bit0=a, bit1=b, bit2=c.
+
+fn main() i32
+  let a bool = true
+  let b bool = false
+  let c bool = true
+  let result i32 = 0
+  if a
+    result = result + 1
+  end
+  if b
+    result = result + 2
+  end
+  if c
+    result = result + 4
+  end
+  ret result
+end

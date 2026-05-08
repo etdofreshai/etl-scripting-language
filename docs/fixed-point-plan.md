@@ -31,8 +31,10 @@ compiler-0 can be frozen.
 
 ## Current c1 capabilities
 
-The c1 compiler pipeline is functional for single-function programs with no
-parameters. The `make selfhost` gate proves:
+The c1 compiler pipeline is functional for the current 29-fixture corpus,
+including multi-function programs, recursive user-defined calls, Tier 2 typed
+bool/i8 locals, local fixed i32 array sum/loop indexing, local i8 array
+indexing, and `i32` function parameters. The `make selfhost` gate proves:
 
 | Stage | File | What it does |
 |---|---|---|
@@ -41,7 +43,7 @@ parameters. The `make selfhost` gate proves:
 | Sema | `compiler1/sema.etl` | Validates types, extern call signatures, returns |
 | Emit C | `compiler1/emit_c.etl` | Produces C source text from AST |
 
-The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 16 corpus fixtures
+The c1 equiv smoke (`scripts/c1_equiv_smoke.sh`) compiles 26 corpus fixtures
 via both c0 and c1, then verifies matching exit codes. The c1 source-to-C
 smoke (`scripts/c1_source_to_c_smoke.sh`) proves end-to-end ETL-in to C-out.
 
@@ -64,8 +66,11 @@ end
 
 Specifically, c1 can emit:
 - `extern fn` forward declarations (void and int return)
-- Single function with `int main(void)` signature
-- Local declarations with initialization (`let x i32 = expr`)
+- Multiple named functions with `i32` return values
+- Function parameters for user-defined `i32`, scalar `bool`/`i8`/`byte`,
+  narrow byte/i8 array, narrow by-value struct parameters, and extern scalar
+  `bool`/`i8`/`byte` parameters
+- Local declarations with initialization (`let x i32 = expr`, typed `bool`/`i8` locals emit as C `bool`/`signed char`)
 - Assignment to locals (`x = expr`)
 - Integer, boolean, sizeof, and unary-minus literals
 - Binary arithmetic (`+`, `-`, `*`, `/`, `%`)
@@ -87,23 +92,38 @@ Specifically, c1 can emit:
 - Narrow `i8[N]` local string literal initialization with constant-index reads
   (`int8_t text[4] = {'a','b','c',0};`, `text[0] + text[1] - text[2]`) — proven
   by `scripts/c1_source_to_c_byte_string_smoke.sh` (ed3d8de). Variable-index
-  string reads, multiple string buffers coexisting, and extern parameter string
-  buffers are not yet covered.
+  string reads are proven by `scripts/c1_source_to_c_byte_string_var_index_smoke.sh`.
+  Multiple local string buffers coexisting are proven by
+  `scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
 - Narrow local `i8[N]` byte array indexed assignment and readback with both
   constant-index (`values[0] = 10`) and variable-index (`values[i]`) reads —
   proven by `scripts/c1_source_to_c_byte_array_assign_smoke.sh` (bd10575).
-  Larger `i8` arrays and multi-buffer coexistence are not yet covered.
+  Larger `i8` arrays beyond the current focused fixtures are not yet covered.
 - Narrow local struct array field read/write with both constant-index
   (`items[0].value = 19`) and variable-index (`items[i].value = items[i].value + 3`)
   indexed field access — proven by `scripts/c1_source_to_c_struct_array_smoke.sh`
-  (6c54423). Struct arrays with non-integer fields, struct params/returns, and
-  nested struct-in-struct are not yet covered.
+  (6c54423). Struct arrays with non-integer fields and nested struct-in-struct
+  are not yet covered.
+- Narrow scalar `bool`, `i8`, and `byte` parameters for user-defined C
+  functions — proven by `scripts/c1_source_to_c_scalar_param_smoke.sh`
+  (3a5e395). These are C-backend user-function params only; extern scalar
+  `bool`/`i8`/`byte` parameter emission is now proven by
+  `scripts/c1_extern_scalar_param_smoke.sh` (9c71068); non-i32 returns
+  remain outside this slice.
+- Narrow by-value struct parameters for user-defined C functions — proven by
+  `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7). The follow-up sema
+  guard (6c3cf90) keeps this path restricted to declared struct names. Struct
+  returns and extern struct parameters are not yet covered.
 - Narrow fixed byte/i8 array extern parameters emitted as `signed char *`
   in extern function declarations — proven by
   `scripts/c1_source_to_c_byte_string_extern_smoke.sh` (8d72ca2). Local byte
-  string buffers can be passed to an extern C helper function. User-defined
-  byte-array parameters (in non-extern user functions) and non-byte-array
-  extern param types (structs, nested arrays) are not yet covered.
+  string buffers can be passed to an extern C helper function.
+- Narrow fixed byte/i8 array user-defined function parameters emitted as
+  `signed char *name` in C function signatures — proven by
+  `scripts/c1_source_to_c_byte_array_param_smoke.sh`. Local byte string buffers
+  can be passed to a user-defined helper and indexed inside that helper.
+  Struct parameters/returns and non-byte-array extern param types (structs,
+  nested arrays) are not yet covered.
 
 ### What c1 cannot emit yet (self-compilation blockers)
 
@@ -111,16 +131,36 @@ These are the concrete gaps that prevent c1 from compiling its own source:
 
 | Gap | Why it blocks self-compilation | Notes |
 |---|---|---|
-| Multi-function emission | c1 hardcodes `int main(void)`; cannot emit named functions | c1 source has ~60+ named functions |
-| Function parameters | c1 requires zero parameters; c1 source uses parameters everywhere | Every emit_c_*, lex, parse function takes params |
-| Typed locals (not just int) | c1 emits all locals as `int`; c1 uses `i8[]`, `bool`, structs | Token/AstNode structs, i8 arrays, bool locals |
-| Array locals | c1 cannot emit `int32_t arr[128] = {0}` declarations | c1 source uses `Token[128]`, `AstNode[512]`, `i8[1024]`. Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger non-`i32` arrays do not |
-| Struct declarations | c1 has no struct emission | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); struct params, non-i32 fields, and arrays in struct fields do not |
-| Struct field access | c1 has no `.field` expression emission | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); cross-function struct params and returns do not |
-| Index expressions | c1 has no `arr[i]` expression emission | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); non-`i32` index expressions do not |
-| String literal data | c1 cannot emit C string data or char arrays | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads, multiple string buffers, and extern param string buffers do not |
-| Extern fn with typed params | c1 emits all extern params as `int` | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); user-defined byte-array params and non-byte-array extern param types do not |
-| Buffer size limits | Source 256 bytes, tokens 128, output 1024 | c1 concatenated source is ~15KB+ |
+| Multi-function emission | Basic named function emission works, but only for the current narrow function subset | c1 source has ~60+ named functions; broader type coverage is still needed across those functions |
+| Function parameters | `i32`, scalar `bool`/`i8`/`byte`, narrow byte/i8 array user-defined parameters, and narrow by-value struct parameters work, but typed params beyond those are not complete | Every emit_c_*, lex, parse function takes params, including arrays and struct buffers |
+| Typed locals (not just int) | Scalar `bool`/`i8` locals work (Tier 2 fixtures pass); composed typed locals (struct-typed, array-typed) are not yet covered | Token/AstNode structs, i8 arrays |
+| Array locals | c1 emits narrow local arrays, but not all c1-scale array shapes | c1 source now uses expanded C-path buffers (`Token[32768]`, `AstNode[32768]`, `i8[262144]` output). Narrow `i32` constant-index and variable-index arrays work (fa722e8, 6df84e6); narrow `i8` byte array indexed assignment works (bd10575); larger and struct-typed arrays remain incomplete |
+| Struct declarations | c1 emits narrow local i32-only structs and by-value struct parameters, but not the full struct surface | Token, AstNode are core types. Narrow i32-only struct decl + local field read/write works (902b736); narrow local struct array field read/write works (6c54423); narrow by-value struct params work (ec342d7); non-i32 fields and arrays in struct fields do not |
+| Struct field access | c1 emits local `.field`, local struct-array field access, and field access through by-value struct params, but not all cross-function patterns | `tokens[i].kind`, `ast[node].a` throughout. Local i32 field access works (902b736); struct array field access with constant and variable index works (6c54423); struct parameter field access works for the narrow C path (ec342d7); struct returns do not |
+| Index expressions | c1 emits narrow `arr[i]` patterns, but not all array element types and contexts | All buffer access uses indexing. Constant-index and variable-index `i32` arrays work (fa722e8, 6df84e6); narrow `i8` array indexing works; struct-array field indexing works; larger and parameter-backed indexing remain incomplete |
+| String literal data | c1 cannot yet cover all c1-scale string/buffer patterns | Narrow local `i8[N]="..."` with constant-index reads works (ed3d8de); variable-index reads work; multiple string buffers coexist without corruption (proven by multi-buffer smoke) |
+| Extern fn with typed params | c1 extern parameter type emission is partial | `etl_write_file` takes `i8[64]`, `i8[1024]`, `i32`. Narrow byte/i8 array extern params emitted as `signed char *` works (8d72ca2); extern scalar `bool` emitted as C `bool` and scalar `i8`/`byte` emitted as C `signed char` works (9c71068); extern struct and non-scalar param types do not |
+| Buffer size limits | C-backend path raised to source 131072 bytes, tokens 32768, AST nodes 32768, output 262144 | Next self-compile probe should expose semantic/emitter blockers rather than the old small-buffer ceiling |
+
+### Phase 5f buffer migration (2026-05-02)
+
+The original fixed buffers were too small for a direct c1 self-compile, and
+they were embedded in function signatures rather than only in harness locals.
+The C-backend path was mechanically raised in `afk/70b1d60e/capacity-migration-codex`
+and merged at `60afeb1`; `make check` passed after the merge.
+
+| Buffer | Previous cap | Current C-path cap | Required c1 C-backend size |
+|---|---:|---|---:|
+| Source text | 256 bytes | 131,072 bytes | 81,198 bytes for `main+lex+parse+sema+emit_c` |
+| Tokens | 128 | 32,768 | 20,370 tokens including EOF, measured by compiler-0 |
+| AST nodes | 512 | 32,768 | 20,993 compiler-0 dataclass AST nodes as a scale proxy |
+| C output | 1,024 bytes | 262,144 bytes | Larger than source input; exact c1 emitted-C size still needs a successful c1-scale emit |
+| `main.etl` stdin buffer | 64 bytes | 131,072 bytes | Must cover the full concatenated source before c1 can read itself |
+
+The next low-risk chunk is the 5f self-compile smoke: concatenate the c1
+source, feed it to the c0-built c1 binary, capture emitted C, and compile that
+C as a c2 candidate. This should become the durable way to expose the next
+remaining blocker.
 
 ## The self-compilation chain
 
@@ -143,7 +183,7 @@ for each fixture in tests/c1_corpus/:
   verify: exit code matches c0-compiled version
 ```
 
-This partially works today (16 fixtures pass via `make selfhost-equiv`). The
+This partially works today (26 fixtures pass via `make selfhost-equiv`). The
 5f milestone extends this to a broader corpus that exercises the full v0
 feature set including structs, arrays, strings, and multi-function programs.
 
@@ -180,7 +220,7 @@ Fixed point requires:
 
 | Gate | Command | What it proves |
 |---|---|---|
-| Existing equiv | `make selfhost-equiv` | 16 corpus fixtures: c0 and c1 produce same exit code |
+| Existing equiv | `make selfhost-equiv` | 26 corpus fixtures: c0 and c1 produce same exit code |
 | Expanded corpus | New equiv with structs/arrays/strings | c1 handles full v0 feature set |
 | C text diff | `diff <(c0_emit fixture.etl) <(c1_emit fixture.etl)` | Normalized C text equivalence (per ROADMAP standing decision) |
 | Self-compile attempt | `c1 < compiler1_all.etl > c1_self.c` | c1 can process its own source without crashing |
@@ -214,12 +254,17 @@ At fixed point, the following artifacts should be recorded:
 
 These are ordered by dependency; earlier items unblock later ones.
 
-1. **Multi-function emission**: c1 must emit named functions with arbitrary
-   names, not just `main`. This is the single largest blocker. Every c1
-   source file is a collection of named functions.
+1. **Broader multi-function emission**: c1 now emits named functions for the
+   current `i32` corpus, including recursive calls. Self-compilation still
+   needs that path to compose with arrays, structs, byte buffers, typed
+   externs, and larger c1 source buffers across ~60+ named functions.
 
-2. **Function parameters**: c1 must emit function parameters with types.
-   The current `emit_c_function` requires `ast[params].b == 0` (zero params).
+2. **Function parameters beyond `i32`**: c1 now emits user-defined `i32`,
+   scalar `bool`/`i8`/`byte`, narrow fixed byte/i8 array, and narrow by-value
+   struct parameters. Extern scalar `bool`/`i8`/`byte` parameter emission is
+   now proven (9c71068). Self-compilation still needs the remaining parameter
+   shapes, especially full struct/array/buffer composition and extern typed
+   parameters beyond scalar bool/i8/byte.
 
 3. **Typed local emission**: c1 must emit `int32_t`, `int8_t`, `bool`, and
    struct-typed locals instead of always emitting `int`.
@@ -242,9 +287,9 @@ These are ordered by dependency; earlier items unblock later ones.
 9. **Extern fn typed params**: c1 must emit correct C types for extern
    function parameters (not all `int`).
 
-10. **Buffer expansion**: The c1 harness buffers (`source i8[256]`,
-    `tokens Token[128]`, `out i8[1024]`) must be expanded to handle the
-    full concatenated c1 source (~15KB+ source, ~500+ tokens, ~20KB+ output).
+10. **Buffer expansion**: The c1 C-backend path has been expanded to handle
+    c1-scale source, token, AST, and C output buffers. The next validation is
+    an actual self-compile attempt that records the first remaining blocker.
 
 ### Before Phase 5g can start
 
@@ -267,16 +312,17 @@ features c1 will need for self-compilation. No compiler changes.
 See `docs/c1-corpus-expansion-plan.md` for the full fixture catalog with
 acceptance criteria, tier ordering, and blocker mapping. Summary:
 
-- Tier 1 (4 fixtures): multi-function, parameters, recursive calls
+- Tier 1 (4 fixtures): multi-function, `i32` parameters, recursive calls
 - Tier 2 (3 fixtures): `bool` locals, `i8` locals
 - Tier 3 (3 fixtures): array locals, index expressions, variable subscripts
 - Tier 4 (3 fixtures): struct declarations, field access, struct arrays
 - Tier 5 (2 fixtures): string-initialized `i8[]` locals
 - Tier 6 (1 fixture): typed extern function parameters
 
-Each fixture has an expected exit code. These fixtures will
-initially fail c1 equiv (because c1 cannot emit them yet) but serve as the
-target set for the emitter expansion chunks.
+Each fixture has an expected exit code. Tier 1, Tier 2 typed locals, plus the
+early `local_array_sum`, `local_array_loop`, and `local_i8_array` Tier 3
+fixtures are now included in the default c1 equiv gate and pass; later tiers
+should be added to the smoke array as their matching emitter support lands.
 
 **Prerequisite**: None (documentation/test-only).
 **Estimated waves**: 1–2.
@@ -288,10 +334,12 @@ arbitrary names instead of hardcoding `main`. This is a compiler change, but
 it must not break existing c1 equiv results.
 
 - `emit_c_function` reads the function name token and emits it.
-- All existing 16 corpus fixtures continue to pass.
-- The `multi_fn.etl` corpus fixture (from 5f-CORPUS) now passes equiv.
+- All existing 26 corpus fixtures continue to pass.
+- Tier 1 multi-function fixtures remain green.
 
-**Prerequisite**: 5f-CORPUS (for new test fixtures).
+**Status**: Basic `i32` multi-function emission landed in 6ab989e.
+**Prerequisite**: Broader type coverage before this can be considered complete
+for self-compilation.
 **Estimated waves**: 2–3.
 
 ### Chunk 5f-PARAMS: Function parameter emission
@@ -300,20 +348,24 @@ it must not break existing c1 equiv results.
 parameters. Remove the `ast[params].b != 0` guard.
 
 - Parameters are emitted with their C types (`int32_t`, `int8_t`, etc.).
-- All existing corpus passes.
-- `fn_params.etl` now passes equiv.
+- All existing 26 corpus fixtures continue to pass.
+- Tier 1 parameter fixtures remain green.
 
-**Prerequisite**: 5f-MULTIFN.
+**Status**: Basic user-defined `i32` parameter emission landed in 6ab989e.
+**Prerequisite**: Broader type coverage before this can be considered complete
+for self-compilation.
 **Estimated waves**: 2–3.
 
 ### Chunk 5f-TYPES: Typed local and extern parameter emission
+
+**Status**: Scalar typed local emission (`bool` → `bool`, `i8` → `int8_t`) landed; Tier 2 fixtures (`local_bool`, `local_bool_expr`, `local_i8`) pass in the default c1 equiv gate. Extern parameter type emission beyond scalar bool/i8/byte remains.
 
 **Scope**: Emit correct C types for locals and extern parameters.
 
 - `emit_c_let` maps ETL types to C types: `i32` → `int32_t`, `i8` → `int8_t`,
   `bool` → `bool`, `ptr` → `int8_t*`.
 - `emit_c_extern_param_list` uses actual parameter types instead of `int`.
-- `local_bool.etl` and typed-extern fixtures now pass.
+- `local_bool.etl`, `local_bool_expr.etl`, and `local_i8.etl` now pass.
 
 **Prerequisite**: 5f-PARAMS.
 **Estimated waves**: 2–3.
@@ -353,12 +405,16 @@ parameters. Remove the `ast[params].b != 0` guard.
 
 ### Chunk 5f-BUFFERS: Expand harness buffer sizes
 
+**Status**: Landed in `afk/70b1d60e/capacity-migration-codex` and merged at
+`60afeb1`; `make check` passed after merge.
+
 **Scope**: Increase buffer sizes in the equiv smoke harness to handle
 c1-scale programs.
 
-- `source i8[256]` → `source i8[16384]` (16KB).
-- `tokens Token[128]` → `tokens Token[1024]`.
-- `out i8[1024]` → `out i8[32768]` (32KB).
+- `source i8[256]` → `source i8[131072]`.
+- `tokens Token[128]` → `tokens Token[32768]`.
+- `AstNode[512]` → `AstNode[32768]`.
+- `out i8[1024]` → `out i8[262144]`.
 - Adjust `emit_c` internal buffers proportionally.
 
 **Prerequisite**: 5f-STRINGS.
@@ -405,7 +461,7 @@ c1-scale programs.
 ## Ordering dependency graph
 
 ```
-5f-CORPUS ──→ 5f-MULTIFN ──→ 5f-PARAMS ──→ 5f-TYPES ──→ 5f-ARRAYS
+5f-CORPUS ──→ 5f-MULTIFN/PARAMS (basic i32 done) ──→ 5f-TYPES ──→ 5f-ARRAYS
                  │                                            │
                  │                                            ▼
                  │                                      5f-STRUCTS ──→ 5f-STRINGS

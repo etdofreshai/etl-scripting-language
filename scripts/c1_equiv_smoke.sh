@@ -22,13 +22,43 @@ fixtures=(
   if_logical_or.etl
   if_logical_not.etl
   full_word_aliases.etl
+  multi_fn_basic.etl
+  multi_fn_chain.etl
+  fn_params_two.etl
+  fn_recursive.etl
+  local_bool.etl
+  local_bool_expr.etl
+  local_i8.etl
+  local_array_sum.etl
+  local_array_loop.etl
+  local_i8_array.etl
+  struct_decl.etl
+  field_access_fn.etl
+  struct_array.etl
+  string_local.etl
+  string_multi.etl
+  extern_typed_write.etl
+  i32_array_param.etl
+)
+
+declare -A expected_exits=(
+  [local_bool.etl]=1
+  [local_bool_expr.etl]=99
+  [local_i8.etl]=65
+  [local_i8_array.etl]=72
+  [struct_decl.etl]=7
+  [field_access_fn.etl]=42
+  [struct_array.etl]=200
+  [string_local.etl]=104
+  [string_multi.etl]=98
+  [extern_typed_write.etl]=0
 )
 
 pass=0
 fail=0
 
 escape_for_etl_string() {
-  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr -d '\n'
+  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr '\n' ' '
 }
 
 build_c1_harness() {
@@ -38,7 +68,7 @@ build_c1_harness() {
   local source_text
   local source_len
   source_text="$(escape_for_etl_string "$src_file")"
-  source_len="$(printf "%s" "$source_text" | wc -c)"
+  source_len="$(tr '\n' ' ' < "$src_file" | wc -c)"
 
   sed '/^fn main()/,$d' compiler1/main.etl > "$harness"
   cat compiler1/lex.etl >> "$harness"
@@ -46,25 +76,25 @@ build_c1_harness() {
   cat compiler1/sema.etl >> "$harness"
   cat compiler1/emit_c.etl >> "$harness"
   cat >> "$harness" <<EOF_HARNESS
-extern fn etl_write_file1024(path i8[64], buf i8[1024], len i32) i32
+extern fn etl_write_file1024(path i8[64], buf i8[262144], len i32) i32
 
 fn main() i32
-  let source i8[256] = "$source_text"
-  let tokens Token[128]
-  let ast AstNode[512]
-  let out i8[1024]
-  let n i32 = lex(source, $source_len, tokens, 128)
+  let source i8[131072] = "$source_text"
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let out i8[262144]
+  let n i32 = lex(source, $source_len, tokens, 32768)
   if n < 0
     ret 1
   end
-  let an i32 = parse(tokens, n, ast, 512)
+  let an i32 = parse(tokens, n, ast, 32768)
   if an < 0
     ret 2
   end
   if sema(source, tokens, ast, an) < 0
     ret 3
   end
-  let emitted i32 = emit_c(source, tokens, ast, an, out, 1024)
+  let emitted i32 = emit_c(source, tokens, ast, an, out, 262144)
   if emitted < 0
     ret 4
   end
@@ -103,7 +133,7 @@ for fixture in "${fixtures[@]}"; do
   fi
 
   python3 -m compiler0 compile "$src" -o "$c0_c"
-  cc -std=c11 -Wall -Werror "$c0_c" -o "$c0_exe"
+  cc -std=c11 -Wall -Werror "$c0_c" runtime/etl_runtime.c -I runtime -o "$c0_exe"
 
   build_c1_harness "$src" "$c1_c" "$c1_harness"
   scripts/build_etl.sh "$c1_harness" "$c1_harness_exe"
@@ -113,11 +143,34 @@ for fixture in "${fixtures[@]}"; do
     fail=$((fail + 1))
     continue
   fi
-  cc -std=c11 -Wall -Werror "$c1_c" -o "$c1_exe"
+  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c -I runtime -o "$c1_exe"
 
+  rm -f /tmp/etl_c1_extern_typed_write.txt
   c0_status="$(run_program "$c0_exe")"
+  if [ "$fixture" = "extern_typed_write.etl" ]; then
+    if [ "$(cat /tmp/etl_c1_extern_typed_write.txt 2>/dev/null || true)" != "ok" ]; then
+      echo "c1_equiv_smoke: FAIL $fixture c0 did not write expected file content" >&2
+      fail=$((fail + 1))
+      continue
+    fi
+    rm -f /tmp/etl_c1_extern_typed_write.txt
+  fi
   c1_status="$(run_program "$c1_exe")"
-  if [ "$c0_status" = "$c1_status" ]; then
+  if [ "$fixture" = "extern_typed_write.etl" ]; then
+    if [ "$(cat /tmp/etl_c1_extern_typed_write.txt 2>/dev/null || true)" != "ok" ]; then
+      echo "c1_equiv_smoke: FAIL $fixture c1 did not write expected file content" >&2
+      fail=$((fail + 1))
+      continue
+    fi
+    rm -f /tmp/etl_c1_extern_typed_write.txt
+  fi
+  if [ -n "${expected_exits[$fixture]+x}" ] && [ "$c0_status" != "${expected_exits[$fixture]}" ]; then
+    echo "c1_equiv_smoke: FAIL $fixture c0=$c0_status expected=${expected_exits[$fixture]}" >&2
+    fail=$((fail + 1))
+  elif [ -n "${expected_exits[$fixture]+x}" ] && [ "$c1_status" != "${expected_exits[$fixture]}" ]; then
+    echo "c1_equiv_smoke: FAIL $fixture c1=$c1_status expected=${expected_exits[$fixture]}" >&2
+    fail=$((fail + 1))
+  elif [ "$c0_status" = "$c1_status" ]; then
     echo "c1_equiv_smoke: PASS $fixture (exit $c0_status)"
     pass=$((pass + 1))
   else

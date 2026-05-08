@@ -1,0 +1,31 @@
+fn main() i32
+  let stdin_path i8[64] = "/dev/stdin"
+  let source i8[131072]
+  let n_read i32 = etl_read_file(stdin_path, source, 131072)
+  if n_read < 0
+    ret 10
+  end
+  let tokens Token[32768]
+  let ast AstNode[32768]
+  let out i8[262144]
+  let n_tok i32 = lex(source, n_read, tokens, 32768)
+  if n_tok < 0
+    ret 11
+  end
+  let an i32 = parse(tokens, n_tok, ast, 32768)
+  if an < 0
+    ret 12
+  end
+  if sema(source, tokens, ast, an) < 0
+    ret 13
+  end
+  let n_out i32 = emit_c(source, tokens, ast, an, out, 262144)
+  if n_out < 0
+    ret 14
+  end
+  let stdout_path i8[64] = "/dev/stdout"
+  if etl_write_file(stdout_path, out, n_out) < 0
+    ret 15
+  end
+  ret 0
+end

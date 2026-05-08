@@ -8,6 +8,8 @@ __pycache__/
 .pytest_cache/
 target/
 build/
+runtime/test_runtime
+runtime/test_vm
 dist/
 *.o
 *.exe

@@ -1,0 +1,1 @@
+fn main() i32 let text i8[2] = "A" let ch i8 = text[0] ret ch end

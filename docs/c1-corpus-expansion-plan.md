@@ -5,24 +5,26 @@ fixtures and smoke tests. Each fixture has a concrete acceptance criterion.
 Fixture order mirrors the dependency chain in `docs/fixed-point-plan.md` chunk
 sequence (5f-CORPUS through 5f-STRINGS).
 
-## Current corpus (16 fixtures, all passing)
+## Current corpus (31 fixtures, all passing)
 
-The existing corpus exercises single-function programs with `i32` locals,
-integer arithmetic, comparisons, logical operators, `if`/`elif`/`else`,
-`while`, assignment, `return`, and extern/user function calls with arguments.
-See `scripts/c1_equiv_smoke.sh` for the full list.
+The existing corpus exercises single-function and multi-function programs
+with `i32` locals, integer arithmetic, comparisons, logical operators,
+`if`/`elif`/`else`, `while`, assignment, `return`, recursive user-defined
+calls, user-defined calls with `i32` arguments, and local fixed `i32` array
+sum/loop indexing plus `i8` array indexing. See `scripts/c1_equiv_smoke.sh`
+for the full list.
 
-All 16 produce matching exit codes when compiled by c0 vs c1.
+All 31 produce matching exit codes when compiled by c0 vs c1.
 
-## What the current corpus does NOT cover
+## Fixed-point blocker coverage map
 
 The 10 self-compilation blockers from `fixed-point-plan.md` and which fixture
 category addresses each:
 
 | Blocker | Addressed by fixture tier |
 |---|---|
-| Multi-function emission | Tier 1: `multi_fn_*` |
-| Function parameters | Tier 1: `fn_params_*` |
+| Multi-function emission | Tier 1: `multi_fn_*` (in default gate) |
+| Function parameters | Tier 1: `fn_params_*` for `i32` params (in default gate) |
 | Typed locals (not just int) | Tier 2: `local_bool_*`, `local_i8_*` |
 | Array locals | Tier 3: `local_array_*` |
 | Struct declarations | Tier 4: `struct_decl_*` |
@@ -38,6 +40,11 @@ category addresses each:
 
 These fixtures test the two largest blockers. They use only `i32` types so
 no type-mapping changes are required.
+
+> **Status (2026-05-01):** Tier 1 fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. The `multi_fn_chain.etl` helper is named `twice` because `double` is
+> reserved by the compiler-0 C backend.
 
 #### `multi_fn_basic.etl`
 
@@ -57,7 +64,7 @@ other than `main` and a call to it.
 #### `multi_fn_chain.etl`
 
 ```etl
-fn double(x i32) i32
+fn twice(x i32) i32
   ret x * 2
 end
 
@@ -66,7 +73,7 @@ fn add_one(x i32) i32
 end
 
 fn main() i32
-  let v i32 = double(5)
+  let v i32 = twice(5)
   ret add_one(v)
 end
 ```
@@ -108,12 +115,20 @@ end
 function calls work through c1's emitter.
 
 **Unlocks**: 5f-MULTIFN and 5f-PARAMS chunks in fixed-point-plan.
+Basic `i32` multi-function and parameter coverage has landed; remaining
+self-compilation work is broader typed parameters and composition with arrays,
+structs, and byte buffers.
 
 ---
 
 ### Tier 2: Typed locals (bool, i8)
 
 These require the 5f-TYPES emitter change (mapping ETL types to C types).
+
+> **Status (2026-05-02):** Tier 2 typed-local fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass with scalar `bool` and `i8` local declarations emitted as C
+> `bool` and `signed char`.
 
 #### `local_bool.etl`
 
@@ -151,12 +166,15 @@ comparison results and drive control flow.
 
 ```etl
 fn main() i32
-  let ch i8 = 65
+  let text i8[2] = "A"
+  let ch i8 = text[0]
   ret ch
 end
 ```
 
 **Acceptance**: c0 exit 65, c1 exit 65. Proves c1 emits `int8_t` locals.
+The fixture initializes the scalar from an `i8` buffer because c0 currently
+rejects assigning an uncast integer literal directly into an `i8` local.
 
 **Unlocks**: 5f-TYPES chunk.
 
@@ -177,8 +195,11 @@ expressions).
 > A narrow `i8` byte array indexed assignment smoke has also landed
 > (`scripts/c1_source_to_c_byte_array_assign_smoke.sh`, commit bd10575), proving
 > c1 can emit `int8_t values[N] = {0}` declarations with both constant-index and
-> variable-index assignment/readback for `i8` arrays. The fixtures below expand
-> coverage to larger arrays — which is not yet covered.
+> variable-index assignment/readback for `i8` arrays. A narrow user-defined
+> byte-array parameter smoke has also landed
+> (`scripts/c1_source_to_c_byte_array_param_smoke.sh`), proving local byte/i8
+> array buffers can be passed to a user-defined helper and indexed there. The
+> fixtures below expand coverage to larger arrays — which is not yet covered.
 
 #### `local_array_sum.etl`
 
@@ -199,6 +220,10 @@ reads and writes. The narrow `i32` constant-index smoke already covers the
 core mechanism (declare + write + read); this fixture extends to 4-element
 arrays with multi-read sum expressions.
 
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 100 via both c0 and c1).
+> Merged in commit fa3215d.
+
 #### `local_array_loop.etl`
 
 ```etl
@@ -218,20 +243,30 @@ subscripts inside loops. The narrow variable-index smoke (6df84e6) covers
 `arr[i]` reads and writes for a single local variable index; this fixture
 extends to 8-element arrays with loop-driven variable subscripts.
 
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 49 via both c0 and c1).
+> Merged in commit ec6a28d.
+
 #### `local_i8_array.etl`
 
 ```etl
 fn main() i32
+  let seed i8[3] = "Hi"
   let buf i8[8]
-  buf[0] = 72
-  buf[1] = 105
+  buf[0] = seed[0]
+  buf[1] = seed[1]
   ret buf[0]
 end
 ```
 
 **Acceptance**: c0 exit 72, c1 exit 72. Proves `int8_t buf[8] = {0};`
-declarations and i8 array indexing. Narrow `i8` byte array indexed assignment
-works (bd10575); this fixture extends to 8-element `i8` arrays.
+declarations and i8 array indexing. The fixture assigns from another `i8`
+array because c0 rejects assigning uncast `i32` literals into `i8` array
+slots. Narrow `i8` byte array indexed assignment works (bd10575); this fixture
+extends to 8-element `i8` arrays.
+
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 72 via both c0 and c1).
 
 **Unlocks**: 5f-ARRAYS chunk. The narrow `i32` constant-index, variable-index,
 and `i8` byte array smokes cover a subset; larger arrays still require the full
@@ -243,7 +278,12 @@ and `i8` byte array smokes cover a subset; larger arrays still require the full
 
 These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 
-> **Status (2026-05-01):** A narrow local integer struct field C smoke has landed
+> **Status (2026-05-02):** Tier 4 struct fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass with local struct declarations, struct field access in a
+> helper function, and struct array field access in compiler-1 C equivalence.
+>
+> A narrow local integer struct field C smoke has landed
 > (`scripts/c1_source_to_c_struct_field_smoke.sh`, commit 902b736). It proves c1
 > can emit `typedef struct { ... } Pair;` declarations, `Pair p;` struct locals,
 > integer field writes (`p.left = 19`), and integer field reads (`p.left + p.right`)
@@ -251,9 +291,12 @@ These require the 5f-STRUCTS emitter change (typedef struct and dot-access).
 > has also landed (`scripts/c1_source_to_c_struct_array_smoke.sh`, commit 6c54423),
 > proving c1 can emit local struct arrays (`Item items[2]`) with both constant-index
 > and variable-index field read/write (`items[0].value`, `items[i].value`).
-> The fixtures below expand coverage to struct parameters passed across function
-> boundaries and combined struct + array access patterns with larger arrays —
-> struct params and non-integer field types are not yet covered.
+> Narrow by-value struct parameters are now also covered by
+> `scripts/c1_source_to_c_struct_param_smoke.sh` (ec342d7), with sema restricted
+> to declared struct names by 6c3cf90. The fixtures below expand coverage to
+> repeated corpus-style struct parameter cases and combined struct + array access
+> patterns with larger arrays — struct returns and non-integer field types are
+> not yet covered.
 
 #### `struct_decl.etl`
 
@@ -279,26 +322,24 @@ adds a second distinct struct type as a regression guard.
 #### `field_access_fn.etl`
 
 ```etl
-struct Pair
-  first i32
-  second i32
-end
+type Pair structure first i32 second i32 end
 
-fn sum_pair(p Pair) i32
-  ret p.first + p.second
-end
-
-fn main() i32
+fn sum_pair() i32
   let v Pair
   v.first = 10
   v.second = 32
-  ret sum_pair(v)
+  ret v.first + v.second
+end
+
+fn main() i32
+  ret sum_pair()
 end
 ```
 
-**Acceptance**: c0 exit 42, c1 exit 42. Proves struct parameters and
-field access across function boundaries. **Not yet covered** — the existing
-smoke only tests local struct fields within `main`.
+**Acceptance**: c0 exit 42, c1 exit 42. Proves struct field access in a
+non-`main` function. The original struct-parameter form remains covered by the
+narrow c1 source-to-C smoke, but is not promoted here because c0 v0 rejects
+struct-typed parameters.
 
 #### `struct_array.etl`
 
@@ -323,8 +364,8 @@ Narrow struct array field read/write with constant and variable index works
 
 **Unlocks**: 5f-STRUCTS chunk. The narrow struct field and struct array smokes
 cover a subset (struct declarations + local i32 field read/write + local struct
-array indexed field access); struct parameters, non-integer field types, and
-larger struct arrays still require the full 5f-STRUCTS emitter work.
+array indexed field access + narrow by-value struct params); non-integer field
+types, struct returns, and corpus-gated struct parameters remain uncovered.
 
 ---
 
@@ -338,8 +379,13 @@ literals).
 > can emit `int8_t text[N]` declarations initialized from string literals and
 > constant-index reads (`text[0] + text[1] - text[2]`) for local `i8` arrays.
 > The fixtures below expand coverage to multi-read sum expressions and multiple
-> string-initialized locals coexisting — the multi-buffer coexistence test is
-> not yet covered.
+> string-initialized locals coexisting; the multi-buffer coexistence smoke now
+> covers the latter path.
+>
+> **Status (2026-05-02):** Tier 5 local string fixtures are checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. They pass for a longer local string literal and for multiple
+> string-initialized local byte buffers.
 
 #### `string_local.etl`
 
@@ -356,24 +402,35 @@ string smoke already covers the core mechanism (local `i8[N]="..."` declaration
 + constant-index read); this fixture extends to a 12-byte buffer with a longer
 string literal.
 
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 104 via both c0 and c1).
+
 #### `string_multi.etl`
 
 ```etl
 fn main() i32
   let a i8[4] = "abc"
   let b i8[4] = "xyz"
+  if b[0] != 120
+    ret 1
+  end
   ret a[1]
 end
 ```
 
 **Acceptance**: c0 exit 98 (ASCII 'b'), c1 exit 98. Proves multiple
-string-initialized locals coexist without buffer corruption. **Not yet covered**
-— the existing smoke tests only a single string-initialized local.
+string-initialized locals coexist without buffer corruption. The `b[0]` guard
+also keeps c0's `-Werror` C compile from rejecting an intentionally unused
+buffer. Now covered by `scripts/c1_source_to_c_byte_string_multi_buffer_smoke.sh`.
+
+> **Status (2026-05-02):** Now included in the default
+> `scripts/c1_equiv_smoke.sh` gate and passing (exit 98 via both c0 and c1).
 
 **Unlocks**: 5f-STRINGS chunk. The narrow local byte string smoke covers a
 subset (single `i8[N]="..."` local with constant-index reads); multiple string
-locals, variable-index string reads, and extern parameter string buffers still
-require the full 5f-STRINGS emitter work.
+locals are now proven by the multi-buffer smoke; variable-index string reads are
+proven by the var-index smoke; extern parameter string buffers still require the
+full 5f-STRINGS emitter work.
 
 ---
 
@@ -385,8 +442,17 @@ These require the extern parameter type emission part of 5f-TYPES.
 > landed (`scripts/c1_source_to_c_byte_string_extern_smoke.sh`, commit 8d72ca2).
 > It proves c1 can emit `signed char *` for fixed byte/i8 array extern parameters,
 > allowing local byte string buffers to be passed to an extern C helper. The
-> fixture below expands coverage to user-defined byte-array parameters and
-> non-byte-array extern param types — those are not yet covered.
+> user-defined byte-array parameters are now covered by
+> `scripts/c1_source_to_c_byte_array_param_smoke.sh`; the fixture below expands
+> coverage to c1-scale extern typed parameters and non-scalar extern param
+> types — extern scalar `bool`/`i8`/`byte` parameter emission is now proven by
+> `scripts/c1_extern_scalar_param_smoke.sh` (9c71068); non-scalar extern param
+> types remain uncovered.
+>
+> **Status (2026-05-03):** `extern_typed_write.etl` is checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. It passes with c0 and c1 both writing the expected `ok` payload through
+> the runtime `etl_write_file` extern.
 
 #### `extern_typed_write.etl`
 
@@ -394,7 +460,7 @@ These require the extern parameter type emission part of 5f-TYPES.
 extern fn etl_write_file(path i8[64], buf i8[1024], len i32) i32
 
 fn main() i32
-  let path i8[64] = "out.txt"
+  let path i8[64] = "/tmp/etl_c1_extern_typed_write.txt"
   let buf i8[1024] = "ok"
   let rc i32 = etl_write_file(path, buf, 2)
   if rc < 0
@@ -404,7 +470,7 @@ fn main() i32
 end
 ```
 
-**Acceptance**: c0 exit 0, c1 exit 0 (and `out.txt` contains "ok"). Proves
+**Acceptance**: c0 exit 0, c1 exit 0 (and the output file contains "ok"). Proves
 extern function declarations emit typed parameters (`int8_t*`, `int32_t`)
 instead of all-`int`.
 
@@ -416,8 +482,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 16 fixtures, all single-function i32 | 16 + up to 19 new fixtures across all tiers |
-| `make selfhost` | c1 pipeline + 16-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 32 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, Tier 4 structs, Tier 5 local strings, and Tier 6 typed extern write | Expanded as later fixed-point blockers require |
+| `make selfhost` | c1 pipeline + 32-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in
@@ -448,10 +514,11 @@ implemented.
 
 | Category | Count | Running total |
 |---|---|---|
-| Existing corpus | 16 | 16 |
+| Existing pre-Tier-1 corpus | 16 | 16 |
 | Tier 1: Multi-function and parameters | 4 | 20 |
-| Tier 2: Typed locals | 3 | 23 |
-| Tier 3: Arrays and indexing | 3 | 26 |
+| Tier 3: `local_array_sum` + `local_array_loop` + `local_i8_array` (early) | 3 | 23 |
+| Tier 2: Typed locals | 3 | 26 |
+| Tier 3: Remaining array indexing | 0 | 26 |
 | Tier 4: Structs and fields | 3 | 29 |
 | Tier 5: String literals | 2 | 31 |
 | Tier 6: Typed extern | 1 | 32 |
