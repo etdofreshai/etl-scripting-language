@@ -256,6 +256,36 @@ fn emit_bytecode_emit_jump_false(out i8[1024], pos i32, out_cap i32, label i32) 
   ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
 end
 
+fn emit_bytecode_token_is_etl_alloc(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etl_alloc"
+  if tokens[tok].len != 9
+    ret false
+  end
+  let i i32 = 0
+  while i < 9
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_etl_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etl_free"
+  if tokens[tok].len != 8
+    ret false
+  end
+  let i i32 = 0
+  while i < 8
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
 fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], node i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
   if node < 0
     ret EMIT_ERR_BAD_AST()
@@ -284,6 +314,14 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
     let pcall i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[node].b, out, pos, out_cap, scope)
     if pcall < 0
       ret pcall
+    end
+    if emit_bytecode_token_is_etl_alloc(source, tokens, ast[node].a)
+      let ha_op i8[64] = "HA;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, ha_op, 3)
+    end
+    if emit_bytecode_token_is_etl_free(source, tokens, ast[node].a)
+      let hf_op i8[64] = "HF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hf_op, 3)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall, out_cap, ast[node].a)
   end
@@ -559,6 +597,24 @@ fn emit_bytecode_emit_stmt(source i8[131072], tokens Token[32768], ast AstNode[3
       ret p6
     end
     ret emit_bytecode_emit_label(out, p6, out_cap, end_label3)
+  end
+  if kind == AN_EXPR_STMT()
+    let inner i32 = ast[stmt].a
+    if inner < 0
+      ret EMIT_ERR_BAD_AST()
+    end
+    if ast[inner].kind != AN_CALL()
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    let pcall2 i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[inner].b, out, pos, out_cap, scope)
+    if pcall2 < 0
+      ret pcall2
+    end
+    if emit_bytecode_token_is_etl_free(source, tokens, ast[inner].a)
+      let hf_op2 i8[64] = "HF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hf_op2, 3)
+    end
+    ret emit_bytecode_emit_call_op(source, tokens, out, pcall2, out_cap, ast[inner].a)
   end
   ret EMIT_ERR_UNSUPPORTED()
 end

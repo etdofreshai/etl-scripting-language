@@ -1,4 +1,5 @@
 #include "etl_vm.h"
+#include <stdlib.h>
 
 /*
  * ETL VM bootstrap interpreter (temporary C implementation).
@@ -37,6 +38,7 @@
 #define ETL_VM_NAME_MAX 32
 #define ETL_VM_FRAME_MAX 32
 #define ETL_VM_STEP_MAX 100000
+#define ETL_VM_ALLOC_MAX 64
 
 typedef struct {
     int8_t name[ETL_VM_NAME_MAX];
@@ -246,6 +248,9 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
         locals[li] = 0;
     }
     int32_t sp = 0;
+    void *etl_alloc_table[ETL_VM_ALLOC_MAX];
+    int32_t etl_alloc_count = 0;
+    for (int32_t ai = 0; ai < ETL_VM_ALLOC_MAX; ai = ai + 1) { etl_alloc_table[ai] = 0; }
     int32_t i = 6;
     int32_t func_count = 0;
     int32_t parsed_funcs = etl_vm_parse_functions(bytecode, len, &i, funcs, &func_count);
@@ -470,8 +475,42 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                 if (sp != 0) {
                     return -13;
                 }
+                for (int32_t ci = 0; ci < etl_alloc_count; ci = ci + 1) {
+                    if (etl_alloc_table[ci] != 0) { free(etl_alloc_table[ci]); etl_alloc_table[ci] = 0; }
+                }
                 *result = value;
                 return 0;
+            }
+        } else if (op == 'H') {
+            if (i >= len) { return -5; }
+            int8_t sub = bytecode[i];
+            i = i + 1;
+            if (i >= len || bytecode[i] != ';') { return -5; }
+            i = i + 1;
+            if (sub == 'A') {
+                int32_t sz = 0;
+                int32_t popped = etl_vm_pop_i32(stack, &sp, &sz);
+                if (popped < 0) { return popped; }
+                int32_t handle = 0;
+                if (sz > 0) {
+                    if (etl_alloc_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    void *ptr = calloc((size_t)sz, 1);
+                    etl_alloc_table[etl_alloc_count] = ptr;
+                    handle = etl_alloc_count + 1;
+                    etl_alloc_count = etl_alloc_count + 1;
+                }
+                int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                if (pushed < 0) { return pushed; }
+            } else if (sub == 'F') {
+                int32_t handle = 0;
+                int32_t popped = etl_vm_pop_i32(stack, &sp, &handle);
+                if (popped < 0) { return popped; }
+                if (handle > 0 && handle <= etl_alloc_count) {
+                    free(etl_alloc_table[handle - 1]);
+                    etl_alloc_table[handle - 1] = 0;
+                }
+            } else {
+                return -5;
             }
         } else {
             return -5;
