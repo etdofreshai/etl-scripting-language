@@ -61,9 +61,11 @@ static int write_all(int fd, const int8_t *buf, int32_t len) {
 }
 
 /*
- * LIMITATION: cannot be called more than once per process.
- * The subprocess bytecode driver reads /dev/stdin which becomes unreadable
- * after the first call.  Tracked for future fix.
+ * etl_compile_module: compiles ETL source to bytecode via the bytecode driver
+ * subprocess.  Uses mkstemp temp files for source and bytecode; both are
+ * unlinked before return.  May be called multiple times within a single
+ * process — the once-per-process limit noted in earlier drafts was stale
+ * (it assumed /dev/stdin piping; the implementation uses temp files).
  */
 int32_t etl_compile_module(const int8_t *source,
                            int32_t source_len,
