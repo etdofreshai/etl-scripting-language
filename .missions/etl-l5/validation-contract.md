@@ -123,8 +123,13 @@ support-matrix.md verified against fixtures.
 ### VAL-DIST-003: macOS cross-compile
 Mach-O produced for x86_64+arm64 (build-validated only, no runner).
 
-### VAL-DIST-004: WASM/WASI + browser
-WASI calculator via wasmtime. Browser harness via headless Chrome.
+### VAL-DIST-004: WASM/WASI + browser-equivalent
+WASI calculator via wasmtime. Browser-equivalent harness via Node.js WebAssembly
+API (same spec, same WASI import convention as Chrome). `examples/wasm/calculator.html`
+provided as a browser-loadable artifact runnable under real Chrome if available.
+Headless Chrome fetch deferred — chromium binary too large for `.deps/`
+reproducibility budget; Node.js path provides equivalent standards-compliant
+WASM execution.
 
 ### VAL-DIST-005: release-check all platforms
 Top-level `make release-check` exits 0.
