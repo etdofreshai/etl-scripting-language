@@ -743,7 +743,7 @@ Milestone M1 adds four opaque runtime types (`ptr`, `str`, `dynarr`, `etlval`) t
 
 **`str_new` VM limitation.** The VM cannot dereference arbitrary host pointers, so `str_new` in the VM backend ignores its `ptr` input and creates an empty string. Programs that need meaningful string content in the VM must use `str_concat` or other operations to build content incrementally. The C backend does not have this limitation because it emits a direct C call with the host pointer.
 
-**Bytecode buffer size.** The VM bytecode buffer is fixed at 1024 bytes. This limits how complex a single ETL function can be in the VM backend. The etlval `str` variant fixture and multi-function opaque-type programs exceed this limit at the VM level (though the C backend handles them correctly). The 1024-byte limit is tracked as tech debt and will need expansion before VM-in-ETL (M2).
+**Bytecode buffer size (v0 cap: 64 KB).** The bytecode emission buffer was raised from 1024 bytes to 65536 bytes (64 KB static) in F2.0. All emit_bytecode function signatures, bytecode_driver.etl, test harnesses, and VM smoke scripts were updated consistently. The 64 KB cap is the v0 limit; dynamic allocation can be introduced in a future milestone if needed (e.g., for a VM-in-ETL program larger than 64 KB). The fixture tests/c1_corpus/large_bytecode.etl confirms emission above 1024 bytes via both C and VM backends.
 
 **Compiler-0 not extended.** Compiler-0 (Python) was not extended to support `str`, `dynarr`, or `etlval`. These types are compiler-1-only capabilities. Equivalence smokes for M1 types compare c1/C vs c1/VM, not c0/C vs c1/C. This is an intentional scope boundary: compiler-0 is frozen as the historical bootstrap, and new features belong in compiler-1.
 
