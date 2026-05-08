@@ -39,6 +39,7 @@ fixtures=(
   string_multi.etl
   extern_typed_write.etl
   i32_array_param.etl
+  heap_alloc_basic.etl
 )
 
 declare -A expected_exits=(
