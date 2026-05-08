@@ -16,7 +16,7 @@ fn main() i32
     ret 2
   end
   let emitted i32 = emit_c(source, tokens, ast, an, out, 262144)
-  if emitted != 134
+  if emitted != 158
     ret 3
   end
   if not check_byte(out, 0, 35)
@@ -31,47 +31,47 @@ fn main() i32
   if not check_byte(out, 20, 10)
     ret 7
   end
-  if not check_byte(out, 82, 41)
+  if not check_byte(out, 106, 41)
     ret 8
   end
-  if not check_byte(out, 83, 59)
+  if not check_byte(out, 107, 59)
     ret 9
   end
-  if not check_byte(out, 84, 10)
+  if not check_byte(out, 108, 10)
     ret 10
   end
-  if not check_byte(out, 85, 105)
+  if not check_byte(out, 109, 105)
     ret 11
   end
-  if not check_byte(out, 100, 123)
+  if not check_byte(out, 124, 123)
     ret 12
   end
-  if not check_byte(out, 111, 40)
+  if not check_byte(out, 135, 40)
     ret 13
   end
-  if not check_byte(out, 114, 43)
+  if not check_byte(out, 138, 43)
     ret 14
   end
-  if not check_byte(out, 116, 40)
+  if not check_byte(out, 140, 40)
     ret 15
   end
-  if not check_byte(out, 119, 42)
+  if not check_byte(out, 143, 42)
     ret 16
   end
-  if not check_byte(out, 121, 40)
+  if not check_byte(out, 145, 40)
     ret 17
   end
-  if not check_byte(out, 124, 45)
+  if not check_byte(out, 148, 45)
     ret 18
   end
-  if not check_byte(out, 130, 59)
+  if not check_byte(out, 154, 59)
     ret 19
   end
-  if not check_byte(out, 132, 125)
+  if not check_byte(out, 156, 125)
     ret 20
   end
-  if not check_byte(out, 133, 10)
+  if not check_byte(out, 157, 10)
     ret 21
   end
-  ret 134
+  ret 158
 end
