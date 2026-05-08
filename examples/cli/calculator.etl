@@ -1,5 +1,17 @@
-// Calculates the hardcoded expression (3 + 4) * 2 - 5 and returns 9.
+// Calculator REPL: reads arithmetic expressions from stdin line by line,
+// prints each result to stdout. Handles +, -, *, /, parentheses, and
+// integer constants. Prints an error message on malformed input and
+// continues. Exits 0 on EOF.
+
+extern fn etl_read_line(buf i8[256], cap i32) i32
+extern fn etl_calc_line(buf i8[256], len i32)
 
 fn main() i32
-  ret (3 + 4) * 2 - 5
+  let buf i8[256]
+  let n i32 = etl_read_line(buf, 256)
+  while n >= 0
+    etl_calc_line(buf, n)
+    n = etl_read_line(buf, 256)
+  end
+  ret 0
 end

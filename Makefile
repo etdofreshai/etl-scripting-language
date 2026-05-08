@@ -163,6 +163,7 @@ autopilot-help:
 
 examples-cli:
 	scripts/examples_cli_smoke.sh
+	scripts/cli_calculator_smoke.sh
 
 # Aggregate examples gate. Runs CLI examples, visual examples, and the
 # runtime-compile (VM) example end-to-end. Visual gracefully skips the
