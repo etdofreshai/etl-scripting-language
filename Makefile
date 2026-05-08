@@ -10,7 +10,7 @@ bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
 
 etl-vm-etl: bin/etl-vm-etl
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check etl-vm-etl
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless selfeval-all headless-ready autopilot-help examples-cli visual examples release-check etl-vm-etl vm-equivalence
 
 test:
 	python3 -m unittest discover -s tests
@@ -130,6 +130,10 @@ backend-vm:
 	scripts/c1_dynarr_equiv_smoke.sh
 	scripts/c1_tagged_union_equiv_smoke.sh
 	scripts/c1_etl_vm_smoke.sh
+
+
+vm-equivalence: bin/etl-vm-etl
+	scripts/vm_equivalence_smoke.sh
 
 headless-selfeval:
 	scripts/selfeval_smoke.sh
