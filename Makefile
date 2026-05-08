@@ -195,13 +195,18 @@ release-check-x86_64: release-tarball-x86_64
 release-check-wasm:
 	scripts/release_smoke_wasi.sh
 	scripts/release_smoke_wasm_browser.sh
-# Release-readiness gate. Aggregates check + selfhost + every backend
-# gate + examples + visual + x86_64 release tarball smoke. Fails if any
-# non-optional gate fails. The selfhost-selfcompile and selfhost-bootstrap
-# probes are NOT included here because they are designed to fail loudly
-# until the c1 emit_c expansion long-tail closes; their status lives in
+# Release-readiness gate. Orchestrates all M6 platform checks:
+#   release-check-x86_64    Linux x86_64 tarball + smoke
+#   release-check-aarch64   Linux aarch64 cross-compiled + qemu smoke
+#   release-check-macos     macOS x86_64+arm64 Mach-O build-validation
+#   release-check-wasm      WASI (wasmtime) + browser-equivalent (Node.js)
+# Also runs check + selfhost + every backend gate + examples.
+# Fails fast on any sub-target failure. Each sub-target remains independently
+# runnable. The selfhost-selfcompile and selfhost-bootstrap probes are NOT
+# included here because they are designed to fail loudly until the c1 emit_c
+# expansion long-tail closes; their status lives in
 # build/fixedpoint/{selfcompile,bootstrap}-status.md.
-release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples release-check-x86_64
+release-check: check selfhost backend-vm backend-subset backend-asm backend-wasm examples release-check-x86_64 release-check-aarch64 release-check-macos release-check-wasm
 
 # Build the Linux aarch64 release tarball via zig cc cross-compile.
 release-tarball-aarch64:

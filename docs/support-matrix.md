@@ -60,7 +60,8 @@ Column key for the grid below:
 | Linux aarch64 | aarch64 | BUILD + RUN (qemu) | `build/release/etl-linux-aarch64.tar.gz` | Cross-compiled via zig cc (musl); run under `.deps/qemu-aarch64-static`; gate: `make release-check-aarch64`. |
 | macOS x86_64 | x86_64 | BUILD-VALIDATED | `build/release/etl-macos-x86_64.tar.gz` | Mach-O cross-compiled via zig cc (`-target x86_64-macos`). No Apple SDK needed. Confirmed via `file`. Not executed (Linux host). Gate: `make release-check-macos`. |
 | macOS arm64 | arm64 | BUILD-VALIDATED | `build/release/etl-macos-arm64.tar.gz` | Mach-O cross-compiled via zig cc (`-target aarch64-macos`). No Apple SDK needed. Confirmed via `file`. Not executed (Linux host). Gate: `make release-check-macos`. |
-| WASM/WASI | wasm32 | BUILD + RUN (wasmtime) | WAT text + wasm binary | Via `.deps/wasmtime` + `.deps/wat2wasm`; gate: `make backend-wasm`. |
+| WASM/WASI | wasm32 | BUILD + RUN (wasmtime) | WAT text + wasm binary | Via `.deps/wasmtime` + `.deps/wat2wasm`; gate: `make release-check-wasm`. |
+| WASM/browser-equivalent | wasm32 | BUILD + RUN (Node.js WebAssembly API) | WAT text + wasm binary | Node.js WebAssembly harness exercises proc_exit trap path; gate: `make release-check-wasm`. Headless Chrome not yet implemented (gap). |
 
 **BUILD-VALIDATED**: Mach-O binary produced by zig cross-compile and confirmed via `file` output.
 No execution on the CI/Linux host. Requires a macOS host to verify runtime behavior.
@@ -91,7 +92,7 @@ Makefile gates:
 | `make examples-cli` | GREEN | 4-case CLI suite: hello, calculator, file_transform, config_rules. |
 | `make visual` | GREEN | tick_demo + software_pixel; SDL3 branch SKIPs cleanly when SDL3 absent. |
 | `make examples` | GREEN | examples-cli + visual + runtime-compile (VM) example. |
-| `make release-check` | GREEN | Aggregates check + selfhost + every backend gate + examples. |
+| `make release-check` | GREEN | Orchestrates all M6 platform checks: release-check-x86_64 (Linux x86_64), release-check-aarch64 (Linux aarch64/qemu), release-check-macos (macOS x86_64+arm64 Mach-O), release-check-wasm (WASI+browser-equiv). Also aggregates check + selfhost + every backend gate + examples. Exit 0 on dev workstation. |
 | `make headless-ready` | GREEN | Integration target wired through current readiness gates. |
 
 ## Optional dependencies
