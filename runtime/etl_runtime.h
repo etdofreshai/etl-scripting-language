@@ -35,4 +35,9 @@ int32_t etl_read_line(int8_t *buf, int32_t cap);
 int32_t etl_calc_eval(int8_t *buf, int32_t len);
 void etl_calc_line(int8_t *buf, int32_t len);
 
+void etl_toupper_buf(int8_t *buf, int32_t len);
+int32_t etl_argc(void);
+void etl_argv_get(int32_t i, int8_t *buf, int32_t cap);
+int32_t etl_argv_copy(int32_t i, int8_t *buf, int32_t cap);
+
 #endif

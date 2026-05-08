@@ -37,8 +37,8 @@ bin/etl check "$hello"
 run_expect "hello: bin/etl run $hello" 42 bin/etl run "$hello"
 run_expect "calculator: bin/etl run examples/cli/calculator.etl (EOF -> 0)" 0 \
   bash -c 'bin/etl run examples/cli/calculator.etl < /dev/null'
-run_expect "file_transform: echo -n hello | bin/etl run examples/cli/file_transform.etl" 5 \
-  bash -c 'printf %s hello | bin/etl run examples/cli/file_transform.etl'
+run_expect "file_transform: bin/etl run examples/cli/file_transform.etl <in> <out>" 0 \
+  bash -c 'tmp_out=$(mktemp); bin/etl run examples/cli/file_transform.etl examples/cli/file_transform.input "$tmp_out"; rc=$?; rm -f "$tmp_out"; exit $rc'
 run_expect "config_rules: bin/etl run examples/cli/config_rules.etl" 5 \
   bin/etl run examples/cli/config_rules.etl
 

@@ -1,13 +1,39 @@
-// Reads bytes from /dev/stdin into a fixed buffer and returns the byte count.
+// file_transform: reads input file, uppercases every byte, writes output file.
+// Usage: file_transform <input> <output>
+// Exits 0 on success, 1 on file error, 2 on wrong number of arguments.
+// Transformation chosen: uppercase (ASCII a-z -> A-Z, others pass through).
 
-extern fn etl_read_file(path i8[64], buf i8[64], cap i32) i32
+extern fn etl_argc() i32
+extern fn etl_argv_get(i i32, buf i8[256], cap i32)
+extern fn etl_read_file(path i8[256], buf i8[4096], cap i32) i32
+extern fn etl_write_file(path i8[256], buf i8[4096], len i32) i32
+extern fn etl_eprint(buf i8[256], len i32)
+extern fn etl_toupper_buf(buf i8[4096], len i32)
 
 fn main() i32
-  let path i8[64] = "/dev/stdin"
-  let buf i8[64]
-  let n i32 = etl_read_file(path, buf, 64)
+  let argc i32 = etl_argc()
+  if argc != 3
+    let msg i8[256] = "usage: file_transform <input> <output>\n"
+    etl_eprint(msg, 39)
+    ret 2
+  end
+  let in_path i8[256]
+  let out_path i8[256]
+  etl_argv_get(1, in_path, 256)
+  etl_argv_get(2, out_path, 256)
+  let buf i8[4096]
+  let n i32 = etl_read_file(in_path, buf, 4096)
   if n < 0
+    let err i8[256] = "error: cannot open input file\n"
+    etl_eprint(err, 30)
     ret 1
   end
-  ret n
+  etl_toupper_buf(buf, n)
+  let rc i32 = etl_write_file(out_path, buf, n)
+  if rc < 0
+    let err i8[256] = "error: cannot write output file\n"
+    etl_eprint(err, 32)
+    ret 1
+  end
+  ret 0
 end
