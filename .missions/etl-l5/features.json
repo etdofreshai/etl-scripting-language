@@ -1,0 +1,50 @@
+{
+  "mission": "etl-l5",
+  "features": [
+    {
+      "id": "F4.1",
+      "title": "Fetch SDL3",
+      "milestone": "M4",
+      "status": "done",
+      "valIds": ["VAL-SDL3-001"],
+      "description": "Add scripts/setup.sh fetch_sdl3() to download, build, and verify SDL3 release-3.4.8 into .deps/sdl3/. Idempotent; .deps/ gitignored.",
+      "verificationSteps": ["make check", "scripts/c1_equiv_smoke.sh", "make selfhost"]
+    },
+    {
+      "id": "F4.2",
+      "title": "Tick demo deterministic",
+      "milestone": "M4",
+      "status": "done",
+      "valIds": ["VAL-SDL3-002"],
+      "description": "examples/visual/tick_demo.etl: deterministic tick loop via software graphics backend; make visual target green.",
+      "verificationSteps": ["make check", "make visual"]
+    },
+    {
+      "id": "F4.3",
+      "title": "SDL3 visual sample with bouncing-rect golden frame",
+      "milestone": "M4",
+      "status": "done",
+      "valIds": ["VAL-SDL3-003"],
+      "description": "examples/visual/bouncing_rect.etl renders one frame via SDL3 offscreen backend; PPM golden committed; visual_smoke.sh detects SDL3 via .deps/sdl3/.",
+      "verificationSteps": ["make check", "make visual"]
+    },
+    {
+      "id": "F4.4",
+      "title": "Phase 6 complete — waves 6c (scripted input) + 6e (Life golden)",
+      "milestone": "M4",
+      "status": "done",
+      "valIds": ["VAL-SDL3-004"],
+      "description": "Completes Phase 6 visual runtime by landing wave 6e (Conway's Life golden PPM, blinker seed, 10 generations) and confirming wave 6c (deterministic scripted input runtime) is in tree. Wave 6d (deterministic audio runtime stub) is intentionally deferred — out of mission scope per non-goals (no broad runtime/ABI work beyond next narrow milestone). make check and make visual are both green.",
+      "verificationSteps": ["make check", "scripts/c1_equiv_smoke.sh", "scripts/life_golden_smoke.sh", "scripts/visual_smoke.sh", "make visual", "make examples", "make selfhost"]
+    },
+    {
+      "id": "F4.1.1",
+      "title": "Fix VAL-SDL3-004 wave numbering: 6c scripted input, 6d audio deferred",
+      "milestone": "M4.1",
+      "status": "done",
+      "valIds": ["VAL-SDL3-004"],
+      "description": "Docs-only correction. The original contract draft and F4.4 feature description incorrectly referenced '6d (scripted input)' — scripted input is wave 6c (completed in F0.1). Wave 6d is 'Deterministic audio runtime stub', intentionally deferred. Corrects validation-contract.md VAL-SDL3-004 and features.json F4.4 description.",
+      "verificationSteps": ["make check"]
+    }
+  ]
+}
