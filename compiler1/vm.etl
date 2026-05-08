@@ -2,7 +2,7 @@
 // Reads bytecode from stdin, executes it, exits with the i32 return value of main.
 //
 // Scope: integer arithmetic, comparisons, locals, branches, function calls,
-//        HA/HF heap-handle tracking, HS*/HD*/HV* stub ops (stack discipline only).
+//        HA/HF heap alloc via vm_bridge, HS*/HD*/HV* real runtime ops via vm_bridge.
 //
 // Limits mirror the C VM:
 //   stack depth:  64
@@ -16,6 +16,37 @@ extern fn etl_read_file(path i8[64], buf i8[65536], cap i32) i32
 extern fn etl_exit(code i32)
 extern fn etl_eprint(buf i8[64], len i32)
 extern fn etl_eprint_i32(value i32)
+
+// ── vm_bridge: handle-table trampolines (runtime/vm_bridge.c) ─────────────
+extern fn vm_bridge_reset()
+// raw heap
+extern fn vm_ha_alloc(sz i32) i32
+extern fn vm_ha_free(h i32)
+// strings
+extern fn vm_hs_new(ptr_handle i32) i32
+extern fn vm_hs_len(h i32) i32
+extern fn vm_hs_concat(ah i32, bh i32) i32
+extern fn vm_hs_at(sh i32, idx i32) i32
+extern fn vm_hs_eq(ah i32, bh i32) i32
+extern fn vm_hs_free(h i32)
+// dynarr
+extern fn vm_hd_new() i32
+extern fn vm_hd_push(h i32, v i32)
+extern fn vm_hd_len(h i32) i32
+extern fn vm_hd_get(h i32, idx i32) i32
+extern fn vm_hd_set(h i32, idx i32, v i32)
+extern fn vm_hd_free(h i32)
+// etlval
+extern fn vm_hv_int(i i32) i32
+extern fn vm_hv_bool(b i32) i32
+extern fn vm_hv_ptr(ptr_handle i32) i32
+extern fn vm_hv_str(str_handle i32) i32
+extern fn vm_hv_tag(h i32) i32
+extern fn vm_hv_as_int(h i32) i32
+extern fn vm_hv_as_bool(h i32) i32
+extern fn vm_hv_as_ptr(h i32) i32
+extern fn vm_hv_as_str(h i32) i32
+extern fn vm_hv_free(h i32)
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -339,11 +370,8 @@ fn vm_run(buf i8[65536], len i32) i32
     li = li + 1
   end
 
-  // Allocation handle counters (stub tracking)
-  let ha_count i32 = 0
-  let hs_count i32 = 0
-  let hd_count i32 = 0
-  let hv_count i32 = 0
+  // Reset bridge handle tables for this vm_run() instance
+  vm_bridge_reset()
 
   let steps i32 = 0
   let running2 i32 = 1
@@ -1225,11 +1253,7 @@ fn vm_run(buf i8[65536], len i32) i32
                 running2 = 0
               end
               if running2 == 1
-                let ha_handle i32 = 0
-                if szv[0] > 0
-                  ha_count = ha_count + 1
-                  ha_handle = ha_count
-                end
+                let ha_handle i32 = vm_ha_alloc(szv[0])
                 rcah = vm_push(stack, sp, ha_handle)
                 if rcah < 0
                   vm_result = rcah
@@ -1283,7 +1307,7 @@ fn vm_run(buf i8[65536], len i32) i32
               end
               if running2 == 1
                 ip[0] = ip[0] + 1
-                // HSN: str_new → pop ptr_handle, push str_handle
+                // HSN: str_new(ptr_handle) → str_handle
                 if sub2 == 78
                   let _snh i32[1]
                   let rcns i32 = vm_pop(stack, sp, _snh)
@@ -1292,15 +1316,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     running2 = 0
                   end
                   if running2 == 1
-                    hs_count = hs_count + 1
-                    rcns = vm_push(stack, sp, hs_count)
+                    let hs_h i32 = vm_hs_new(_snh[0])
+                    rcns = vm_push(stack, sp, hs_h)
                     if rcns < 0
                       vm_result = rcns
                       running2 = 0
                     end
                   end
                 end
-                // HSL: str_len → pop handle, push 0
+                // HSL: str_len(str_handle) → i32
                 if sub2 == 76
                   let _slh i32[1]
                   let rcsl i32 = vm_pop(stack, sp, _slh)
@@ -1309,14 +1333,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     running2 = 0
                   end
                   if running2 == 1
-                    rcsl = vm_push(stack, sp, 0)
+                    let slen i32 = vm_hs_len(_slh[0])
+                    rcsl = vm_push(stack, sp, slen)
                     if rcsl < 0
                       vm_result = rcsl
                       running2 = 0
                     end
                   end
                 end
-                // HSC: str_concat → pop b,a, push new handle
+                // HSC: str_concat(a, b) → new str_handle
                 if sub2 == 67
                   let _shb i32[1]
                   let _sha i32[1]
@@ -1333,15 +1358,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     end
                   end
                   if running2 == 1
-                    hs_count = hs_count + 1
-                    rcsc = vm_push(stack, sp, hs_count)
+                    let hsc_h i32 = vm_hs_concat(_sha[0], _shb[0])
+                    rcsc = vm_push(stack, sp, hsc_h)
                     if rcsc < 0
                       vm_result = rcsc
                       running2 = 0
                     end
                   end
                 end
-                // HSA: str_at → pop idx,handle, push 0
+                // HSA: str_at(str_handle, idx) → i32
                 if sub2 == 65
                   let _sai i32[1]
                   let _sah i32[1]
@@ -1358,14 +1383,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     end
                   end
                   if running2 == 1
-                    rcsa = vm_push(stack, sp, 0)
+                    let sat_v i32 = vm_hs_at(_sah[0], _sai[0])
+                    rcsa = vm_push(stack, sp, sat_v)
                     if rcsa < 0
                       vm_result = rcsa
                       running2 = 0
                     end
                   end
                 end
-                // HSE: str_eq → pop b,a, push 0
+                // HSE: str_eq(a, b) → i32
                 if sub2 == 69
                   let _seb i32[1]
                   let _sea i32[1]
@@ -1382,20 +1408,24 @@ fn vm_run(buf i8[65536], len i32) i32
                     end
                   end
                   if running2 == 1
-                    rcse = vm_push(stack, sp, 0)
+                    let seq_v i32 = vm_hs_eq(_sea[0], _seb[0])
+                    rcse = vm_push(stack, sp, seq_v)
                     if rcse < 0
                       vm_result = rcse
                       running2 = 0
                     end
                   end
                 end
-                // HSF: str_free → pop handle
+                // HSF: str_free(str_handle)
                 if sub2 == 70
                   let _sfh i32[1]
                   let rcsf i32 = vm_pop(stack, sp, _sfh)
                   if rcsf < 0
                     vm_result = rcsf
                     running2 = 0
+                  end
+                  if running2 == 1
+                    vm_hs_free(_sfh[0])
                   end
                 end
               end
@@ -1423,16 +1453,16 @@ fn vm_run(buf i8[65536], len i32) i32
               end
               if running2 == 1
                 ip[0] = ip[0] + 1
-                // HDN: dynarr_new → push handle
+                // HDN: dynarr_new() → dynarr_handle
                 if sub2d == 78
-                  hd_count = hd_count + 1
-                  let rcdn i32 = vm_push(stack, sp, hd_count)
+                  let hdn_h i32 = vm_hd_new()
+                  let rcdn i32 = vm_push(stack, sp, hdn_h)
                   if rcdn < 0
                     vm_result = rcdn
                     running2 = 0
                   end
                 end
-                // HDP: dynarr_push → pop v, handle
+                // HDP: dynarr_push(dynarr_handle, v)
                 if sub2d == 80
                   let _dpv i32[1]
                   let _dph i32[1]
@@ -1448,8 +1478,11 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                   end
+                  if running2 == 1
+                    vm_hd_push(_dph[0], _dpv[0])
+                  end
                 end
-                // HDL: dynarr_len → pop handle, push 0
+                // HDL: dynarr_len(dynarr_handle) → i32
                 if sub2d == 76
                   let _dlh i32[1]
                   let rcdl i32 = vm_pop(stack, sp, _dlh)
@@ -1458,14 +1491,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     running2 = 0
                   end
                   if running2 == 1
-                    rcdl = vm_push(stack, sp, 0)
+                    let dlen i32 = vm_hd_len(_dlh[0])
+                    rcdl = vm_push(stack, sp, dlen)
                     if rcdl < 0
                       vm_result = rcdl
                       running2 = 0
                     end
                   end
                 end
-                // HDG: dynarr_get → pop i,handle, push 0
+                // HDG: dynarr_get(dynarr_handle, idx) → i32
                 if sub2d == 71
                   let _dgi i32[1]
                   let _dgh i32[1]
@@ -1482,14 +1516,15 @@ fn vm_run(buf i8[65536], len i32) i32
                     end
                   end
                   if running2 == 1
-                    rcdg = vm_push(stack, sp, 0)
+                    let dget_v i32 = vm_hd_get(_dgh[0], _dgi[0])
+                    rcdg = vm_push(stack, sp, dget_v)
                     if rcdg < 0
                       vm_result = rcdg
                       running2 = 0
                     end
                   end
                 end
-                // HDS: dynarr_set → pop v,i,handle
+                // HDS: dynarr_set(dynarr_handle, idx, v)
                 if sub2d == 83
                   let _dsv i32[1]
                   let _dsi i32[1]
@@ -1513,14 +1548,20 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                   end
+                  if running2 == 1
+                    vm_hd_set(_dsh[0], _dsi[0], _dsv[0])
+                  end
                 end
-                // HDF: dynarr_free → pop handle
+                // HDF: dynarr_free(dynarr_handle)
                 if sub2d == 70
                   let _dfh i32[1]
                   let rcdf i32 = vm_pop(stack, sp, _dfh)
                   if rcdf < 0
                     vm_result = rcdf
                     running2 = 0
+                  end
+                  if running2 == 1
+                    vm_hd_free(_dfh[0])
                   end
                 end
               end
@@ -1539,14 +1580,15 @@ fn vm_run(buf i8[65536], len i32) i32
               // single-char sub-ops: I B P S T F → next char must be ';'
               // two-char: A? → next char is sub3, then ';'
               if sub2v == 65
-                // HVA?: two-char sub-op
+                // HVA?: two-char sub-op (I=as_int, B=as_bool, P=as_ptr, S=as_str)
+                let sub3i i32 = 0
                 if ip[0] >= len
                   vm_result = -5
                   running2 = 0
                 end
                 if running2 == 1
+                  sub3i = buf[ip[0]]
                   ip[0] = ip[0] + 1
-                  // sub3 consumed; advance to ';'
                   if ip[0] >= len
                     vm_result = -5
                     running2 = 0
@@ -1567,7 +1609,21 @@ fn vm_run(buf i8[65536], len i32) i32
                     running2 = 0
                   end
                   if running2 == 1
-                    rcva = vm_push(stack, sp, 0)
+                    let hva_r i32 = 0
+                    // sub3 'I'=73 as_int, 'B'=66 as_bool, 'P'=80 as_ptr, 'S'=83 as_str
+                    if sub3i == 73
+                      hva_r = vm_hv_as_int(_vah[0])
+                    end
+                    if sub3i == 66
+                      hva_r = vm_hv_as_bool(_vah[0])
+                    end
+                    if sub3i == 80
+                      hva_r = vm_hv_as_ptr(_vah[0])
+                    end
+                    if sub3i == 83
+                      hva_r = vm_hv_as_str(_vah[0])
+                    end
+                    rcva = vm_push(stack, sp, hva_r)
                     if rcva < 0
                       vm_result = rcva
                       running2 = 0
@@ -1589,7 +1645,7 @@ fn vm_run(buf i8[65536], len i32) i32
                 end
                 if running2 == 1
                   ip[0] = ip[0] + 1
-                  // HVI HVB HVP HVS: push new handle
+                  // HVI: etlval_int(i) → etlval_handle
                   if sub2v == 73
                     let _viv i32[1]
                     let rcvi i32 = vm_pop(stack, sp, _viv)
@@ -1598,14 +1654,15 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                     if running2 == 1
-                      hv_count = hv_count + 1
-                      rcvi = vm_push(stack, sp, hv_count)
+                      let hvi_h i32 = vm_hv_int(_viv[0])
+                      rcvi = vm_push(stack, sp, hvi_h)
                       if rcvi < 0
                         vm_result = rcvi
                         running2 = 0
                       end
                     end
                   end
+                  // HVB: etlval_bool(b) → etlval_handle
                   if sub2v == 66
                     let _vbv i32[1]
                     let rcvb i32 = vm_pop(stack, sp, _vbv)
@@ -1614,14 +1671,15 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                     if running2 == 1
-                      hv_count = hv_count + 1
-                      rcvb = vm_push(stack, sp, hv_count)
+                      let hvb_h i32 = vm_hv_bool(_vbv[0])
+                      rcvb = vm_push(stack, sp, hvb_h)
                       if rcvb < 0
                         vm_result = rcvb
                         running2 = 0
                       end
                     end
                   end
+                  // HVP: etlval_ptr(ptr_handle) → etlval_handle
                   if sub2v == 80
                     let _vph i32[1]
                     let rcvp i32 = vm_pop(stack, sp, _vph)
@@ -1630,14 +1688,15 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                     if running2 == 1
-                      hv_count = hv_count + 1
-                      rcvp = vm_push(stack, sp, hv_count)
+                      let hvp_h i32 = vm_hv_ptr(_vph[0])
+                      rcvp = vm_push(stack, sp, hvp_h)
                       if rcvp < 0
                         vm_result = rcvp
                         running2 = 0
                       end
                     end
                   end
+                  // HVS: etlval_str(str_handle) → etlval_handle
                   if sub2v == 83
                     let _vsh i32[1]
                     let rcvs i32 = vm_pop(stack, sp, _vsh)
@@ -1646,15 +1705,15 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                     if running2 == 1
-                      hv_count = hv_count + 1
-                      rcvs = vm_push(stack, sp, hv_count)
+                      let hvs_h i32 = vm_hv_str(_vsh[0])
+                      rcvs = vm_push(stack, sp, hvs_h)
                       if rcvs < 0
                         vm_result = rcvs
                         running2 = 0
                       end
                     end
                   end
-                  // HVT: etlval_tag → pop handle, push -1 (stub)
+                  // HVT: etlval_tag(etlval_handle) → i32
                   if sub2v == 84
                     let _vth i32[1]
                     let rcvt i32 = vm_pop(stack, sp, _vth)
@@ -1663,20 +1722,24 @@ fn vm_run(buf i8[65536], len i32) i32
                       running2 = 0
                     end
                     if running2 == 1
-                      rcvt = vm_push(stack, sp, -1)
+                      let hvt_v i32 = vm_hv_tag(_vth[0])
+                      rcvt = vm_push(stack, sp, hvt_v)
                       if rcvt < 0
                         vm_result = rcvt
                         running2 = 0
                       end
                     end
                   end
-                  // HVF: etlval_free → pop handle
+                  // HVF: etlval_free(etlval_handle)
                   if sub2v == 70
                     let _vfh i32[1]
                     let rcvf i32 = vm_pop(stack, sp, _vfh)
                     if rcvf < 0
                       vm_result = rcvf
                       running2 = 0
+                    end
+                    if running2 == 1
+                      vm_hv_free(_vfh[0])
                     end
                   end
                 end

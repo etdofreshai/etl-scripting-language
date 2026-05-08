@@ -93,4 +93,50 @@ if [ "$got" -ne 0 ]; then
 fi
 echo "c1_etl_vm_smoke: fixture 4 ok (exit 0)"
 
+
+# ── Fixture 5: string heap (exit 0) ────────────────────────────────────────
+echo "c1_etl_vm_smoke: fixture 5 — string_heap_basic (bridges: HSN/HSL/HSF/HA)"
+"$td/bc_driver" < tests/c1_corpus/string_heap_basic.etl > "$td/strbasic.bc"
+
+set +e
+bin/etl-vm-etl < "$td/strbasic.bc"
+got=$?
+set -e
+
+if [ "$got" -ne 0 ]; then
+  echo "c1_etl_vm_smoke: FAIL fixture5 — expected exit 0, got $got" >&2
+  exit 1
+fi
+echo "c1_etl_vm_smoke: fixture 5 ok (exit 0)"
+
+# ── Fixture 6: dynarr basic (exit 0) ───────────────────────────────────────
+echo "c1_etl_vm_smoke: fixture 6 — dynarr_basic (bridges: HDN/HDP/HDL/HDG/HDF)"
+"$td/bc_driver" < tests/c1_corpus/dynarr_basic.etl > "$td/dynarrbasic.bc"
+
+set +e
+bin/etl-vm-etl < "$td/dynarrbasic.bc"
+got=$?
+set -e
+
+if [ "$got" -ne 0 ]; then
+  echo "c1_etl_vm_smoke: FAIL fixture6 — expected exit 0, got $got" >&2
+  exit 1
+fi
+echo "c1_etl_vm_smoke: fixture 6 ok (exit 0)"
+
+# ── Fixture 7: tagged union basic (exit 0) ─────────────────────────────────
+echo "c1_etl_vm_smoke: fixture 7 — tagged_union_basic (bridges: HVI/HVB/HVP/HVT/HVF)"
+"$td/bc_driver" < tests/c1_corpus/tagged_union_basic.etl > "$td/taggedbasic.bc"
+
+set +e
+bin/etl-vm-etl < "$td/taggedbasic.bc"
+got=$?
+set -e
+
+if [ "$got" -ne 0 ]; then
+  echo "c1_etl_vm_smoke: FAIL fixture7 — expected exit 0, got $got" >&2
+  exit 1
+fi
+echo "c1_etl_vm_smoke: fixture 7 ok (exit 0)"
+
 echo "c1_etl_vm_smoke: ok (ETL-VM executes all fixtures correctly)"

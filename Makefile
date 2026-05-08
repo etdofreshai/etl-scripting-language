@@ -1,6 +1,6 @@
 ETL_RUNTIME = runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c
 
-ETL_VM_ETL_RUNTIME = runtime/etl_runtime.c
+ETL_VM_ETL_RUNTIME = runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c runtime/vm_bridge.c
 
 # Build the ETL-implemented VM binary from compiler1/vm.etl via compiler0.
 # This is the parallel ETL implementation of the bytecode interpreter.
