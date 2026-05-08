@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--
+  calculator.html — Browser WASM harness for ETL calculator.
+  Loads calculator.wasm (built by make release-check-wasm) via
+  WebAssembly.instantiate and verifies the result of fn main() → 42 (6*7).
+
+  ETL WASM ABI: _start() calls main() then calls proc_exit(return_value).
+  The exit code is captured via the proc_exit WASI import stub.
+
+  Intended to be run via headless Chrome:
+    google-chrome --headless --no-sandbox --dump-dom calculator.html
+
+  Or via the Node.js harness (primary CI gate):
+    node calculator_runner.js <path/to/calculator.wasm>
+
+  Note: headless Chrome is not shipped in .deps/; the Node.js path is the
+  primary CI gate (scripts/release_smoke_wasm_browser.sh). A real Chrome run
+  requires a locally installed Chrome/Chromium binary.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ETL WASM Calculator Harness</title>
+</head>
+<body>
+  <h1>ETL WASM Calculator Harness</h1>
+  <pre id="output">Loading...</pre>
+  <script>
+    (async () => {
+      const out = document.getElementById('output');
+      const expected = 42;
+      let exitCode = null;
+      try {
+        // calculator.wasm must be in the same directory.
+        // fn main() i32 ret 6 * 7 end  →  proc_exit(42)
+        const response = await fetch('calculator.wasm');
+        const bytes = await response.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(bytes, {
+          wasi_snapshot_preview1: {
+            // ETL WASM ABI: _start calls main(), then proc_exit(return_value).
+            proc_exit: (code) => { exitCode = code; },
+            fd_write: () => 0,
+          }
+        });
+        if (typeof instance.exports._start === 'function') {
+          try { instance.exports._start(); } catch (_) { /* some runtimes throw on proc_exit */ }
+        } else if (typeof instance.exports.main === 'function') {
+          exitCode = instance.exports.main();
+        } else {
+          throw new Error('No _start or main export found');
+        }
+        const pass = exitCode === expected;
+        out.textContent = pass
+          ? `PASS: proc_exit received ${exitCode} (expected ${expected})`
+          : `FAIL: proc_exit received ${exitCode} (expected ${expected})`;
+        document.body.setAttribute('data-result', pass ? 'pass' : 'fail');
+      } catch (e) {
+        out.textContent = `ERROR: ${e.message}`;
+        document.body.setAttribute('data-result', 'error');
+      }
+    })();
+  </script>
+</body>
+</html>
