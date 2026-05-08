@@ -37,6 +37,8 @@ fixtures=(
   struct_array.etl
   string_local.etl
   string_multi.etl
+  extern_typed_write.etl
+  i32_array_param.etl
 )
 
 declare -A expected_exits=(
@@ -49,13 +51,14 @@ declare -A expected_exits=(
   [struct_array.etl]=200
   [string_local.etl]=104
   [string_multi.etl]=98
+  [extern_typed_write.etl]=0
 )
 
 pass=0
 fail=0
 
 escape_for_etl_string() {
-  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr -d '\n'
+  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr '\n' ' '
 }
 
 build_c1_harness() {
@@ -65,7 +68,7 @@ build_c1_harness() {
   local source_text
   local source_len
   source_text="$(escape_for_etl_string "$src_file")"
-  source_len="$(tr -d '\n' < "$src_file" | wc -c)"
+  source_len="$(tr '\n' ' ' < "$src_file" | wc -c)"
 
   sed '/^fn main()/,$d' compiler1/main.etl > "$harness"
   cat compiler1/lex.etl >> "$harness"
@@ -130,7 +133,7 @@ for fixture in "${fixtures[@]}"; do
   fi
 
   python3 -m compiler0 compile "$src" -o "$c0_c"
-  cc -std=c11 -Wall -Werror "$c0_c" -o "$c0_exe"
+  cc -std=c11 -Wall -Werror "$c0_c" runtime/etl_runtime.c -I runtime -o "$c0_exe"
 
   build_c1_harness "$src" "$c1_c" "$c1_harness"
   scripts/build_etl.sh "$c1_harness" "$c1_harness_exe"
@@ -140,10 +143,27 @@ for fixture in "${fixtures[@]}"; do
     fail=$((fail + 1))
     continue
   fi
-  cc -std=c11 -Wall -Werror "$c1_c" -o "$c1_exe"
+  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c -I runtime -o "$c1_exe"
 
+  rm -f /tmp/etl_c1_extern_typed_write.txt
   c0_status="$(run_program "$c0_exe")"
+  if [ "$fixture" = "extern_typed_write.etl" ]; then
+    if [ "$(cat /tmp/etl_c1_extern_typed_write.txt 2>/dev/null || true)" != "ok" ]; then
+      echo "c1_equiv_smoke: FAIL $fixture c0 did not write expected file content" >&2
+      fail=$((fail + 1))
+      continue
+    fi
+    rm -f /tmp/etl_c1_extern_typed_write.txt
+  fi
   c1_status="$(run_program "$c1_exe")"
+  if [ "$fixture" = "extern_typed_write.etl" ]; then
+    if [ "$(cat /tmp/etl_c1_extern_typed_write.txt 2>/dev/null || true)" != "ok" ]; then
+      echo "c1_equiv_smoke: FAIL $fixture c1 did not write expected file content" >&2
+      fail=$((fail + 1))
+      continue
+    fi
+    rm -f /tmp/etl_c1_extern_typed_write.txt
+  fi
   if [ -n "${expected_exits[$fixture]+x}" ] && [ "$c0_status" != "${expected_exits[$fixture]}" ]; then
     echo "c1_equiv_smoke: FAIL $fixture c0=$c0_status expected=${expected_exits[$fixture]}" >&2
     fail=$((fail + 1))

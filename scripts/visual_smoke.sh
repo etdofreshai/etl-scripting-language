@@ -38,6 +38,7 @@ run_case() {
 
 run_case tick_demo
 run_case software_pixel
+"$repo_root/scripts/scripted_input_smoke.sh"
 
 if pkg-config --exists sdl3 2>/dev/null || [ -f /usr/include/SDL3/SDL.h ]; then
   echo "visual_smoke: SDL3 installed (optional SDL3 branch covered by graphics-headless)"
