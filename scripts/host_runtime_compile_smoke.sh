@@ -8,6 +8,10 @@
 #      compiler0, linking runtime/etl_host.c + etl_host_etl_api.c + etl_vm.c.
 #   4. Runs the host program with ETL_BYTECODE_DRIVER=<bc_driver> and
 #      ETL_VM_ETL=<bin/etl-vm-etl>.  Asserts exit 0.
+#   5. Positive-path falsifiability assertion: greps stderr for the
+#      "[etl_host] using ETL VM at ..." log emitted by etl_host.c when the
+#      ETL VM subprocess path is taken.  Fails if the line is absent, proving
+#      the routing actually executed (not just silently no-opped).
 #
 # The host program calls etl_compile_module("fn main() i32 ret 6 * 7 end")
 # and etl_run_main_i32, then asserts the result is 42.
@@ -55,10 +59,11 @@ cc -std=c11 -Wall -Wextra -Werror \
     -o "$td/runtime_compile_run"
 
 echo "host_runtime_compile_smoke: running with ETL VM (ETL_VM_ETL=bin/etl-vm-etl)"
+stderr_log="$td/run_stderr.txt"
 set +e
 ETL_BYTECODE_DRIVER="$td/bc_driver" \
     ETL_VM_ETL="$REPO_ROOT/bin/etl-vm-etl" \
-    "$td/runtime_compile_run"
+    "$td/runtime_compile_run" 2>"$stderr_log"
 run_exit=$?
 set -e
 
@@ -67,4 +72,16 @@ if [ "$run_exit" -ne 0 ]; then
     exit 1
 fi
 
+# Positive-path falsifiability: verify the ETL VM subprocess was actually invoked.
+# etl_host.c emits "[etl_host] using ETL VM at <path>" to stderr on the ETL VM
+# code path.  If this line is absent, the routing silently fell back to the C VM.
+if ! grep -qF "[etl_host] using ETL VM at" "$stderr_log"; then
+    echo "host_runtime_compile_smoke: FAIL — ETL VM routing log not found in stderr" >&2
+    echo "  Expected: '[etl_host] using ETL VM at ...'" >&2
+    echo "  stderr was:" >&2
+    cat "$stderr_log" >&2
+    exit 1
+fi
+
 echo "host_runtime_compile_smoke: PASS — etl_compile_module + etl_run_main_i32 via ETL VM returned 0"
+echo "host_runtime_compile_smoke: PASS — ETL VM subprocess confirmed via stderr log"
