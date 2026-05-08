@@ -10,7 +10,7 @@ bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
 
 etl-vm-etl: bin/etl-vm-etl
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 release-check-aarch64 release-tarball-aarch64 etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 release-check-aarch64 release-tarball-aarch64 release-tarball-macos release-check-macos etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
 
 test:
 	python3 -m unittest discover -s tests
@@ -205,6 +205,17 @@ release-tarball-aarch64:
 # each fixture under .deps/qemu-aarch64-static, verify exit codes match.
 release-check-aarch64:
 	scripts/release_smoke_aarch64.sh
+
+# Build macOS release tarballs for x86_64 and arm64 via zig cc cross-compile.
+# Build-validated only: Mach-O binaries produced and confirmed via `file`.
+# No execution on the Linux host; no Apple SDK required (zig bundled libc).
+release-tarball-macos:
+	scripts/build_release_tarball_macos.sh
+
+# Validate macOS release tarballs: untar each, run `file` on bin/etl-vm-etl,
+# assert "Mach-O" present. Does NOT execute the binary (Linux host).
+release-check-macos: release-tarball-macos
+	scripts/release_validate_macos.sh
 
 visual:
 	scripts/visual_smoke.sh
