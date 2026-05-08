@@ -36,7 +36,33 @@ run_case() {
   fi
 }
 
+# 3-run determinism check for tick_demo
+check_tick_demo_deterministic() {
+  name="tick_demo"
+  src="$repo_root/examples/visual/$name.etl"
+  expected_file="$repo_root/examples/visual/$name.expected"
+  bin="$tmpdir/${name}_det"
+
+  "$repo_root/bin/etl" compile "$src" -o "$bin"
+
+  expected="$(tr -d '[:space:]' < "$expected_file")"
+
+  for run in 1 2 3; do
+    set +e
+    "$bin" >/dev/null 2>&1
+    status=$?
+    set -e
+    if [ "$status" != "$expected" ]; then
+      echo "visual_smoke: FAIL $name determinism run $run (expected exit $expected, got $status)" >&2
+      exit 1
+    fi
+  done
+
+  echo "visual_smoke: tick_demo 3-run determinism ok (exit $expected x3)"
+}
+
 run_case tick_demo
+check_tick_demo_deterministic
 run_case software_pixel
 "$repo_root/scripts/scripted_input_smoke.sh"
 
