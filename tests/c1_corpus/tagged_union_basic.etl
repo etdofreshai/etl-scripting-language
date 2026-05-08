@@ -1,0 +1,40 @@
+extern fn etlval_int(i i32) etlval
+extern fn etlval_bool(b i32) etlval
+extern fn etlval_ptr(p ptr) etlval
+extern fn etlval_tag(v etlval) i32
+extern fn etlval_free(v etlval)
+extern fn etl_alloc(sz i32) ptr
+extern fn etl_free(p ptr)
+
+fn main() i32
+  let vi etlval = etlval_int(42)
+  let vb etlval = etlval_bool(1)
+  let raw ptr = etl_alloc(4)
+  let vp etlval = etlval_ptr(raw)
+  let ti i32 = etlval_tag(vi)
+  let tb i32 = etlval_tag(vb)
+  let tp i32 = etlval_tag(vp)
+  etlval_free(vi)
+  etlval_free(vb)
+  etlval_free(vp)
+  etl_free(raw)
+  if ti != 0
+    ret 1
+  end
+  if tb != 1
+    ret 2
+  end
+  if tp != 2
+    ret 3
+  end
+  if ti == tb
+    ret 4
+  end
+  if tb == tp
+    ret 5
+  end
+  if ti == tp
+    ret 6
+  end
+  ret 0
+end

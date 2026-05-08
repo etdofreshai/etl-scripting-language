@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 }
 EOF_C
 
-cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/etl_string.c runtime/etl_dynarr.c -o "$td/vm_runner"
+cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c -o "$td/vm_runner"
 
 escape_for_etl_string() {
   sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr '\n' ' '
@@ -154,7 +154,7 @@ for fixture in "${fixtures[@]}"; do
     fail=$((fail + 1))
     continue
   fi
-  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c -I runtime -o "$c1_exe"
+  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c -I runtime -o "$c1_exe"
 
   scripts/build_etl.sh "$harness_bc" "$harness_bc_exe"
   "$harness_bc_exe"
