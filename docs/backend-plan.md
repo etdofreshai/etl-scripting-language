@@ -106,37 +106,62 @@ codes for consistent error handling.
 
 ## Shared backend subset smoke
 
-`make backend-subset` runs a deliberately small corpus through all three
-compiler-1 backends. C and ASM outputs are compiled to native executables and
-their exit codes are checked. WAT output is always text-validated; when
-`wat2wasm` plus `wasmtime` or `wasmer` are available, the generated WASM is
-also executed.
+`make backend-subset` runs a deliberately small corpus through all four
+compiler-1 backends (C, VM bytecode, ASM, WAT). C and ASM outputs are compiled
+to native executables and their exit codes are checked. The VM bytecode path
+is emitted via `emit_bytecode`, written to a temp file, and executed through
+a thin C harness over `runtime/etl_vm.c`. WAT output is always text-validated;
+when `wat2wasm` plus `wasmtime` or `wasmer` are available, the generated WASM
+is also executed and its exit code compared.
 
-The current corpus contains 18 test cases spanning return, arithmetic,
-local initialization, single and multi-local assignment, `if` and `if`/`else`,
-`while`, all six comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`),
-and eager logical operators (`and`, `or`, `not`).
+## Backend subset
 
-| Source shape | Corpus example | C | ASM | WAT/WASM | Notes |
-|--------------|----------------|---|-----|----------|-------|
-| Return literal | `fn main() i32 ret 42 end` | Run | Run | Validate, optionally run | Baseline `i32` return. |
-| Arithmetic return | `fn main() i32 ret 1 + 2 * 3 end` | Run | Run | Validate, optionally run | Covers precedence and `+`/`*`. |
-| Local init/return | `fn main() i32 let x i32 = 12 ret x end` | Run | Run | Validate, optionally run | Covers local declaration, initialization, lookup, and return. |
-| Assignment | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | Run | Run | Validate, optionally run | Covers simple local reassignment. |
-| Multi-local assign | `fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end` | Run | Run | Validate, optionally run | Two locals with cross-assignment. |
-| If-then | `fn main() i32 let x i32 = 1 if x x = 9 end ret x end` | Run | Run | Validate, optionally run | `if` without `else`. |
-| If/else | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | Run | Run | Validate, optionally run | `elif` chains supported in ASM (52804e9) and WAT (298b6c2). |
-| While | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | Run | Run | Validate, optionally run | Deterministic bounded loop. |
-| Comparisons (6) | `==`, `!=`, `<=`, `>`, `>=`, `<` (true and false cases) | Run | Run | Validate, optionally run | All signed comparison operators. |
-| Logical (2) | `not false or 0`, `2 and 3` | Run | Run | Validate, optionally run | Eager logical lowering, not short-circuiting. |
+The shared subset contains **16 four-backend fixtures** (C + VM + ASM + WAT)
+and **2 three-backend fixtures** (C + ASM + WAT; VM excluded). The 16
+four-backend fixtures satisfy the ≥10 hard floor for VAL-BE-001.
+
+### Four-backend fixtures (C + VM + ASM + WAT)
+
+| Fixture name | Source | Expected exit | Coverage |
+|---|---|---|---|
+| `ret_literal` | `fn main() i32 ret 42 end` | 42 | Baseline i32 return. |
+| `ret_arithmetic` | `fn main() i32 ret 1 + 2 * 3 end` | 7 | Precedence, `+`, `*`. |
+| `local_init_return` | `fn main() i32 let x i32 = 12 ret x end` | 12 | Local decl, init, load, return. |
+| `local_assign_return` | `fn main() i32 let x i32 = 1 x = x + 8 ret x end` | 9 | Local reassignment. |
+| `multi_local_assign` | `fn main() i32 let a i32 = 2 let b i32 = 7 a = b + 3 ret a end` | 10 | Two locals, cross-assignment. |
+| `if_then_local` | `fn main() i32 let x i32 = 1 if x x = 9 end ret x end` | 9 | `if` without `else`. |
+| `if_else_local` | `fn main() i32 let x i32 = 0 if x x = 1 else x = 7 end ret x end` | 7 | `if`/`else`. |
+| `while_count` | `fn main() i32 let x i32 = 0 while x < 4 x = x + 1 end ret x end` | 4 | Bounded `while` loop. |
+| `cmp_eq` | `fn main() i32 ret 4 == 4 end` | 1 | `==` comparison. |
+| `cmp_neq` | `fn main() i32 ret 4 != 5 end` | 1 | `!=` comparison. |
+| `cmp_lte` | `fn main() i32 ret 8 <= 8 end` | 1 | `<=` comparison. |
+| `cmp_gt` | `fn main() i32 ret 9 > 2 end` | 1 | `>` comparison. |
+| `cmp_gte` | `fn main() i32 ret 9 >= 9 end` | 1 | `>=` comparison. |
+| `cmp_false` | `fn main() i32 ret 9 < 2 end` | 0 | `<` false case. |
+| `ret_not_true` | `fn main() i32 ret not 0 end` | 1 | Unary `not` (truthy). |
+| `ret_not_false` | `fn main() i32 ret not 1 end` | 0 | Unary `not` (falsy). |
+
+### Three-backend fixtures (C + ASM + WAT; VM excluded)
+
+| Fixture name | Source | Expected exit | VM exclusion reason |
+|---|---|---|---|
+| `ret_logical` | `fn main() i32 ret not false or 0 end` | 1 | Uses `or`; `emit_bytecode` emits no `or` opcode; `etl_vm.c` dispatcher has no matching case. |
+| `eager_and_truthy` | `fn main() i32 ret 2 and 3 end` | 1 | Uses `and`; same gap as `ret_logical`. |
+
+### Candidate pool summary
+
+- Candidate pool (prior triple-equiv fixtures + shape variants): 18 total.
+- Included in four-backend shared set: 16.
+- Included in three-backend set: 2.
+- Excluded from four-backend set with reason: 2 (see table above).
 
 Limitations: the shared matrix intentionally excludes functions with
 parameters, extern calls, arrays, structs, strings, and general I/O. Basic
 multi-function programs plus user-defined `i32`, scalar `bool`/`i8`/`byte`,
 byte-array, and by-value struct parameters are covered by focused C/ASM/WAT-path
-smokes, but they are not shared C/ASM/WAT
+smokes, but they are not shared four-backend
 contracts yet. Keep matrix programs small enough for the compiler-1 harness
-buffers (`source i8[256]`, `tokens Token[128]`, `out i8[1024]`).
+buffers (`source i8[131072]`, `tokens Token[32768]`, `out i8[65536]`).
 
 ## C backend (current)
 
