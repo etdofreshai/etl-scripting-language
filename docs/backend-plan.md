@@ -9,14 +9,10 @@ bootstrap backend.
 
 - **compiler-0** (`compiler0/etl0.py`): Python bootstrap compiler.
   Pipeline: `ETL source → lex → parse → AST → validate → emit_c → C text`.
-- **compiler-1** (`compiler1/*.etl`): Self-hosted ETL compiler (in progress).
-  Currently has `lex.etl`, `parse.etl`, `sema.etl`, `emit_c.etl`.
+- **compiler-1** (`compiler1/*.etl`): Self-hosted ETL compiler. Fixed point achieved (`make selfhost-bootstrap` green). Modules: `lex.etl`, `parse.etl`, `sema.etl`, `emit_c.etl`, `emit_asm.etl`, `emit_wasm.etl`, `emit_bytecode.etl`, `backend_defs.etl`, `vm.etl`, plus associated test and driver files.
 - The C backend is the active self-hosting path. ASM and WAT/WASM have smoke
   subsets. No IR layer exists yet.
-- A minimal bytecode emitter scaffold exists for `fn main() i32 ret <small int>
-  end`. No runtime ETL VM exists yet. Runtime-loaded ETL code is a future target
-  and must reuse the same lexer, parser, semantic model, and IR lowering as the
-  AOT compiler path.
+- The bytecode emitter (`compiler1/emit_bytecode.etl`) and ETL VM (`compiler1/vm.etl`) are shipped. VM-in-ETL (M2) is complete: an AOT ETL host can compile and run ETL modules through `compiler1/vm.etl` via the `ETL_VM_ETL=1` path. The C VM (`runtime/etl_vm.c`) is retained as the oracle. Runtime ETL reuses the same lexer, parser, semantic model, and IR lowering as the AOT compiler path.
 
 ## Architecture overview
 
@@ -102,7 +98,7 @@ codes for consistent error handling.
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, narrow by-value struct parameters, and extern scalar bool/i8/byte parameter emission. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped to 8-bit or 32-bit stack slots, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via saved base pointers and `movsbq`/`movb`, and source `extern fn` declarations with `i32`/`integer` params, scalar `bool`/`boolean` and `i8`/`byte` params, and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped as `i32` params/locals, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined `i32`/scalar-bool/byte-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
-| ETL VM bytecode | `compiler1/emit_bytecode.etl`, `runtime/etl_vm.c`, future `runtime/vm.etl` | Scaffold | Emits ASCII stack bytecode such as `ETLB1;I1;I2;I9;I4;-;*;+;R;` for a narrow integer return expression smoke and executes it through a minimal C VM helper. This is the portable runtime execution target for ETL source compiled inside an AOT-built ETL host program. Must share compiler-1 frontend/sema behavior with AOT paths; native JIT is a later optimization over this path, not the first runtime target. |
+| ETL VM bytecode | `compiler1/emit_bytecode.etl`, `compiler1/vm.etl`, `runtime/etl_vm.c` (oracle) | Shipped (M2) | Emits ASCII stack bytecode (`ETLB1;…;R;`); executed by `compiler1/vm.etl` (ETL-written VM with dispatch, stack, local slots, branches, call frames, and M1 opaque-type HS*/HD*/HV* bridges) or by the C oracle VM. 64 KB bytecode buffer. 20+ fixtures pass triple-equivalence (c0/C, c1/C, c1-VM-in-ETL). Native JIT is a later optimization. |
 
 ## Shared backend subset smoke
 

@@ -336,13 +336,13 @@ Supported extern surface:
 Limitations:
 - `etlval` is accepted in extern fn parameter/return positions and in local `let` bindings, and in regular user-function parameter and return positions (compiler-1 only).
 - Not supported in compiler-0.
-- The VM fixture for the `str` variant (etlval_str) is elided due to the 1024-byte bytecode buffer limit. The runtime and VM HV* opcodes for the str variant are implemented and tested indirectly.
+- The VM fixture for the `str` variant (etlval_str) is elided due to the 64 KB bytecode buffer complexity limit (the str variant requires combined opaque-type opcodes that exceed the test harness fixture budget). The runtime and VM HV* opcodes for the str variant are implemented and tested indirectly.
 
 ### Common M1 limitations
 
 - All four types are available via the extern-call surface only. No new ETL syntax was added.
 - Compiler-0 (Python) does not support `str`, `dynarr`, or `etlval`. Equivalence smokes for these types run c1/C vs c1/VM only.
-- The VM bytecode buffer is currently 1024 bytes, which limits fixture complexity for combined opaque-type programs. Tracked as tech debt; buffer expansion is required before VM-in-ETL (M2) is feasible.
+- The VM bytecode buffer is 64 KB (65536 bytes static; raised from 1024 bytes in F2.0). This supports the shipped VM-in-ETL (M2). Combined opaque-type fixture complexity is limited by harness test budget, not buffer size; the str variant of etlval is tested indirectly via runtime. See DESIGN.md §37b.
 - ASM and WAT backends do not yet support any M1 opaque type calls.
 
 
