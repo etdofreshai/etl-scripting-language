@@ -39,13 +39,20 @@ cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/
 pass=0
 fail=0
 
+# Strip comment lines before flattening: the harness embeds the fixture as a single-line
+# string literal, so any '#' comment would consume everything after it on that line.
+# source_len is computed from the post-strip text so lexer bounds stay correct.
+escape_for_etl_string() {
+  grep -v '^[[:space:]]*#' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '
+}
+
 for fixture in "${fixtures[@]}"; do
   src="tests/c1_corpus/$fixture"
   name="${fixture%.etl}"
   bytecode_path="$td/${name}.bc"
 
-  source_text="$(sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$src" | tr '\n' ' ')"
-  source_len="$(tr '\n' ' ' < "$src" | wc -c)"
+  source_text="$(escape_for_etl_string "$src")"
+  source_len="${#source_text}"
 
   harness="$td/${name}_bc_harness.etl"
   sed '/^fn main()/,$d' compiler1/main.etl > "$harness"

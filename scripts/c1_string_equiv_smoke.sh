@@ -41,8 +41,11 @@ EOF_C
 
 cc -std=c11 -Wall -Werror -I runtime "$td/vm_runner.c" runtime/etl_vm.c runtime/etl_string.c runtime/etl_dynarr.c runtime/etl_etlval.c -o "$td/vm_runner"
 
+# Strip comment lines before flattening: the harness embeds the fixture as a single-line
+# string literal, so any '#' comment would consume everything after it on that line.
+# source_len is computed from the post-strip text so lexer bounds stay correct.
 escape_for_etl_string() {
-  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$1" | tr '\n' ' '
+  grep -v '^[[:space:]]*#' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '
 }
 
 build_c1_harness() {
@@ -54,7 +57,7 @@ build_c1_harness() {
   local source_text
   local source_len
   source_text="$(escape_for_etl_string "$src_file")"
-  source_len="$(tr '\n' ' ' < "$src_file" | wc -c)"
+  source_len="${#source_text}"
 
   # Harness for C emission
   sed '/^fn main()/,$d' compiler1/main.etl > "$harness_c"
