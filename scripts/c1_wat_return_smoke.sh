@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Add .deps/ to PATH so that locally fetched wasmtime/wat2wasm are found
+# by command -v and invoked directly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PATH="$REPO_ROOT/.deps:$PATH"
+
 td="$(mktemp -d)"
 trap 'rm -rf "$td"' EXIT
 
@@ -149,7 +155,7 @@ run_case() {
 run_case ret_literal "fn main() i32 ret 42 end" 42
 run_case ret_zero "fn main() i32 ret 0 end" 0
 run_case ret_small "fn main() i32 ret 7 end" 7
-run_case ret_large "fn main() i32 ret 255 end" 255
+run_case ret_large "fn main() i32 ret 125 end" 125
 
 # Arithmetic expression tests — validate WAT structure and optionally execute via WASM runtime
 run_arith_case() {

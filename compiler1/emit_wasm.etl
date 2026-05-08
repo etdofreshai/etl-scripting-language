@@ -1627,18 +1627,6 @@ fn emit_wasm_function(source i8[131072], tokens Token[32768], ast AstNode[32768]
   if p < 0
     ret -1
   end
-  if ast[params].b == 0
-    if emit_wasm_same_name(source, tokens, ast[node].a, ast[node].a)
-      if tokens[ast[node].a].len == 4
-        let s i32 = tokens[ast[node].a].start
-        let main_text i8[64] = "main"
-        if source[s] == main_text[0] and source[s + 1] == main_text[1] and source[s + 2] == main_text[2] and source[s + 3] == main_text[3]
-          let export_t i8[64] = " (export \"_start\")"
-          p = emit_wasm_append_text(out, p, out_cap, export_t, 18)
-        end
-      end
-    end
-  end
   if p < 0
     ret -1
   end
@@ -1779,8 +1767,20 @@ fn emit_wasm_program(source i8[131072], tokens Token[32768], ast AstNode[32768],
   end
   let mod_head i8[64] = "(module\n"
   let mem_decl i8[64] = "  (memory (export \"memory\") 1)\n"
+  let proc_imp1 i8[64] = "  (import \"wasi_snapshot_preview1\""
+  let proc_imp2 i8[64] = " \"proc_exit\" (func $proc_exit (param i32)))\n"
+  let start_fn1 i8[64] = "  (func (export \"_start\")\n    call $main\n"
+  let start_fn2 i8[64] = "    call $proc_exit\n  )\n"
   let mod_tail i8[64] = ")\n"
   let p i32 = emit_wasm_append_text(out, pos, out_cap, mod_head, 8)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_text(out, p, out_cap, proc_imp1, 34)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_text(out, p, out_cap, proc_imp2, 44)
   if p < 0
     ret -1
   end
@@ -1793,6 +1793,14 @@ fn emit_wasm_program(source i8[131072], tokens Token[32768], ast AstNode[32768],
     ret -1
   end
   p = emit_wasm_decl_list(source, tokens, ast, ast_count, list, out, p, out_cap)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_text(out, p, out_cap, start_fn1, 41)
+  if p < 0
+    ret -1
+  end
+  p = emit_wasm_append_text(out, p, out_cap, start_fn2, 24)
   if p < 0
     ret -1
   end

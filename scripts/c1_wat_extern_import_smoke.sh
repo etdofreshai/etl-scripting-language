@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Add .deps/ to PATH so that locally fetched wasmtime/wat2wasm are found
+# by command -v and invoked directly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PATH="$REPO_ROOT/.deps:$PATH"
+
 td="$(mktemp -d)"
 trap 'rm -rf "$td"' EXIT
 
@@ -69,7 +75,7 @@ wat_text="$(run_wat_emit "$source")"
 
 for fragment in \
   '(import "env" "etl_identity_i32" (func $etl_identity_i32 (param i32) (result i32)))' \
-  '(func $main (export "_start") (result i32)' \
+  '(func $main (result i32)' \
   'i32.const 42' \
   'call $etl_identity_i32'; do
   if ! echo "$wat_text" | grep -q "$fragment"; then
