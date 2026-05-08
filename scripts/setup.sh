@@ -126,16 +126,81 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# M5: wasmtime + wat2wasm (not yet implemented)
+# M5: wasmtime
+# Pinned release: v36.0.9 (bytecodealliance/wasmtime)
+# Linux x86_64 tarball fetched from GitHub releases.
+# Binary extracted to .deps/wasmtime (single executable, no sudo required).
 # ---------------------------------------------------------------------------
+WASMTIME_VERSION="v36.0.9"
+WASMTIME_TARBALL="wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz"
+WASMTIME_URL="https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/${WASMTIME_TARBALL}"
+WASMTIME_DEST="$REPO_ROOT/.deps/wasmtime"
+
 fetch_wasmtime() {
-  # TODO (M5): download wasmtime binary into bin/wasmtime
-  status "wasmtime: not yet implemented (M5)"
+  if [ -f "$WASMTIME_DEST" ] && [ -x "$WASMTIME_DEST" ]; then
+    status "wasmtime: already present at $WASMTIME_DEST — skipped"
+    "$WASMTIME_DEST" --version
+    return
+  fi
+
+  status "wasmtime: fetching ${WASMTIME_VERSION} ..."
+  mkdir -p "$REPO_ROOT/.deps"
+  local tarball="$REPO_ROOT/.deps/${WASMTIME_TARBALL}"
+  if [ ! -f "$tarball" ]; then
+    curl -fL "$WASMTIME_URL" -o "$tarball"
+  fi
+
+  status "wasmtime: extracting binary ..."
+  # The tarball contains wasmtime-v*/wasmtime; extract that single file.
+  local strip_dir
+  strip_dir="$(tar -tJf "$tarball" 2>/dev/null | awk 'NR==1{print $1;exit}' | cut -d/ -f1)"
+  tar -xJf "$tarball" -C "$REPO_ROOT/.deps" "${strip_dir}/wasmtime"
+  mv "$REPO_ROOT/.deps/${strip_dir}/wasmtime" "$WASMTIME_DEST"
+  rmdir "$REPO_ROOT/.deps/${strip_dir}" 2>/dev/null || true
+  chmod +x "$WASMTIME_DEST"
+
+  status "wasmtime: installed — verifying ..."
+  "$WASMTIME_DEST" --version
+  status "wasmtime: ok"
 }
 
+# ---------------------------------------------------------------------------
+# M5: wat2wasm (from WABT)
+# Pinned release: 1.0.41 (WebAssembly/wabt)
+# Linux x64 tarball fetched from GitHub releases.
+# Binary extracted to .deps/wat2wasm (single executable, no sudo required).
+# ---------------------------------------------------------------------------
+WABT_VERSION="1.0.41"
+WABT_TARBALL="wabt-${WABT_VERSION}-linux-x64.tar.gz"
+WABT_URL="https://github.com/WebAssembly/wabt/releases/download/${WABT_VERSION}/${WABT_TARBALL}"
+WAT2WASM_DEST="$REPO_ROOT/.deps/wat2wasm"
+
 fetch_wat2wasm() {
-  # TODO (M5): download wat2wasm binary into bin/wat2wasm
-  status "wat2wasm: not yet implemented (M5)"
+  if [ -f "$WAT2WASM_DEST" ] && [ -x "$WAT2WASM_DEST" ]; then
+    status "wat2wasm: already present at $WAT2WASM_DEST — skipped"
+    "$WAT2WASM_DEST" --version
+    return
+  fi
+
+  status "wat2wasm: fetching WABT ${WABT_VERSION} ..."
+  mkdir -p "$REPO_ROOT/.deps"
+  local tarball="$REPO_ROOT/.deps/${WABT_TARBALL}"
+  if [ ! -f "$tarball" ]; then
+    curl -fL "$WABT_URL" -o "$tarball"
+  fi
+
+  status "wat2wasm: extracting binary ..."
+  # The tarball contains wabt-*/bin/wat2wasm; extract that single file.
+  local strip_dir
+  strip_dir="$(tar -tzf "$tarball" 2>/dev/null | awk 'NR==1{print $1;exit}' | cut -d/ -f1)"
+  tar -xzf "$tarball" -C "$REPO_ROOT/.deps" "${strip_dir}/bin/wat2wasm"
+  mv "$REPO_ROOT/.deps/${strip_dir}/bin/wat2wasm" "$WAT2WASM_DEST"
+  rm -rf "$REPO_ROOT/.deps/${strip_dir}" 2>/dev/null || true
+  chmod +x "$WAT2WASM_DEST"
+
+  status "wat2wasm: installed — verifying ..."
+  "$WAT2WASM_DEST" --version
+  status "wat2wasm: ok"
 }
 
 # ---------------------------------------------------------------------------

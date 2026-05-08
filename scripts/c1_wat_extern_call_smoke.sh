@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Add .deps/ to PATH so that locally fetched wasmtime/wat2wasm are found
+# by command -v and invoked directly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PATH="$REPO_ROOT/.deps:$PATH"
+
 td="$(mktemp -d)"
 trap 'rm -rf "$td"' EXIT
 
@@ -71,7 +77,7 @@ for fragment in \
   '(import "env" "accept_bool" (func $accept_bool (param i32) (result i32)))' \
   '(import "env" "plus_one" (func $plus_one (param i32) (result i32)))' \
   '(import "env" "accept_byte" (func $accept_byte (param i32) (result i32)))' \
-  '(func $main (export "_start") (result i32)' \
+  '(func $main (result i32)' \
   'i32.const 1' \
   'i32.const 40' \
   'i32.const 0' \

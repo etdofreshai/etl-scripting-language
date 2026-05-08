@@ -15,6 +15,11 @@
 #
 set -euo pipefail
 
+# Add .deps/ to PATH so that locally fetched wasmtime/wat2wasm are found.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PATH="$REPO_ROOT/.deps:$PATH"
+
 td="$(mktemp -d)"
 trap 'rm -rf "$td"' EXIT
 
