@@ -60,6 +60,11 @@ static int write_all(int fd, const int8_t *buf, int32_t len) {
     return 0;
 }
 
+/*
+ * LIMITATION: cannot be called more than once per process.
+ * The subprocess bytecode driver reads /dev/stdin which becomes unreadable
+ * after the first call.  Tracked for future fix.
+ */
 int32_t etl_compile_module(const int8_t *source,
                            int32_t source_len,
                            int8_t *bytecode_out,
@@ -131,6 +136,7 @@ int32_t etl_run_main_i32(const int8_t *bytecode,
          * Write bytecode to a temp file, feed it to the ETL VM binary on
          * stdin, capture its exit code as the i32 result.
          */
+        fprintf(stderr, "[etl_host] using ETL VM at %s\n", etl_vm);
         char bc_path[] = "/tmp/etl_run_bc_XXXXXX";
         int bfd = mkstemp(bc_path);
         if (bfd < 0) return -100;
