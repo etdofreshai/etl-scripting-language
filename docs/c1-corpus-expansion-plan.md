@@ -448,6 +448,11 @@ These require the extern parameter type emission part of 5f-TYPES.
 > types — extern scalar `bool`/`i8`/`byte` parameter emission is now proven by
 > `scripts/c1_extern_scalar_param_smoke.sh` (9c71068); non-scalar extern param
 > types remain uncovered.
+>
+> **Status (2026-05-03):** `extern_typed_write.etl` is checked in under
+> `tests/c1_corpus/` and included in the default `scripts/c1_equiv_smoke.sh`
+> gate. It passes with c0 and c1 both writing the expected `ok` payload through
+> the runtime `etl_write_file` extern.
 
 #### `extern_typed_write.etl`
 
@@ -455,7 +460,7 @@ These require the extern parameter type emission part of 5f-TYPES.
 extern fn etl_write_file(path i8[64], buf i8[1024], len i32) i32
 
 fn main() i32
-  let path i8[64] = "out.txt"
+  let path i8[64] = "/tmp/etl_c1_extern_typed_write.txt"
   let buf i8[1024] = "ok"
   let rc i32 = etl_write_file(path, buf, 2)
   if rc < 0
@@ -465,7 +470,7 @@ fn main() i32
 end
 ```
 
-**Acceptance**: c0 exit 0, c1 exit 0 (and `out.txt` contains "ok"). Proves
+**Acceptance**: c0 exit 0, c1 exit 0 (and the output file contains "ok"). Proves
 extern function declarations emit typed parameters (`int8_t*`, `int32_t`)
 instead of all-`int`.
 
@@ -477,8 +482,8 @@ instead of all-`int`.
 
 | Gate | Current behavior | After full corpus expansion |
 |---|---|---|
-| `make selfhost-equiv` | 31 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, Tier 4 structs, and Tier 5 local strings | 31 + up to 1 later-tier fixture |
-| `make selfhost` | c1 pipeline + 31-fixture equiv | c1 pipeline + expanded equiv |
+| `make selfhost-equiv` | 32 fixtures, including Tier 1 multi-function/`i32` params, Tier 2 typed locals, local i32/i8 array indexing, Tier 4 structs, Tier 5 local strings, and Tier 6 typed extern write | Expanded as later fixed-point blockers require |
+| `make selfhost` | c1 pipeline + 32-fixture equiv | c1 pipeline + expanded equiv |
 | `make headless-ready` | check + selfhost + backend-subset + selfeval | No change (absorbs expanded selfhost) |
 
 New fixtures are added to the `fixtures` array in

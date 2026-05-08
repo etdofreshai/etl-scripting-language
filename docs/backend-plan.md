@@ -1,8 +1,9 @@
 # Multi-Backend Architecture Plan
 
 This document defines the multi-backend target architecture for ETL. The goal
-is to make **C**, **ASM**, and **WASM** first-class future compilation targets
-while preserving C as the current bootstrap backend.
+is to make **C**, **ASM**, **WASM**, and a portable **ETL VM bytecode** path
+first-class future compilation targets while preserving C as the current
+bootstrap backend.
 
 ## Current state
 
@@ -10,7 +11,12 @@ while preserving C as the current bootstrap backend.
   Pipeline: `ETL source → lex → parse → AST → validate → emit_c → C text`.
 - **compiler-1** (`compiler1/*.etl`): Self-hosted ETL compiler (in progress).
   Currently has `lex.etl`, `parse.etl`, `sema.etl`, `emit_c.etl`.
-- Only the C backend is active. No IR layer exists yet.
+- The C backend is the active self-hosting path. ASM and WAT/WASM have smoke
+  subsets. No IR layer exists yet.
+- A minimal bytecode emitter scaffold exists for `fn main() i32 ret <small int>
+  end`. No runtime ETL VM exists yet. Runtime-loaded ETL code is a future target
+  and must reuse the same lexer, parser, semantic model, and IR lowering as the
+  AOT compiler path.
 
 ## Architecture overview
 
@@ -41,12 +47,24 @@ ETL source
 │   │ emit_c    │  │ emit_asm  │  │ emit_wasm  │   │
 │   │ (active)  │  │ (future)  │  │ (future)   │   │
 │   └───────────┘  └───────────┘  └───────────┘   │
+│                                                   │
+│   ┌───────────────────────────────────────────┐   │
+│   │ emit_bytecode → ETL VM                    │   │
+│   │ (future runtime execution path)           │   │
+│   └───────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────┘
      │               │               │
      ▼               ▼               ▼
    C text          ASM text       WASM binary
                                  or WAT text
 ```
+
+The AOT compiler and runtime compiler should have nearly complete overlap
+through semantic analysis. The intended runtime model is an AOT-compiled ETL
+program that links or embeds the ETL compiler frontend and VM, then compiles
+runtime-provided ETL source into portable bytecode for execution. Runtime ETL
+may be sandboxed by host policy, but it should not become a separate language
+with different syntax or type rules.
 
 ## Backend interface contract
 
@@ -84,6 +102,7 @@ codes for consistent error handling.
 | C | `compiler1/emit_c.etl` | Active | Compiler-1 source-to-C backend for the current Phase 5 subset, including multi-function programs, user-defined `i32` and narrow byte/i8 array parameters, narrow by-value struct parameters, and extern scalar bool/i8/byte parameter emission. |
 | ASM | `compiler1/emit_asm.etl` | Active smoke subset | Emits x86-64 System V assembly with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, local `i32` array declaration plus constant-index and variable-index read/write, local `byte[N]`/`i8[N]` array indexed assignment/read via `movsbq`/`movb`, local `byte[N]`/`i8[N]` string literal initialization with constant-index reads, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined i32-parameter/i32-return helper functions with direct intra-module calls, scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped to 8-bit or 32-bit stack slots, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via saved base pointers and `movsbq`/`movb`, and source `extern fn` declarations with `i32`/`integer` params, scalar `bool`/`boolean` and `i8`/`byte` params, and `i32` return lowered to direct `call` to named symbols resolved by the linker; assembled and linked by smoke tests. |
 | WAT/WASM | `compiler1/emit_wasm.etl` | Active WAT subset | Emits WAT text with locals, arithmetic, comparisons, logical ops, `if`/`elif`/`else`, `while`, boolean literals, local `i32` array declaration plus indexed read/write, local `byte[N]`/`i8[N]` array indexed read/write including string literal initialization, helper `byte[N]`/`i8[N]` array parameter indexed reads/writes via `i32.load8_s`/`i32.store8` (param passed as i32 base pointer), scalar `bool`/`boolean` and `i8`/`byte` helper parameters mapped as `i32` params/locals, local struct declaration with i32 field store/load, local fixed struct array indexed field store/load, multiple user-defined `i32`/scalar-bool/byte-parameter/i32-return helper functions with direct calls (`_start` exported as `main`), and source `extern fn` declarations with `i32`/`integer` params and `i32` return lowered to `(import "env" ...)` with `call $name`; smoke validates text and executes when tools are installed. |
+| ETL VM bytecode | `compiler1/emit_bytecode.etl`, `runtime/etl_vm.c`, future `runtime/vm.etl` | Scaffold | Emits ASCII stack bytecode such as `ETLB1;I1;I2;I9;I4;-;*;+;R;` for a narrow integer return expression smoke and executes it through a minimal C VM helper. This is the portable runtime execution target for ETL source compiled inside an AOT-built ETL host program. Must share compiler-1 frontend/sema behavior with AOT paths; native JIT is a later optimization over this path, not the first runtime target. |
 
 ## Shared backend subset smoke
 

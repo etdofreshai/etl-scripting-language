@@ -324,4 +324,13 @@ Then add:
 IR -> WASM
 IR -> LLVM/Cranelift/native
 IR -> ASM experiments
+IR -> ETL bytecode -> ETL VM
 ```
+
+The VM path is experimental runtime behavior, not part of the stable v0
+language contract yet. The intended model is an AOT-compiled ETL host program
+that embeds the same ETL lexer, parser, semantic checks, and IR lowering used by
+the bootstrap compiler, then compiles runtime-provided ETL source into portable
+bytecode for the VM. Runtime ETL should share syntax and type rules with AOT
+ETL; host programs may add sandboxing policy around what runtime modules can
+import or call.
