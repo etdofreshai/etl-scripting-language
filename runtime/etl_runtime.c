@@ -21,7 +21,7 @@ void etl_print_str(const int8_t *s) {
   fputs((const char *)s, stdout);
 }
 
-void etl_print_str_n(const int8_t *s, int32_t n) {
+void etl_print_str_n(int8_t *s, int32_t n) {
   if (s == NULL || n <= 0) {
     return;
   }
@@ -366,4 +366,97 @@ void etl_toupper_buf(int8_t *buf, int32_t len) {
 
 void etl_argv_get(int32_t i, int8_t *buf, int32_t cap) {
   etl_argv_copy(i, buf, cap);
+}
+
+/* --- Rule-engine record I/O helpers (F3.3-rule-engine) ---
+ *
+ * etl_write_record: writes "id value\n" to path as text.
+ * etl_read_record:  reads "id value\n" from path, fills id_out and val_out.
+ *
+ * Used by the config_rules host/rule pair: the host writes one record per
+ * etl_run_main_i32 call; the rule reads it and returns a decision exit code.
+ */
+int32_t etl_write_record(int8_t *path, int32_t id, int32_t val) {
+    if (path == NULL) return -1;
+    FILE *f = fopen((const char *)path, "wb");
+    if (f == NULL) return -1;
+    fprintf(f, "%d %d\n", (int)id, (int)val);
+    fclose(f);
+    return 0;
+}
+
+int32_t etl_read_record(int8_t *path, int32_t *id_out, int32_t *val_out) {
+    if (path == NULL || id_out == NULL || val_out == NULL) return -1;
+    FILE *f = fopen((const char *)path, "rb");
+    if (f == NULL) return -1;
+    int id = 0, val = 0;
+    int n = fscanf(f, "%d %d", &id, &val);
+    fclose(f);
+    if (n != 2) return -1;
+    *id_out = (int32_t)id;
+    *val_out = (int32_t)val;
+    return 0;
+}
+
+/* etl_parse_csv_record: parses "id,value\n" from buf starting at byte offset
+ * start.  Fills id_out and val_out.  Returns the byte offset of the next
+ * line (past the newline), or -1 on parse error or end of buffer.
+ * Used by config_rules host to iterate over CSV input records.
+ */
+int32_t etl_parse_csv_record(int8_t *buf, int32_t len,
+                              int32_t start,
+                              int32_t *id_out, int32_t *val_out) {
+    if (buf == NULL || id_out == NULL || val_out == NULL) return -1;
+    if (start < 0 || start >= len) return -1;
+    int32_t i = start;
+    /* parse id */
+    int32_t id = 0;
+    int got_digit = 0;
+    while (i < len && buf[i] >= '0' && buf[i] <= '9') {
+        id = id * 10 + (buf[i] - '0');
+        got_digit = 1;
+        i++;
+    }
+    if (!got_digit) return -1;
+    if (i >= len || buf[i] != ',') return -1;
+    i++;  /* skip comma */
+    /* parse value */
+    int32_t val = 0;
+    got_digit = 0;
+    while (i < len && buf[i] >= '0' && buf[i] <= '9') {
+        val = val * 10 + (buf[i] - '0');
+        got_digit = 1;
+        i++;
+    }
+    if (!got_digit) return -1;
+    /* skip newline(s) */
+    while (i < len && (buf[i] == '\n' || buf[i] == '\r')) i++;
+    *id_out = id;
+    *val_out = val;
+    return i;
+}
+
+/* etl_build_rule_source: builds a complete ETL source string by prepending
+ * a "fn main() i32 ret evaluate(<value>) end" wrapper to rule_body.
+ * This lets the host pass a per-record value into the rule's evaluate()
+ * function without re-reading the rule file for each record.
+ * Returns the total length of the generated source, or -1 on overflow.
+ */
+int32_t etl_build_rule_source(int8_t *rule_body, int32_t rule_body_len,
+                               int32_t value,
+                               int8_t *out_buf, int32_t out_cap) {
+    if (rule_body == NULL || out_buf == NULL) return -1;
+    if (rule_body_len < 0 || out_cap < 0) return -1;
+
+    char wrapper[64];
+    int wlen = snprintf(wrapper, sizeof(wrapper),
+                        "fn main() i32\n  ret evaluate(%d)\nend\n", (int)value);
+    if (wlen < 0 || wlen >= (int)sizeof(wrapper)) return -1;
+
+    int total = wlen + rule_body_len;
+    if (total > out_cap) return -1;
+
+    memcpy(out_buf, wrapper, (size_t)wlen);
+    memcpy(out_buf + wlen, rule_body, (size_t)rule_body_len);
+    return (int32_t)total;
 }

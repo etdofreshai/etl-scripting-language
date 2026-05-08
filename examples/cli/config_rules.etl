@@ -1,18 +1,122 @@
-// Evaluates three hardcoded boolean knobs into a bitmask: bit0=a, bit1=b, bit2=c.
+// config_rules — runtime rule-engine demo (F3.3-rule-engine).
+//
+// Usage: config_rules <rule_file> <input_file>
+//   rule_file  — path to a .etl file defining fn evaluate(v i32) i32
+//   input_file — path to a CSV file with lines of the form "id,value"
+//
+// For each input record the host:
+//   1. Builds a full ETL source (main wrapper + rule body) with the record
+//      value substituted in.
+//   2. Compiles it via host_compile_module (runtime VM path: ETL_VM_ETL must
+//      be set and ETL_BYTECODE_DRIVER must point to the bytecode compiler).
+//   3. Runs the compiled bytecode via host_run_main_i32; the exit code is the
+//      decision (0=ALLOW, 1=DENY, 2=REVIEW).
+//   4. Prints "record <id>: decision <code>" to stdout.
+//
+// Demonstrates: loading an ETL rule script at runtime, compiling it via the
+// embedded VM path, and evaluating it against multiple input records.
+//
+// Architectural workaround:
+//   The ETL VM subprocess cannot call C extern functions from bytecode
+//   (the C opcode only dispatches to ETL-defined functions).  The rule
+//   therefore communicates its result via process exit code only.  The host
+//   wraps the rule's evaluate() function in a generated main() that passes
+//   the record value as a literal, so each compile call bakes in one record.
+//   The rule source file is loaded once; etl_build_rule_source() generates
+//   the per-record source.  Multiple etl_compile_module calls work correctly
+//   (the once-per-process comment in etl_host.h refers to a stale /dev/stdin
+//   concern; the implementation uses temp files and is safe to call N times).
+
+extern fn etl_argc() i32
+extern fn etl_argv_get(i i32, buf i8[256], cap i32)
+extern fn etl_read_file(path i8[256], buf i8[4096], cap i32) i32
+extern fn etl_parse_csv_record(buf i8[4096], len i32, start i32, id_out i32[1], val_out i32[1]) i32
+extern fn etl_build_rule_source(rule_body i8[4096], rule_body_len i32, value i32, out_buf i8[8192], out_cap i32) i32
+extern fn etl_eprint(buf i8[256], len i32)
+extern fn etl_print_str_n(buf i8[256], len i32)
+extern fn etl_format_i32(buf i8[256], cap i32, value i32) i32
+extern fn host_compile_module(src i8[8192], src_len i32, bc i8[65536], bc_cap i32) i32
+extern fn host_run_main_i32(bc i8[65536], bc_len i32) i32
 
 fn main() i32
-  let a bool = true
-  let b bool = false
-  let c bool = true
-  let result i32 = 0
-  if a
-    result = result + 1
+  let argc i32 = etl_argc()
+  if argc != 3
+    let msg i8[256] = "usage: config_rules <rule_file> <input_file>\n"
+    etl_eprint(msg, 47)
+    ret 2
   end
-  if b
-    result = result + 2
+
+  let rule_path i8[256]
+  let input_path i8[256]
+  etl_argv_get(1, rule_path, 256)
+  etl_argv_get(2, input_path, 256)
+
+  // Load rule source (defines fn evaluate(v i32) i32).
+  let rule_body i8[4096]
+  let rule_len i32 = etl_read_file(rule_path, rule_body, 4096)
+  if rule_len < 0
+    let errmsg i8[256] = "error: cannot read rule file\n"
+    etl_eprint(errmsg, 29)
+    ret 1
   end
-  if c
-    result = result + 4
+
+  // Load input records.
+  let input_buf i8[4096]
+  let input_len i32 = etl_read_file(input_path, input_buf, 4096)
+  if input_len < 0
+    let errmsg2 i8[256] = "error: cannot read input file\n"
+    etl_eprint(errmsg2, 30)
+    ret 1
   end
-  ret result
+
+  // Process each record.
+  let pos i32 = 0
+  let id_out i32[1]
+  let val_out i32[1]
+  let src_buf i8[8192]
+  let bc_buf i8[65536]
+  while pos < input_len
+    let next i32 = etl_parse_csv_record(input_buf, input_len, pos, id_out, val_out)
+    if next < 0
+      let errmsg3 i8[256] = "error: malformed input record\n"
+      etl_eprint(errmsg3, 30)
+      ret 1
+    end
+    pos = next
+
+    // Build specialized ETL source: "fn main() i32\n  ret evaluate(VALUE)\nend\n" + rule body.
+    let src_len i32 = etl_build_rule_source(rule_body, rule_len, val_out[0], src_buf, 8192)
+    if src_len < 0
+      let errmsg4 i8[256] = "error: source buffer overflow\n"
+      etl_eprint(errmsg4, 30)
+      ret 1
+    end
+
+    // Compile via the ETL runtime VM path (ETL_VM_ETL must be set).
+    let bc_len i32 = host_compile_module(src_buf, src_len, bc_buf, 65536)
+    if bc_len < 0
+      let errmsg5 i8[256] = "error: rule compilation failed\n"
+      etl_eprint(errmsg5, 31)
+      ret 1
+    end
+
+    // Run compiled bytecode; the rule's main() returns the decision code
+    // which the VM subprocess communicates via process exit code.
+    let decision i32 = host_run_main_i32(bc_buf, bc_len)
+
+    // Print: "record <id>: decision <decision>\n"
+    let prefix i8[256] = "record "
+    let mid i8[256] = ": decision "
+    let nl i8[256] = "\n"
+    let numstr i8[256]
+    let nlen i32 = etl_format_i32(numstr, 256, id_out[0])
+    etl_print_str_n(prefix, 7)
+    etl_print_str_n(numstr, nlen)
+    etl_print_str_n(mid, 11)
+    nlen = etl_format_i32(numstr, 256, decision)
+    etl_print_str_n(numstr, nlen)
+    etl_print_str_n(nl, 1)
+  end
+
+  ret 0
 end
