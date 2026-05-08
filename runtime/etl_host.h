@@ -14,8 +14,9 @@
  * The bridge is intentionally minimal:
  *   - etl_compile_module spawns a child process of a c1-built bytecode
  *     driver binary (path supplied via the ETL_BYTECODE_DRIVER env var)
- *     and pipes the source through it. The driver writes bytecode to
- *     stdout; we capture it into bytecode_out.
+ *     and writes the source to a temp file, then passes it to the driver.
+ *     The driver writes bytecode to a second temp file; we read that back
+ *     into bytecode_out.  Both temp files are unlinked before return.
  *   - etl_run_main_i32 is a thin wrapper around etl_vm_run_main_i32.
  *
  * Long-term plan: when compiler-1 supports the runtime structures it
@@ -28,9 +29,11 @@
  */
 
 /*
- * LIMITATION: etl_compile_module cannot be called more than once per process.
- * The subprocess bytecode driver reads /dev/stdin which becomes unreadable
- * after the first call.  Tracked for future fix.
+ * etl_compile_module: compiles ETL source to bytecode via the bytecode driver
+ * subprocess.  The implementation uses mkstemp temp files for source and
+ * bytecode; both are unlinked before the function returns.  There is no
+ * once-per-process limit: the function may be called multiple times within a
+ * single process.
  */
 int32_t etl_compile_module(const int8_t *source,
                            int32_t source_len,

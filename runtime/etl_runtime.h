@@ -41,9 +41,6 @@ void etl_argv_get(int32_t i, int8_t *buf, int32_t cap);
 int32_t etl_argv_copy(int32_t i, int8_t *buf, int32_t cap);
 
 
-/* Rule-engine record I/O helpers (F3.3-rule-engine) */
-int32_t etl_write_record(int8_t *path, int32_t id, int32_t val);
-int32_t etl_read_record(int8_t *path, int32_t *id_out, int32_t *val_out);
 
 int32_t etl_build_rule_source(int8_t *rule_body, int32_t rule_body_len, int32_t value, int8_t *out_buf, int32_t out_cap);
 int32_t etl_parse_csv_record(int8_t *buf, int32_t len, int32_t start, int32_t *id_out, int32_t *val_out);

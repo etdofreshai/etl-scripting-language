@@ -368,35 +368,6 @@ void etl_argv_get(int32_t i, int8_t *buf, int32_t cap) {
   etl_argv_copy(i, buf, cap);
 }
 
-/* --- Rule-engine record I/O helpers (F3.3-rule-engine) ---
- *
- * etl_write_record: writes "id value\n" to path as text.
- * etl_read_record:  reads "id value\n" from path, fills id_out and val_out.
- *
- * Used by the config_rules host/rule pair: the host writes one record per
- * etl_run_main_i32 call; the rule reads it and returns a decision exit code.
- */
-int32_t etl_write_record(int8_t *path, int32_t id, int32_t val) {
-    if (path == NULL) return -1;
-    FILE *f = fopen((const char *)path, "wb");
-    if (f == NULL) return -1;
-    fprintf(f, "%d %d\n", (int)id, (int)val);
-    fclose(f);
-    return 0;
-}
-
-int32_t etl_read_record(int8_t *path, int32_t *id_out, int32_t *val_out) {
-    if (path == NULL || id_out == NULL || val_out == NULL) return -1;
-    FILE *f = fopen((const char *)path, "rb");
-    if (f == NULL) return -1;
-    int id = 0, val = 0;
-    int n = fscanf(f, "%d %d", &id, &val);
-    fclose(f);
-    if (n != 2) return -1;
-    *id_out = (int32_t)id;
-    *val_out = (int32_t)val;
-    return 0;
-}
 
 /* etl_parse_csv_record: parses "id,value\n" from buf starting at byte offset
  * start.  Fills id_out and val_out.  Returns the byte offset of the next
