@@ -1,0 +1,75 @@
+external function etl_gfx_create(width integer, height integer) integer
+external function etl_gfx_destroy()
+external function etl_gfx_clear(r integer, g integer, b integer) integer
+external function etl_gfx_set_pixel(x integer, y integer, r integer, g integer, b integer) integer
+external function etl_gfx_write_ppm(path byte[256]) integer
+external function etl_gfx_get_pixel(x integer, y integer) integer
+external function etl_print_i32(value integer)
+
+function bounce_pos(frame integer, span integer) integer
+  let period integer = span + span
+  let t integer = frame - (frame / period) * period
+  if t <= span
+    return t
+  end
+  return period - t
+end
+
+function draw_rect(rx integer, ry integer, rlen integer) integer
+  let dy integer = 0
+  while dy < rlen
+    let dx integer = 0
+    while dx < rlen
+      if etl_gfx_set_pixel(rx + dx, ry + dy, 255, 255, 0) < 0
+        return -1
+      end
+      dx = dx + 1
+    end
+    dy = dy + 1
+  end
+  return 0
+end
+
+function main() integer
+  let rect_len integer = 8
+  let span integer = 24
+  let total_frames integer = 30
+  let out_path byte[256] = "build/graphics/bouncing_rect.ppm"
+
+  if etl_gfx_create(32, 32) < 0
+    return 1
+  end
+
+  let frame integer = 0
+  while frame < total_frames
+    if etl_gfx_clear(0, 0, 64) < 0
+      etl_gfx_destroy()
+      return 2
+    end
+
+    let rx integer = bounce_pos(frame, span)
+    let ry integer = bounce_pos(frame + 6, span)
+
+    if draw_rect(rx, ry, rect_len) < 0
+      etl_gfx_destroy()
+      return 3
+    end
+
+    frame = frame + 1
+  end
+
+  let final_rx integer = bounce_pos(29, span)
+  let final_ry integer = bounce_pos(35, span)
+  let cx integer = final_rx + 4
+  let cy integer = final_ry + 4
+  let pixel integer = etl_gfx_get_pixel(cx, cy)
+  etl_print_i32(pixel)
+
+  if etl_gfx_write_ppm(out_path) < 0
+    etl_gfx_destroy()
+    return 4
+  end
+
+  etl_gfx_destroy()
+  return 0
+end
