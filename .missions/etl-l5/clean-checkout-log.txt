@@ -1,0 +1,59 @@
+F7.3-clean-checkout-reproducible — Clean Checkout Validation Log
+================================================================
+Date: 2026-05-08
+Branch: mission/etl-l5/F7.3-clean-checkout-reproducible
+Worktree: /tmp/etl-clean-checkout (git worktree of main, no .deps/)
+
+--- Step 1: Worktree state ---
+Worktree created via: git worktree add /tmp/etl-clean-checkout main
+.deps/ present before setup.sh: NO (confirmed clean)
+
+--- Step 2: scripts/setup.sh ---
+Command: bash scripts/setup.sh
+Exit code: 0
+Wall time: ~40 seconds
+
+Steps completed:
+  [OK] bin/: already exists (committed)
+  [OK] SDL3 3.4.8 — fetched tarball (14.8 MB), cmake built, installed to .deps/sdl3/
+  [OK] SDL3 verify: /tmp/etl_sdl3_check compiled and ran (SDL3 version printed)
+  [OK] wasmtime v36.0.9 — fetched tarball, extracted binary to .deps/wasmtime
+  [OK] wat2wasm 1.0.41 — fetched WABT tarball, extracted binary to .deps/wat2wasm
+  [OK] qemu-aarch64-static v7.2.0-1 — fetched binary to .deps/qemu-aarch64-static (9.9 MB)
+  [OK] zig 0.14.1 — fetched tarball (46.8 MB), extracted to .deps/zig/
+  [NOTE] headless Chrome / Playwright: not yet implemented (M6 deferred)
+
+No fetch failures, no retries required.
+
+--- Step 3: make release-check ---
+Command: make release-check
+Exit code: 0
+Wall time: ~110 seconds
+
+Sub-gates:
+  [OK] make check          — 263 unittest tests passed; all smoke scripts green
+  [OK] make selfhost       — c1 self-hosted pipeline smoke passed
+  [OK] make backend-vm     — ETL-VM-ETL smoke: 7 fixtures OK
+  [OK] make backend-subset — 16 four-backend + 2 three-backend cases all passed
+  [OK] make backend-asm    — x86_64 ASM emit + native exec passed (array, struct, extern smokes)
+  [OK] make backend-wasm   — WAT emit + wat2wasm + wasmtime: 23+ cases passed
+  [OK] make examples       — visual smoke: tick demo deterministic; Life golden matched; SDL3 live frame matched golden
+  [OK] make examples-cli   — calculator, file_transform, config_rules all passed
+  [OK] release-check-x86_64 — tarball built (98K), unpacked, hello.etl → exit 42
+  [OK] release-check-aarch64 — zig cross-compile + qemu: 7/7 fixtures passed
+  [OK] release-check-macos — x86_64 + arm64 Mach-O confirmed, 2/2 tarballs validated
+  [OK] release-check-wasm — WASI wasmtime exit 42; Node.js WebAssembly API exit 42
+
+--- Step 4: Summary ---
+setup.sh exit code : 0
+setup.sh wall time : ~40s
+make release-check exit code : 0
+make release-check wall time : ~110s
+Total wall time    : ~150s
+
+Issues found in clean worktree: NONE
+Root cause fixes required: NONE
+Blockers: NONE
+
+--- Step 5: Cleanup ---
+Worktree removed via: git worktree remove --force /tmp/etl-clean-checkout
