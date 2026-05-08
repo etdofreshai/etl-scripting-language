@@ -19,3 +19,4 @@ state/*launch.pid
 state/*.pid
 state/parallel-wave-state.json
 .worktrees/
+bin/
