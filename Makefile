@@ -10,7 +10,7 @@ bin/etl-vm-etl: compiler1/vm.etl $(ETL_VM_ETL_RUNTIME)
 
 etl-vm-etl: bin/etl-vm-etl
 
-.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 release-check-aarch64 release-tarball-aarch64 release-tarball-macos release-check-macos etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
+.PHONY: test smoke runtime-test check c1-pipeline selfhost-equiv selfhost selfhost-selfcompile selfhost-bootstrap equiv backend-plan backend-plan-smoke backend-subset backend-asm backend-wasm backend-vm selfhost-asm headless-selfeval selfeval-trace graphics-software graphics-headless sdl3-visual selfeval-all headless-ready autopilot-help examples-cli visual examples release-check release-check-x86_64 release-tarball-x86_64 release-check-aarch64 release-tarball-aarch64 release-tarball-macos release-check-macos release-check-wasm etl-vm-etl vm-equivalence triple-equivalence backend-vm-triple
 
 test:
 	python3 -m unittest discover -s tests
@@ -189,6 +189,12 @@ release-tarball-x86_64: bin/etl-vm-etl
 release-check-x86_64: release-tarball-x86_64
 	scripts/release_smoke_x86_64.sh
 
+
+# WASI + browser-equivalent WASM smoke (VAL-DIST-004).
+# ETL→WAT→WASM via wasmtime (WASI) and via Node.js WebAssembly API (browser-equiv).
+release-check-wasm:
+	scripts/release_smoke_wasi.sh
+	scripts/release_smoke_wasm_browser.sh
 # Release-readiness gate. Aggregates check + selfhost + every backend
 # gate + examples + visual + x86_64 release tarball smoke. Fails if any
 # non-optional gate fails. The selfhost-selfcompile and selfhost-bootstrap
