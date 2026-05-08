@@ -1,0 +1,26 @@
+extern fn etl_alloc(n i32) ptr
+extern fn etl_free(p ptr)
+extern fn str_new(literal ptr) str
+extern fn str_len(s str) i32
+extern fn str_concat(a str, b str) str
+extern fn str_free(s str)
+
+fn main() i32
+  let pa ptr = etl_alloc(8)
+  let pb ptr = etl_alloc(8)
+  let sa str = str_new(pa)
+  let sb str = str_new(pb)
+  let sc str = str_concat(sa, sb)
+  let la i32 = str_len(sa)
+  let lb i32 = str_len(sb)
+  let lc i32 = str_len(sc)
+  str_free(sa)
+  str_free(sb)
+  str_free(sc)
+  etl_free(pa)
+  etl_free(pb)
+  if lc != la + lb
+    ret 1
+  end
+  ret 0
+end

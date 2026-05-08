@@ -35,7 +35,7 @@ int plus_one(signed char ch) {
 }
 C
 
-cc -std=c11 -Wall -Wextra -Werror "$emitted" "$td/scalar_helpers.c" -o "$td/c1_extern_scalar_param"
+cc -std=c11 -Wall -Wextra -Werror -I runtime "$emitted" "$td/scalar_helpers.c" -o "$td/c1_extern_scalar_param"
 
 set +e
 "$td/c1_extern_scalar_param"

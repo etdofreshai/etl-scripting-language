@@ -1,4 +1,8 @@
 #include "etl_vm.h"
+#include "etl_string.h"
+#include "etl_dynarr.h"
+#include "etl_etlval.h"
+#include <stdlib.h>
 
 /*
  * ETL VM bootstrap interpreter (temporary C implementation).
@@ -37,6 +41,7 @@
 #define ETL_VM_NAME_MAX 32
 #define ETL_VM_FRAME_MAX 32
 #define ETL_VM_STEP_MAX 100000
+#define ETL_VM_ALLOC_MAX 64
 
 typedef struct {
     int8_t name[ETL_VM_NAME_MAX];
@@ -246,6 +251,21 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
         locals[li] = 0;
     }
     int32_t sp = 0;
+    void *etl_alloc_table[ETL_VM_ALLOC_MAX];
+    int32_t etl_alloc_count = 0;
+    for (int32_t ai = 0; ai < ETL_VM_ALLOC_MAX; ai = ai + 1) { etl_alloc_table[ai] = 0; }
+    /* String table for HS* opcodes */
+    EtlString *str_table[ETL_VM_ALLOC_MAX];
+    int32_t str_count = 0;
+    for (int32_t si = 0; si < ETL_VM_ALLOC_MAX; si = si + 1) { str_table[si] = 0; }
+    /* DynArr table for HD* opcodes */
+    EtlDynArr *dynarr_table[ETL_VM_ALLOC_MAX];
+    int32_t dynarr_count = 0;
+    for (int32_t di = 0; di < ETL_VM_ALLOC_MAX; di = di + 1) { dynarr_table[di] = 0; }
+    /* EtlVal table for HV* opcodes */
+    EtlVal *etlval_table[ETL_VM_ALLOC_MAX];
+    int32_t etlval_count = 0;
+    for (int32_t vi = 0; vi < ETL_VM_ALLOC_MAX; vi = vi + 1) { etlval_table[vi] = 0; }
     int32_t i = 6;
     int32_t func_count = 0;
     int32_t parsed_funcs = etl_vm_parse_functions(bytecode, len, &i, funcs, &func_count);
@@ -470,8 +490,380 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                 if (sp != 0) {
                     return -13;
                 }
+                for (int32_t ci = 0; ci < etl_alloc_count; ci = ci + 1) {
+                    if (etl_alloc_table[ci] != 0) { free(etl_alloc_table[ci]); etl_alloc_table[ci] = 0; }
+                }
+                for (int32_t si = 0; si < str_count; si = si + 1) {
+                    if (str_table[si] != 0) { str_free(str_table[si]); str_table[si] = 0; }
+                }
+                for (int32_t di = 0; di < dynarr_count; di = di + 1) {
+                    if (dynarr_table[di] != 0) { dynarr_free(dynarr_table[di]); dynarr_table[di] = 0; }
+                }
+                for (int32_t vi = 0; vi < etlval_count; vi = vi + 1) {
+                    if (etlval_table[vi] != 0) { etlval_free(etlval_table[vi]); etlval_table[vi] = 0; }
+                }
                 *result = value;
                 return 0;
+            }
+        } else if (op == 'H') {
+            if (i >= len) { return -5; }
+            int8_t sub = bytecode[i];
+            i = i + 1;
+            if (sub == 'S') {
+                /* HS* string opcodes: next char is sub-op, then ';' */
+                if (i >= len) { return -5; }
+                int8_t sub2 = bytecode[i];
+                i = i + 1;
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub2 == 'N') {
+                    /* str_new: pop ptr handle (ignored in VM) → create empty string */
+                    int32_t _ptr_h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &_ptr_h);
+                    if (popped < 0) { return popped; }
+                    if (str_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlString *ns = str_new((void *)"");
+                    if (!ns) { return -38; }
+                    str_table[str_count] = ns;
+                    int32_t handle = str_count + 1;
+                    str_count = str_count + 1;
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'L') {
+                    /* str_len: pop handle, push len */
+                    int32_t h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    int32_t slen = 0;
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        slen = str_len(str_table[h-1]);
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, slen);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'C') {
+                    /* str_concat: pop b handle then a handle, push new handle */
+                    int32_t hb = 0, ha = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &hb);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &ha);
+                    if (popped < 0) { return popped; }
+                    if (str_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlString *sa = (ha > 0 && ha <= str_count) ? str_table[ha-1] : 0;
+                    EtlString *sb = (hb > 0 && hb <= str_count) ? str_table[hb-1] : 0;
+                    EtlString *sc = 0;
+                    if (sa && sb) { sc = str_concat(sa, sb); }
+                    else { sc = str_new((void *)""); }
+                    if (!sc) { return -38; }
+                    str_table[str_count] = sc;
+                    int32_t handle = str_count + 1;
+                    str_count = str_count + 1;
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'A') {
+                    /* str_at: pop i then handle, push byte */
+                    int32_t idx = 0, h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &idx);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    int32_t byte_val = 0;
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        byte_val = (int32_t)str_at(str_table[h-1], idx);
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, byte_val);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'E') {
+                    /* str_eq: pop b handle then a handle, push bool */
+                    int32_t hb2 = 0, ha2 = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &hb2);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &ha2);
+                    if (popped < 0) { return popped; }
+                    int32_t eq_result = 0;
+                    EtlString *sa2 = (ha2 > 0 && ha2 <= str_count) ? str_table[ha2-1] : 0;
+                    EtlString *sb2 = (hb2 > 0 && hb2 <= str_count) ? str_table[hb2-1] : 0;
+                    if (sa2 && sb2) { eq_result = str_eq(sa2, sb2); }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, eq_result);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'F') {
+                    /* str_free: pop handle, free string */
+                    int32_t h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        str_free(str_table[h-1]);
+                        str_table[h-1] = 0;
+                    }
+                } else {
+                    return -5;
+                }
+            } else if (sub == 'D') {
+                /* HD* dynarr opcodes: next char is sub-op, then ';' */
+                if (i >= len) { return -5; }
+                int8_t sub2d = bytecode[i];
+                i = i + 1;
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub2d == 'N') {
+                    /* HDN; dynarr_new: no args, push handle */
+                    if (dynarr_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlDynArr *nd = dynarr_new();
+                    if (!nd) { return -38; }
+                    dynarr_table[dynarr_count] = nd;
+                    int32_t dh = dynarr_count + 1;
+                    dynarr_count = dynarr_count + 1;
+                    int32_t pushed_n = etl_vm_push_i32(stack, &sp, dh);
+                    if (pushed_n < 0) { return pushed_n; }
+                } else if (sub2d == 'P') {
+                    /* HDP; dynarr_push: pop v, pop handle */
+                    int32_t v = 0;
+                    int32_t popped_v = etl_vm_pop_i32(stack, &sp, &v);
+                    if (popped_v < 0) { return popped_v; }
+                    int32_t dh_p = 0;
+                    int32_t popped_h = etl_vm_pop_i32(stack, &sp, &dh_p);
+                    if (popped_h < 0) { return popped_h; }
+                    if (dh_p > 0 && dh_p <= dynarr_count && dynarr_table[dh_p-1] != 0) {
+                        dynarr_push(dynarr_table[dh_p-1], v);
+                    }
+                } else if (sub2d == 'L') {
+                    /* HDL; dynarr_len: pop handle, push len */
+                    int32_t dh_l = 0;
+                    int32_t popped_hl = etl_vm_pop_i32(stack, &sp, &dh_l);
+                    if (popped_hl < 0) { return popped_hl; }
+                    int32_t dlen = 0;
+                    if (dh_l > 0 && dh_l <= dynarr_count && dynarr_table[dh_l-1] != 0) {
+                        dlen = dynarr_len(dynarr_table[dh_l-1]);
+                    }
+                    int32_t pushed_l = etl_vm_push_i32(stack, &sp, dlen);
+                    if (pushed_l < 0) { return pushed_l; }
+                } else if (sub2d == 'G') {
+                    /* HDG; dynarr_get: pop i, pop handle, push element */
+                    int32_t gi = 0;
+                    int32_t popped_gi = etl_vm_pop_i32(stack, &sp, &gi);
+                    if (popped_gi < 0) { return popped_gi; }
+                    int32_t dh_g = 0;
+                    int32_t popped_hg = etl_vm_pop_i32(stack, &sp, &dh_g);
+                    if (popped_hg < 0) { return popped_hg; }
+                    int32_t gval = 0;
+                    if (dh_g > 0 && dh_g <= dynarr_count && dynarr_table[dh_g-1] != 0) {
+                        gval = dynarr_get(dynarr_table[dh_g-1], gi);
+                    }
+                    int32_t pushed_g = etl_vm_push_i32(stack, &sp, gval);
+                    if (pushed_g < 0) { return pushed_g; }
+                } else if (sub2d == 'S') {
+                    /* HDS; dynarr_set: pop v, pop i, pop handle */
+                    int32_t sv = 0;
+                    int32_t popped_sv = etl_vm_pop_i32(stack, &sp, &sv);
+                    if (popped_sv < 0) { return popped_sv; }
+                    int32_t si2 = 0;
+                    int32_t popped_si2 = etl_vm_pop_i32(stack, &sp, &si2);
+                    if (popped_si2 < 0) { return popped_si2; }
+                    int32_t dh_s = 0;
+                    int32_t popped_hs = etl_vm_pop_i32(stack, &sp, &dh_s);
+                    if (popped_hs < 0) { return popped_hs; }
+                    if (dh_s > 0 && dh_s <= dynarr_count && dynarr_table[dh_s-1] != 0) {
+                        dynarr_set(dynarr_table[dh_s-1], si2, sv);
+                    }
+                } else if (sub2d == 'F') {
+                    /* HDF; dynarr_free: pop handle */
+                    int32_t dh_f = 0;
+                    int32_t popped_hf = etl_vm_pop_i32(stack, &sp, &dh_f);
+                    if (popped_hf < 0) { return popped_hf; }
+                    if (dh_f > 0 && dh_f <= dynarr_count && dynarr_table[dh_f-1] != 0) {
+                        dynarr_free(dynarr_table[dh_f-1]);
+                        dynarr_table[dh_f-1] = 0;
+                    }
+                } else {
+                    return -5;
+                }
+            } else if (sub == 'V') {
+                /* HV* etlval opcodes: next 1-2 chars is sub-op, then ';' */
+                if (i >= len) { return -5; }
+                int8_t sub2v = bytecode[i];
+                i = i + 1;
+                if (sub2v == 'I') {
+                    /* HVI; etlval_int: pop i32, push handle */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vv = 0;
+                    int32_t pv = etl_vm_pop_i32(stack, &sp, &vv);
+                    if (pv < 0) { return pv; }
+                    if (etlval_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlVal *nv = etlval_int(vv);
+                    if (!nv) { return -38; }
+                    etlval_table[etlval_count] = nv;
+                    int32_t vh = etlval_count + 1;
+                    etlval_count = etlval_count + 1;
+                    int32_t psh = etl_vm_push_i32(stack, &sp, vh);
+                    if (psh < 0) { return psh; }
+                } else if (sub2v == 'B') {
+                    /* HVB; etlval_bool: pop i32, push handle */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vb = 0;
+                    int32_t pvb = etl_vm_pop_i32(stack, &sp, &vb);
+                    if (pvb < 0) { return pvb; }
+                    if (etlval_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlVal *nb = etlval_bool(vb);
+                    if (!nb) { return -38; }
+                    etlval_table[etlval_count] = nb;
+                    int32_t vhb = etlval_count + 1;
+                    etlval_count = etlval_count + 1;
+                    int32_t pshb = etl_vm_push_i32(stack, &sp, vhb);
+                    if (pshb < 0) { return pshb; }
+                } else if (sub2v == 'P') {
+                    /* HVP; etlval_ptr: pop i32 handle (ptr), push etlval handle */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vph = 0;
+                    int32_t pvph = etl_vm_pop_i32(stack, &sp, &vph);
+                    if (pvph < 0) { return pvph; }
+                    if (etlval_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    /* ptr handle -> raw pointer (may be NULL for handle 0) */
+                    void *rawp = (vph > 0 && vph <= etl_alloc_count) ? etl_alloc_table[vph-1] : (void*)0;
+                    EtlVal *np = etlval_ptr(rawp);
+                    if (!np) { return -38; }
+                    etlval_table[etlval_count] = np;
+                    int32_t vhp = etlval_count + 1;
+                    etlval_count = etlval_count + 1;
+                    int32_t pshp = etl_vm_push_i32(stack, &sp, vhp);
+                    if (pshp < 0) { return pshp; }
+                } else if (sub2v == 'S') {
+                    /* HVS; etlval_str: pop str handle, push etlval handle */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vsh = 0;
+                    int32_t pvsh = etl_vm_pop_i32(stack, &sp, &vsh);
+                    if (pvsh < 0) { return pvsh; }
+                    if (etlval_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlString *raws = (vsh > 0 && vsh <= str_count) ? str_table[vsh-1] : (EtlString*)0;
+                    EtlVal *ns = etlval_str(raws);
+                    if (!ns) { return -38; }
+                    etlval_table[etlval_count] = ns;
+                    int32_t vhs = etlval_count + 1;
+                    etlval_count = etlval_count + 1;
+                    int32_t pshs = etl_vm_push_i32(stack, &sp, vhs);
+                    if (pshs < 0) { return pshs; }
+                } else if (sub2v == 'T') {
+                    /* HVT; etlval_tag: pop etlval handle, push tag */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vth = 0;
+                    int32_t pvt = etl_vm_pop_i32(stack, &sp, &vth);
+                    if (pvt < 0) { return pvt; }
+                    int32_t vtag = -1;
+                    if (vth > 0 && vth <= etlval_count && etlval_table[vth-1] != 0) {
+                        vtag = etlval_tag(etlval_table[vth-1]);
+                    }
+                    int32_t psht = etl_vm_push_i32(stack, &sp, vtag);
+                    if (psht < 0) { return psht; }
+                } else if (sub2v == 'F') {
+                    /* HVF; etlval_free: pop handle */
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    int32_t vfh = 0;
+                    int32_t pvf = etl_vm_pop_i32(stack, &sp, &vfh);
+                    if (pvf < 0) { return pvf; }
+                    if (vfh > 0 && vfh <= etlval_count && etlval_table[vfh-1] != 0) {
+                        etlval_free(etlval_table[vfh-1]);
+                        etlval_table[vfh-1] = 0;
+                    }
+                } else {
+                    /* HVAI; HVAB; HVAP; HVAS; — two-char sub-ops */
+                    if (i >= len) { return -5; }
+                    int8_t sub3v = bytecode[i];
+                    i = i + 1;
+                    if (i >= len || bytecode[i] != ';') { return -5; }
+                    i = i + 1;
+                    if (sub2v == 'A' && sub3v == 'I') {
+                        /* HVAI; etlval_as_int: pop handle, push i32 */
+                        int32_t aih = 0;
+                        int32_t pai = etl_vm_pop_i32(stack, &sp, &aih);
+                        if (pai < 0) { return pai; }
+                        int32_t aiv = 0;
+                        if (aih > 0 && aih <= etlval_count && etlval_table[aih-1] != 0) {
+                            aiv = etlval_as_int(etlval_table[aih-1]);
+                        }
+                        int32_t pshai = etl_vm_push_i32(stack, &sp, aiv);
+                        if (pshai < 0) { return pshai; }
+                    } else if (sub2v == 'A' && sub3v == 'B') {
+                        /* HVAB; etlval_as_bool: pop handle, push i32 */
+                        int32_t abh = 0;
+                        int32_t pab = etl_vm_pop_i32(stack, &sp, &abh);
+                        if (pab < 0) { return pab; }
+                        int32_t abv = 0;
+                        if (abh > 0 && abh <= etlval_count && etlval_table[abh-1] != 0) {
+                            abv = etlval_as_bool(etlval_table[abh-1]);
+                        }
+                        int32_t pshab = etl_vm_push_i32(stack, &sp, abv);
+                        if (pshab < 0) { return pshab; }
+                    } else if (sub2v == 'A' && sub3v == 'P') {
+                        /* HVAP; etlval_as_ptr: pop handle, push ptr handle (or 0) */
+                        int32_t aph = 0;
+                        int32_t pap = etl_vm_pop_i32(stack, &sp, &aph);
+                        if (pap < 0) { return pap; }
+                        int32_t apv = 0;
+                        if (aph > 0 && aph <= etlval_count && etlval_table[aph-1] != 0) {
+                            void *rawap = etlval_as_ptr(etlval_table[aph-1]);
+                            /* find handle in alloc table */
+                            int32_t found_ap = 0;
+                            for (int32_t ai2 = 0; ai2 < etl_alloc_count; ai2 = ai2 + 1) {
+                                if (etl_alloc_table[ai2] == rawap) { found_ap = ai2 + 1; }
+                            }
+                            apv = found_ap;
+                        }
+                        int32_t pshap = etl_vm_push_i32(stack, &sp, apv);
+                        if (pshap < 0) { return pshap; }
+                    } else if (sub2v == 'A' && sub3v == 'S') {
+                        /* HVAS; etlval_as_str: pop handle, push str handle (or 0) */
+                        int32_t ash = 0;
+                        int32_t pas = etl_vm_pop_i32(stack, &sp, &ash);
+                        if (pas < 0) { return pas; }
+                        int32_t asv = 0;
+                        if (ash > 0 && ash <= etlval_count && etlval_table[ash-1] != 0) {
+                            EtlString *rawas = etlval_as_str(etlval_table[ash-1]);
+                            /* find handle in str table */
+                            int32_t found_as = 0;
+                            for (int32_t si2 = 0; si2 < str_count; si2 = si2 + 1) {
+                                if (str_table[si2] == rawas) { found_as = si2 + 1; }
+                            }
+                            asv = found_as;
+                        }
+                        int32_t pshas = etl_vm_push_i32(stack, &sp, asv);
+                        if (pshas < 0) { return pshas; }
+                    } else {
+                        return -5;
+                    }
+                }
+            } else {
+                /* HA; and HF; */
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub == 'A') {
+                    int32_t sz = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &sz);
+                    if (popped < 0) { return popped; }
+                    int32_t handle = 0;
+                    if (sz > 0) {
+                        if (etl_alloc_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                        void *ptr = calloc((size_t)sz, 1);
+                        etl_alloc_table[etl_alloc_count] = ptr;
+                        handle = etl_alloc_count + 1;
+                        etl_alloc_count = etl_alloc_count + 1;
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub == 'F') {
+                    int32_t handle = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &handle);
+                    if (popped < 0) { return popped; }
+                    if (handle > 0 && handle <= etl_alloc_count) {
+                        free(etl_alloc_table[handle - 1]);
+                        etl_alloc_table[handle - 1] = 0;
+                    }
+                } else {
+                    return -5;
+                }
             }
         } else {
             return -5;

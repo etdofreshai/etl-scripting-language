@@ -731,6 +731,22 @@ pattern matching, exceptions (if results suffice), closures, GC,
 complex package management, hot reload, native ASM backend,
 mobile-specific APIs beyond capability wrappers.
 
+## 37b. M1 Opaque-Type Design Rationale (v0)
+
+Milestone M1 adds four opaque runtime types (`ptr`, `str`, `dynarr`, `etlval`) to the compiler-1 surface. The design choices are:
+
+**Extern-call surface, no new syntax.** All four types are exposed entirely through `external function` declarations. ETL programs call `str_new`, `dynarr_push`, `etlval_tag`, etc. the same way they call any other extern. This preserves the "no new syntax" goal: the language grammar and parser are untouched. The surface is additive, not disruptive.
+
+**Runtime owns the heap.** The C runtime (`runtime/etl_string.c`, `runtime/etl_dynarr.c`, `runtime/etl_etlval.c`) owns all heap allocations for M1 types. ETL programs hold opaque handles and must call the corresponding `*_free` externs to release resources. There is no implicit GC or reference counting in M1.
+
+**VM tracks handles via per-call tables.** The ETL VM backend (`runtime/etl_vm.c`) cannot directly call C function pointers for M1 types. Instead, `emit_bytecode.etl` emits dedicated sub-opcodes (`HS*` for str, `HD*` for dynarr, `HV*` for etlval, `HA;`/`HF;` for ptr) that the VM dispatches to bounded handle tables (64 slots each). The tables auto-free on clean exit. This design allows the VM to execute M1 operations without exposing raw C pointers into the bytecode stream.
+
+**`str_new` VM limitation.** The VM cannot dereference arbitrary host pointers, so `str_new` in the VM backend ignores its `ptr` input and creates an empty string. Programs that need meaningful string content in the VM must use `str_concat` or other operations to build content incrementally. The C backend does not have this limitation because it emits a direct C call with the host pointer.
+
+**Bytecode buffer size.** The VM bytecode buffer is fixed at 1024 bytes. This limits how complex a single ETL function can be in the VM backend. The etlval `str` variant fixture and multi-function opaque-type programs exceed this limit at the VM level (though the C backend handles them correctly). The 1024-byte limit is tracked as tech debt and will need expansion before VM-in-ETL (M2).
+
+**Compiler-0 not extended.** Compiler-0 (Python) was not extended to support `str`, `dynarr`, or `etlval`. These types are compiler-1-only capabilities. Equivalence smokes for M1 types compare c1/C vs c1/VM, not c0/C vs c1/C. This is an intentional scope boundary: compiler-0 is frozen as the historical bootstrap, and new features belong in compiler-1.
+
 ## 38. Key Open Design Questions
 
 - Should long-form keywords replace short bootstrap keywords?

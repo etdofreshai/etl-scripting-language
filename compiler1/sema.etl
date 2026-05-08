@@ -18,6 +18,10 @@ fn TY_I32() i32 ret 0 end
 fn TY_BOOL() i32 ret 1 end
 fn TY_STRING() i32 ret 2 end
 fn TY_VOID() i32 ret 3 end
+fn TY_PTR() i32 ret 4 end
+fn TY_STR() i32 ret 5 end
+fn TY_DYNARR() i32 ret 6 end
+fn TY_ETLVAL() i32 ret 7 end
 
 fn sema_init() i32
   ret SEMA_OK()
@@ -141,6 +145,74 @@ fn sema_type_is_i8_scalar(source i8[131072], tokens Token[32768], ast AstNode[32
   ret false
 end
 
+fn sema_type_is_ptr(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let ptr_name i8[16] = "ptr"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, ptr_name, 3)
+    ret true
+  end
+  ret false
+end
+
+fn sema_type_is_str(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let str_name i8[16] = "str"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, str_name, 3)
+    ret true
+  end
+  ret false
+end
+
+fn sema_type_is_dynarr(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let dynarr_name i8[16] = "dynarr"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, dynarr_name, 6)
+    ret true
+  end
+  ret false
+end
+
+fn sema_type_is_etlval(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let etlval_name i8[16] = "etlval"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, etlval_name, 6)
+    ret true
+  end
+  ret false
+end
+
 fn sema_type_to_scalar_ty(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) i32
   if sema_type_is_i32(source, tokens, ast, typ)
     ret TY_I32()
@@ -150,6 +222,18 @@ fn sema_type_to_scalar_ty(source i8[131072], tokens Token[32768], ast AstNode[32
   end
   if sema_type_is_i8_scalar(source, tokens, ast, typ)
     ret TY_I32()
+  end
+  if sema_type_is_ptr(source, tokens, ast, typ)
+    ret TY_PTR()
+  end
+  if sema_type_is_str(source, tokens, ast, typ)
+    ret TY_STR()
+  end
+  if sema_type_is_dynarr(source, tokens, ast, typ)
+    ret TY_DYNARR()
+  end
+  if sema_type_is_etlval(source, tokens, ast, typ)
+    ret TY_ETLVAL()
   end
   ret SEMA_ERROR()
 end
@@ -298,7 +382,15 @@ fn sema_count_i32_params(source i8[131072], tokens Token[32768], ast AstNode[327
             if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
               if sema_type_is_struct_decl(source, tokens, ast, ast[param].b, program) == false
                 if sema_type_is_struct_array_decl(source, tokens, ast, ast[param].b, program) == false
-                  ret -1
+                  if sema_type_is_ptr(source, tokens, ast, ast[param].b) == false
+                    if sema_type_is_str(source, tokens, ast, ast[param].b) == false
+                      if sema_type_is_dynarr(source, tokens, ast, ast[param].b) == false
+                        if sema_type_is_etlval(source, tokens, ast, ast[param].b) == false
+                          ret -1
+                        end
+                      end
+                    end
+                  end
                 end
               end
             end
@@ -333,7 +425,15 @@ fn sema_count_extern_params(source i8[131072], tokens Token[32768], ast AstNode[
       if sema_type_is_bool(source, tokens, ast, ast[param].b) == false
         if sema_type_is_i8_scalar(source, tokens, ast, ast[param].b) == false
           if sema_type_is_byte_array(source, tokens, ast, ast[param].b) == false
-            ret -1
+            if sema_type_is_ptr(source, tokens, ast, ast[param].b) == false
+              if sema_type_is_str(source, tokens, ast, ast[param].b) == false
+                if sema_type_is_dynarr(source, tokens, ast, ast[param].b) == false
+                  if sema_type_is_etlval(source, tokens, ast, ast[param].b) == false
+                    ret -1
+                  end
+                end
+              end
+            end
           end
         end
       end

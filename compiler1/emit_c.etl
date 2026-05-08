@@ -169,6 +169,41 @@ fn emit_c_type_is_i8_scalar(source i8[131072], tokens Token[32768], ast AstNode[
   ret false
 end
 
+
+fn emit_c_type_is_ptr(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let ptr_name i8[16] = "ptr"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, ptr_name, 3)
+    ret true
+  end
+  ret false
+end
+
+fn emit_c_type_is_str(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let str_name i8[16] = "str"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, str_name, 3)
+    ret true
+  end
+  ret false
+end
+
 fn emit_c_type_is_byte_array(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
   if typ < 0
     ret false
@@ -185,6 +220,40 @@ fn emit_c_type_is_byte_array(source i8[131072], tokens Token[32768], ast AstNode
   end
   let byte_name i8[16] = "byte"
   if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, byte_name, 4)
+    ret true
+  end
+  ret false
+end
+
+fn emit_c_type_is_dynarr(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let dynarr_name i8[16] = "dynarr"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, dynarr_name, 6)
+    ret true
+  end
+  ret false
+end
+
+fn emit_c_type_is_etlval(source i8[131072], tokens Token[32768], ast AstNode[32768], typ i32) bool
+  if typ < 0
+    ret false
+  end
+  if ast[typ].kind != AN_TYPE()
+    ret false
+  end
+  if ast[typ].b != -1
+    ret false
+  end
+  let etlval_name i8[16] = "etlval"
+  if span_eq(source, tokens[ast[typ].a].start, tokens[ast[typ].a].len, etlval_name, 6)
     ret true
   end
   ret false
@@ -555,6 +624,102 @@ fn emit_c_let(source i8[131072], tokens Token[32768], ast AstNode[32768], ast_co
   let local i32 = emit_c_find_local(source, tokens, ast, locals, outer, ast[node].a)
   if local < 0
     ret emit_c_diag(ast[node].kind, node, 304)
+  end
+  if emit_c_type_is_str(source, tokens, ast, typ)
+    let str_decl i8[64] = "  EtlString *"
+    let eq_text3 i8[64] = " = "
+    let semi_text3 i8[64] = ";\n"
+    let p3 i32 = emit_c_append_text(out, pos, out_cap, str_decl, 13)
+    if p3 < 0
+      ret -1
+    end
+    p3 = emit_c_append_local_name(out, p3, out_cap, local)
+    if p3 < 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      p3 = emit_c_append_text(out, p3, out_cap, eq_text3, 3)
+      if p3 < 0
+        ret -1
+      end
+      p3 = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p3, out_cap)
+      if p3 < 0
+        ret -1
+      end
+    end
+    ret emit_c_append_text(out, p3, out_cap, semi_text3, 2)
+  end
+  if emit_c_type_is_dynarr(source, tokens, ast, typ)
+    let dynarr_decl i8[64] = "  EtlDynArr *"
+    let eq_text4 i8[64] = " = "
+    let semi_text4 i8[64] = ";\n"
+    let p4 i32 = emit_c_append_text(out, pos, out_cap, dynarr_decl, 13)
+    if p4 < 0
+      ret -1
+    end
+    p4 = emit_c_append_local_name(out, p4, out_cap, local)
+    if p4 < 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      p4 = emit_c_append_text(out, p4, out_cap, eq_text4, 3)
+      if p4 < 0
+        ret -1
+      end
+      p4 = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p4, out_cap)
+      if p4 < 0
+        ret -1
+      end
+    end
+    ret emit_c_append_text(out, p4, out_cap, semi_text4, 2)
+  end
+  if emit_c_type_is_etlval(source, tokens, ast, typ)
+    let etlval_decl i8[64] = "  EtlVal *"
+    let eq_text5 i8[64] = " = "
+    let semi_text5 i8[64] = ";\n"
+    let p5 i32 = emit_c_append_text(out, pos, out_cap, etlval_decl, 10)
+    if p5 < 0
+      ret -1
+    end
+    p5 = emit_c_append_local_name(out, p5, out_cap, local)
+    if p5 < 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      p5 = emit_c_append_text(out, p5, out_cap, eq_text5, 3)
+      if p5 < 0
+        ret -1
+      end
+      p5 = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p5, out_cap)
+      if p5 < 0
+        ret -1
+      end
+    end
+    ret emit_c_append_text(out, p5, out_cap, semi_text5, 2)
+  end
+  if emit_c_type_is_ptr(source, tokens, ast, typ)
+    let ptr_decl i8[64] = "  void *"
+    let eq_text2 i8[64] = " = "
+    let semi_text2 i8[64] = ";\n"
+    let p2 i32 = emit_c_append_text(out, pos, out_cap, ptr_decl, 8)
+    if p2 < 0
+      ret -1
+    end
+    p2 = emit_c_append_local_name(out, p2, out_cap, local)
+    if p2 < 0
+      ret -1
+    end
+    if ast[node].c >= 0
+      p2 = emit_c_append_text(out, p2, out_cap, eq_text2, 3)
+      if p2 < 0
+        ret -1
+      end
+      p2 = emit_c_expr(source, tokens, ast, ast_count, ast[node].c, locals, outer, out, p2, out_cap)
+      if p2 < 0
+        ret -1
+      end
+    end
+    ret emit_c_append_text(out, p2, out_cap, semi_text2, 2)
   end
   let decl_text i8[64] = "  int "
   let bool_decl_text i8[64] = "  bool "
@@ -1069,31 +1234,51 @@ fn emit_c_param_list(source i8[131072], tokens Token[32768], ast AstNode[32768],
           if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
             p = emit_c_append_text(out, p, out_cap, byte_text, 12)
           else
-            if emit_c_type_is_struct_array(source, tokens, ast, ast[param].b)
-              p = emit_c_append_text(out, p, out_cap, struct_text, 7)
-              if p < 0
-                ret -1
-              end
-              p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
-              if p < 0
-                ret -1
-              end
-              let ptr_space i8[64] = " *"
-              p = emit_c_append_text(out, p, out_cap, ptr_space, 2)
+            if emit_c_type_is_ptr(source, tokens, ast, ast[param].b)
+              let ptr_param_text i8[64] = "void *"
+              p = emit_c_append_text(out, p, out_cap, ptr_param_text, 6)
             else
-              if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
-                ret emit_c_diag(ast[param].kind, ast[param].b, 30)
+              if emit_c_type_is_str(source, tokens, ast, ast[param].b)
+                let str_param_text i8[64] = "EtlString *"
+                p = emit_c_append_text(out, p, out_cap, str_param_text, 11)
+              else
+                if emit_c_type_is_dynarr(source, tokens, ast, ast[param].b)
+                  let dynarr_param_text i8[64] = "EtlDynArr *"
+                  p = emit_c_append_text(out, p, out_cap, dynarr_param_text, 11)
+                else
+                  if emit_c_type_is_etlval(source, tokens, ast, ast[param].b)
+                    let etlval_param_text i8[64] = "EtlVal *"
+                    p = emit_c_append_text(out, p, out_cap, etlval_param_text, 8)
+                  else
+                    if emit_c_type_is_struct_array(source, tokens, ast, ast[param].b)
+                      p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+                      if p < 0
+                        ret -1
+                      end
+                      p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+                      if p < 0
+                        ret -1
+                      end
+                      let ptr_space i8[64] = " *"
+                      p = emit_c_append_text(out, p, out_cap, ptr_space, 2)
+                    else
+                      if emit_c_type_is_struct_value(source, tokens, ast, ast[param].b) == false
+                        ret emit_c_diag(ast[param].kind, ast[param].b, 30)
+                      end
+                      p = emit_c_append_text(out, p, out_cap, struct_text, 7)
+                      if p < 0
+                        ret -1
+                      end
+                      p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
+                      if p < 0
+                        ret -1
+                      end
+                      let space i8[64] = " "
+                      p = emit_c_append_text(out, p, out_cap, space, 1)
+                    end
+                  end
+                end
               end
-              p = emit_c_append_text(out, p, out_cap, struct_text, 7)
-              if p < 0
-                ret -1
-              end
-              p = emit_c_append_token_text(source, tokens, ast[ast[param].b].a, out, p, out_cap)
-              if p < 0
-                ret -1
-              end
-              let space i8[64] = " "
-              p = emit_c_append_text(out, p, out_cap, space, 1)
             end
           end
         end
@@ -1144,7 +1329,27 @@ fn emit_c_function_signature(source i8[131072], tokens Token[32768], ast AstNode
       if emit_c_type_is_i8_scalar(source, tokens, ast, ret_type)
         p = emit_c_append_text(out, p, out_cap, byte_head, 12)
       else
-        ret emit_c_diag(ast[ret_type].kind, ret_type, 20)
+        if emit_c_type_is_ptr(source, tokens, ast, ret_type)
+          let vptr_head i8[64] = "void *"
+          p = emit_c_append_text(out, p, out_cap, vptr_head, 6)
+        else
+          if emit_c_type_is_str(source, tokens, ast, ret_type)
+            let str_head i8[64] = "EtlString *"
+            p = emit_c_append_text(out, p, out_cap, str_head, 11)
+          else
+            if emit_c_type_is_dynarr(source, tokens, ast, ret_type)
+              let dynarr_head i8[64] = "EtlDynArr *"
+              p = emit_c_append_text(out, p, out_cap, dynarr_head, 11)
+            else
+              if emit_c_type_is_etlval(source, tokens, ast, ret_type)
+                let etlval_head i8[64] = "EtlVal *"
+                p = emit_c_append_text(out, p, out_cap, etlval_head, 8)
+              else
+                ret emit_c_diag(ast[ret_type].kind, ret_type, 20)
+              end
+            end
+          end
+        end
       end
     end
   end
@@ -1293,6 +1498,22 @@ fn emit_c_extern_param_list(source i8[131072], tokens Token[32768], ast AstNode[
   if emit_c_type_is_i8_scalar(source, tokens, ast, ast[param].b)
     ret emit_c_append_text(out, p, out_cap, byte_text, 11)
   end
+  if emit_c_type_is_ptr(source, tokens, ast, ast[param].b)
+    let void_ptr_text i8[64] = "void *"
+    ret emit_c_append_text(out, p, out_cap, void_ptr_text, 6)
+  end
+  if emit_c_type_is_str(source, tokens, ast, ast[param].b)
+    let str_ptr_text i8[64] = "EtlString *"
+    ret emit_c_append_text(out, p, out_cap, str_ptr_text, 11)
+  end
+  if emit_c_type_is_dynarr(source, tokens, ast, ast[param].b)
+    let dynarr_ptr_text i8[64] = "EtlDynArr *"
+    ret emit_c_append_text(out, p, out_cap, dynarr_ptr_text, 11)
+  end
+  if emit_c_type_is_etlval(source, tokens, ast, ast[param].b)
+    let etlval_ptr_text i8[64] = "EtlVal *"
+    ret emit_c_append_text(out, p, out_cap, etlval_ptr_text, 8)
+  end
   ret emit_c_append_text(out, p, out_cap, int_text, 3)
 end
 
@@ -1305,8 +1526,28 @@ fn emit_c_extern_function(source i8[131072], tokens Token[32768], ast AstNode[32
   end
   let p i32 = pos
   if ast[node].c >= 0
-    let int_ret i8[64] = "int "
-    p = emit_c_append_text(out, p, out_cap, int_ret, 4)
+    if emit_c_type_is_ptr(source, tokens, ast, ast[node].c)
+      let vptr_ret i8[64] = "void *"
+      p = emit_c_append_text(out, p, out_cap, vptr_ret, 6)
+    else
+      if emit_c_type_is_str(source, tokens, ast, ast[node].c)
+        let str_ret i8[64] = "EtlString *"
+        p = emit_c_append_text(out, p, out_cap, str_ret, 11)
+      else
+        if emit_c_type_is_dynarr(source, tokens, ast, ast[node].c)
+          let dynarr_ret i8[64] = "EtlDynArr *"
+          p = emit_c_append_text(out, p, out_cap, dynarr_ret, 11)
+        else
+          if emit_c_type_is_etlval(source, tokens, ast, ast[node].c)
+            let etlval_ret i8[64] = "EtlVal *"
+            p = emit_c_append_text(out, p, out_cap, etlval_ret, 8)
+          else
+            let int_ret i8[64] = "int "
+            p = emit_c_append_text(out, p, out_cap, int_ret, 4)
+          end
+        end
+      end
+    end
   else
     let void_ret i8[64] = "void "
     p = emit_c_append_text(out, p, out_cap, void_ret, 5)
@@ -1388,7 +1629,22 @@ fn emit_c_program(source i8[131072], tokens Token[32768], ast AstNode[32768], as
     ret emit_c_diag(ast[list].kind, list, 84)
   end
   let include_bool i8[64] = "#include <stdbool.h>\n"
+  let include_str i8[64] = "#include <etl_string.h>\n"
+  let include_dynarr i8[64] = "#include <etl_dynarr.h>\n"
+  let include_etlval i8[64] = "#include <etl_etlval.h>\n"
   let p i32 = emit_c_append_text(out, pos, out_cap, include_bool, 21)
+  if p < 0
+    ret emit_c_diag(0, p, 84)
+  end
+  p = emit_c_append_text(out, p, out_cap, include_str, 24)
+  if p < 0
+    ret emit_c_diag(0, p, 85)
+  end
+  p = emit_c_append_text(out, p, out_cap, include_dynarr, 24)
+  if p < 0
+    ret emit_c_diag(0, p, 85)
+  end
+  p = emit_c_append_text(out, p, out_cap, include_etlval, 24)
   if p < 0
     ret emit_c_diag(0, p, 85)
   end

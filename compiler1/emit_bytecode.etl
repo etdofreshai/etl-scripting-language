@@ -256,6 +256,350 @@ fn emit_bytecode_emit_jump_false(out i8[1024], pos i32, out_cap i32, label i32) 
   ret emit_bytecode_append_text(out, p, out_cap, sep, 1)
 end
 
+fn emit_bytecode_token_is_etl_alloc(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etl_alloc"
+  if tokens[tok].len != 9
+    ret false
+  end
+  let i i32 = 0
+  while i < 9
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_etl_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etl_free"
+  if tokens[tok].len != 8
+    ret false
+  end
+  let i i32 = 0
+  while i < 8
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+
+fn emit_bytecode_token_is_str_new(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_new"
+  if tokens[tok].len != 7
+    ret false
+  end
+  let i i32 = 0
+  while i < 7
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_len(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_len"
+  if tokens[tok].len != 7
+    ret false
+  end
+  let i i32 = 0
+  while i < 7
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_concat(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_concat"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_at(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_at"
+  if tokens[tok].len != 6
+    ret false
+  end
+  let i i32 = 0
+  while i < 6
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_eq(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_eq"
+  if tokens[tok].len != 6
+    ret false
+  end
+  let i i32 = 0
+  while i < 6
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_free"
+  if tokens[tok].len != 8
+    ret false
+  end
+  let i i32 = 0
+  while i < 8
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_new(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_new"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_push(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_push"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_len(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_len"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_get(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_get"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_set(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_set"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_dynarr_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "dynarr_free"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_int(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_int"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_bool(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_bool"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_ptr(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_ptr"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_str(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_str"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_tag(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_tag"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_as_int(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_as_int"
+  if tokens[tok].len != 13
+    ret false
+  end
+  let i i32 = 0
+  while i < 13
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_as_bool(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_as_bool"
+  if tokens[tok].len != 14
+    ret false
+  end
+  let i i32 = 0
+  while i < 14
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_as_ptr(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_as_ptr"
+  if tokens[tok].len != 13
+    ret false
+  end
+  let i i32 = 0
+  while i < 13
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_as_str(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_as_str"
+  if tokens[tok].len != 13
+    ret false
+  end
+  let i i32 = 0
+  while i < 13
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+fn emit_bytecode_token_is_etlval_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "etlval_free"
+  if tokens[tok].len != 11
+    ret false
+  end
+  let i i32 = 0
+  while i < 11
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
 fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], node i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
   if node < 0
     ret EMIT_ERR_BAD_AST()
@@ -284,6 +628,102 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
     let pcall i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[node].b, out, pos, out_cap, scope)
     if pcall < 0
       ret pcall
+    end
+    if emit_bytecode_token_is_etl_alloc(source, tokens, ast[node].a)
+      let ha_op i8[64] = "HA;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, ha_op, 3)
+    end
+    if emit_bytecode_token_is_etl_free(source, tokens, ast[node].a)
+      let hf_op i8[64] = "HF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hf_op, 3)
+    end
+    if emit_bytecode_token_is_str_new(source, tokens, ast[node].a)
+      let hsn_op i8[64] = "HSN;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsn_op, 4)
+    end
+    if emit_bytecode_token_is_str_len(source, tokens, ast[node].a)
+      let hsl_op i8[64] = "HSL;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsl_op, 4)
+    end
+    if emit_bytecode_token_is_str_concat(source, tokens, ast[node].a)
+      let hsc_op i8[64] = "HSC;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsc_op, 4)
+    end
+    if emit_bytecode_token_is_str_at(source, tokens, ast[node].a)
+      let hsa_op i8[64] = "HSA;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsa_op, 4)
+    end
+    if emit_bytecode_token_is_str_eq(source, tokens, ast[node].a)
+      let hse_op i8[64] = "HSE;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hse_op, 4)
+    end
+    if emit_bytecode_token_is_str_free(source, tokens, ast[node].a)
+      let hsf_op i8[64] = "HSF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsf_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_new(source, tokens, ast[node].a)
+      let hdn_op i8[64] = "HDN;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdn_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_len(source, tokens, ast[node].a)
+      let hdl_op i8[64] = "HDL;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdl_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_get(source, tokens, ast[node].a)
+      let hdg_op i8[64] = "HDG;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdg_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_set(source, tokens, ast[node].a)
+      let hds_op i8[64] = "HDS;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hds_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_push(source, tokens, ast[node].a)
+      let hdp_op i8[64] = "HDP;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdp_op, 4)
+    end
+    if emit_bytecode_token_is_dynarr_free(source, tokens, ast[node].a)
+      let hdf_op i8[64] = "HDF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hdf_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_int(source, tokens, ast[node].a)
+      let hvi_op i8[64] = "HVI;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvi_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_bool(source, tokens, ast[node].a)
+      let hvb_op i8[64] = "HVB;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvb_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_ptr(source, tokens, ast[node].a)
+      let hvp_op i8[64] = "HVP;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvp_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_str(source, tokens, ast[node].a)
+      let hvs_op i8[64] = "HVS;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvs_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_tag(source, tokens, ast[node].a)
+      let hvt_op i8[64] = "HVT;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvt_op, 4)
+    end
+    if emit_bytecode_token_is_etlval_as_int(source, tokens, ast[node].a)
+      let hvai_op i8[64] = "HVAI;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvai_op, 5)
+    end
+    if emit_bytecode_token_is_etlval_as_bool(source, tokens, ast[node].a)
+      let hvab_op i8[64] = "HVAB;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvab_op, 5)
+    end
+    if emit_bytecode_token_is_etlval_as_ptr(source, tokens, ast[node].a)
+      let hvap_op i8[64] = "HVAP;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvap_op, 5)
+    end
+    if emit_bytecode_token_is_etlval_as_str(source, tokens, ast[node].a)
+      let hvas_op i8[64] = "HVAS;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvas_op, 5)
+    end
+    if emit_bytecode_token_is_etlval_free(source, tokens, ast[node].a)
+      let hvf_op i8[64] = "HVF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hvf_op, 4)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall, out_cap, ast[node].a)
   end
@@ -559,6 +999,44 @@ fn emit_bytecode_emit_stmt(source i8[131072], tokens Token[32768], ast AstNode[3
       ret p6
     end
     ret emit_bytecode_emit_label(out, p6, out_cap, end_label3)
+  end
+  if kind == AN_EXPR_STMT()
+    let inner i32 = ast[stmt].a
+    if inner < 0
+      ret EMIT_ERR_BAD_AST()
+    end
+    if ast[inner].kind != AN_CALL()
+      ret EMIT_ERR_UNSUPPORTED()
+    end
+    let pcall2 i32 = emit_bytecode_emit_call_args(source, tokens, ast, ast[inner].b, out, pos, out_cap, scope)
+    if pcall2 < 0
+      ret pcall2
+    end
+    if emit_bytecode_token_is_etl_free(source, tokens, ast[inner].a)
+      let hf_op2 i8[64] = "HF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hf_op2, 3)
+    end
+    if emit_bytecode_token_is_str_free(source, tokens, ast[inner].a)
+      let hsf_op2 i8[64] = "HSF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hsf_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_push(source, tokens, ast[inner].a)
+      let hdp_op2 i8[64] = "HDP;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hdp_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_set(source, tokens, ast[inner].a)
+      let hds_op2 i8[64] = "HDS;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hds_op2, 4)
+    end
+    if emit_bytecode_token_is_dynarr_free(source, tokens, ast[inner].a)
+      let hdf_op2 i8[64] = "HDF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hdf_op2, 4)
+    end
+    if emit_bytecode_token_is_etlval_free(source, tokens, ast[inner].a)
+      let hvf_op2 i8[64] = "HVF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hvf_op2, 4)
+    end
+    ret emit_bytecode_emit_call_op(source, tokens, out, pcall2, out_cap, ast[inner].a)
   end
   ret EMIT_ERR_UNSUPPORTED()
 end

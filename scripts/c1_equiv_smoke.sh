@@ -39,6 +39,7 @@ fixtures=(
   string_multi.etl
   extern_typed_write.etl
   i32_array_param.etl
+  heap_alloc_basic.etl
 )
 
 declare -A expected_exits=(
@@ -133,7 +134,7 @@ for fixture in "${fixtures[@]}"; do
   fi
 
   python3 -m compiler0 compile "$src" -o "$c0_c"
-  cc -std=c11 -Wall -Werror "$c0_c" runtime/etl_runtime.c -I runtime -o "$c0_exe"
+  cc -std=c11 -Wall -Werror "$c0_c" runtime/etl_runtime.c runtime/etl_string.c -I runtime -o "$c0_exe"
 
   build_c1_harness "$src" "$c1_c" "$c1_harness"
   scripts/build_etl.sh "$c1_harness" "$c1_harness_exe"
@@ -143,7 +144,7 @@ for fixture in "${fixtures[@]}"; do
     fail=$((fail + 1))
     continue
   fi
-  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c -I runtime -o "$c1_exe"
+  cc -std=c11 -Wall -Werror "$c1_c" runtime/etl_runtime.c runtime/etl_string.c -I runtime -o "$c1_exe"
 
   rm -f /tmp/etl_c1_extern_typed_write.txt
   c0_status="$(run_program "$c0_exe")"

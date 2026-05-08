@@ -26,7 +26,7 @@ int etl_sum_bytes(signed char *buf) {
 }
 C
 
-cc -Wall -Werror "$emitted" "$td/sum_bytes.c" -o "$td/c1_emitted_byte_string_extern"
+cc -Wall -Werror -I runtime "$emitted" "$td/sum_bytes.c" -o "$td/c1_emitted_byte_string_extern"
 set +e
 "$td/c1_emitted_byte_string_extern"
 status=$?

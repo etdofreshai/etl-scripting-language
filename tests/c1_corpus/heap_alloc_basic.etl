@@ -1,0 +1,8 @@
+extern fn etl_alloc(n i32) ptr
+extern fn etl_free(p ptr)
+
+fn main() i32
+  let p ptr = etl_alloc(4)
+  etl_free(p)
+  ret 0
+end

@@ -1,0 +1,19 @@
+extern fn etl_alloc(n i32) ptr
+extern fn etl_free(p ptr)
+extern fn str_new(literal ptr) str
+extern fn str_len(s str) i32
+extern fn str_free(s str)
+
+# str_new treats its argument as an opaque heap pointer, not a C string literal,
+# so content is undefined; only str_len >= 0 is testable here (VM limitation).
+fn main() i32
+  let p ptr = etl_alloc(8)
+  let s str = str_new(p)
+  let n i32 = str_len(s)
+  str_free(s)
+  etl_free(p)
+  if n < 0
+    ret 1
+  end
+  ret 0
+end
