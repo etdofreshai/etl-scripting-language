@@ -39,6 +39,10 @@ support remain in progress or not implemented.
 | sizeof | SUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED | `scripts/sizeof_smoke.sh`, `make check` |
 | unary minus | SUPPORTED | SUPPORTED | EXPERIMENTAL | EXPERIMENTAL | UNSUPPORTED | `scripts/c1_equiv_smoke.sh` |
 | return | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | EXPERIMENTAL | `scripts/c1_equiv_smoke.sh`, `scripts/backend_subset_smoke.sh`, `scripts/c1_vm_return_smoke.sh` |
+| **ptr (opaque heap pointer)** | UNSUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED (limits noted) | `scripts/c1_equiv_smoke.sh` includes `heap_alloc_basic.etl`; `scripts/c1_vm_heap_alloc_smoke.sh`; valgrind clean |
+| **str (heap mutable string)** | UNSUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED (str_new creates empty string; see limitations) | `scripts/c1_string_equiv_smoke.sh`; `scripts/c1_vm_string_smoke.sh`; valgrind clean |
+| **dynarr (growable i32 array)** | UNSUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED | `scripts/c1_dynarr_equiv_smoke.sh`; valgrind clean |
+| **etlval (tagged union int/bool/ptr/str)** | UNSUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED (str variant fixture elided; BC buffer limit) | `scripts/c1_tagged_union_equiv_smoke.sh`; valgrind clean |
 
 ## Runtime / tooling
 
@@ -94,10 +98,12 @@ Makefile gates:
   bootstrap C helper for a small ASCII bytecode subset.
 - No broad pointer arithmetic, dereference, field access through pointers, or
   pointer comparison exists. `pointer` is an opaque FFI boundary type.
-- Strings are fixed-size `byte[N]` or `i8[N]` buffers with a null terminator.
-  There is no heap string type or large standard library.
-- Arrays are fixed-size locals or narrow parameter forms in the proven subsets.
-  There is no dynamic array type and no bounds checking in the current C path.
+- Strings are fixed-size `byte[N]` or `i8[N]` buffers with a null terminator in the core language. The M1 `str` opaque type provides a heap-backed mutable string surface via extern calls; compiler-1 supports it but compiler-0 does not.
+- Arrays are fixed-size locals or narrow parameter forms in the proven subsets for the core language. The M1 `dynarr` opaque type provides a growable i32-only array surface via extern calls; compiler-1 supports it but compiler-0 does not.
+- `dynarr` element type is i32 only in M1. No bounds checking is performed by the C backend.
+- The VM bytecode buffer is 1024 bytes, which limits the complexity of programs using M1 opaque types in the VM backend. This is tracked as tech debt; expansion is needed before VM-in-ETL (M2).
+- The VM `str_new` extern ignores its `ptr` input and creates an empty string. Programs requiring meaningful string content in the VM must construct it via `str_concat` or equivalent operations.
+- ASM and WAT backends do not support M1 opaque types (`ptr` heap alloc, `str`, `dynarr`, `etlval`).
 - Structs are value types for the proven subsets. Struct returns, extern struct
   parameters, recursive structs, and broad nested struct shapes remain outside
   the supported surface.
