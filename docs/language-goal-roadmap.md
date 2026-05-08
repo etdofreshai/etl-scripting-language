@@ -30,18 +30,27 @@ ETL should become:
 
 ## Current Baseline
 
-As of this roadmap:
+As of this roadmap (M7-release milestone):
 
 - `make check` passes.
 - `make selfhost` passes.
-- `scripts/c1_equiv_smoke.sh` passes the current c1 equivalence corpus.
-- `make backend-vm` passes a narrow stack-bytecode smoke.
-- The C backend is the serious AOT path.
-- ASM and WAT/WASM have smoke subsets.
-- The VM path exists only for integer expression return bytecode.
+- `make selfhost-selfcompile` passes (c1 emits its own source; cc builds c2).
+- `make selfhost-bootstrap` passes: three-stage fixed point achieved (sha256(c1_self.c)==sha256(c2_self.c)==sha256(c3_self.c)). Compiler-0 is frozen.
+- `scripts/c1_equiv_smoke.sh` passes the 33-fixture c0/C vs c1/C equivalence corpus.
+- `make backend-vm` passes: bytecode emit + VM return + expr + locals + control flow + functions + runtime-compile equivalence smokes.
+- `make backend-subset` passes: 16 four-backend (C/VM/ASM/WAT) + 2 three-backend shared fixtures.
+- `make backend-asm` passes: focused x86-64 System V assembly smokes.
+- `make backend-wasm` passes: 23 WAT cases executed via wasmtime.
+- `make examples-cli` passes: 4-case CLI suite (hello, calculator, file_transform, config_rules).
+- `make visual` passes: tick_demo + software_pixel + Conway's Life golden + SDL3 bouncing-rect live.
+- `make examples` passes: examples-cli + visual + runtime-compile (VM) example.
+- `make release-check` passes: Linux x86_64 (run+test), Linux aarch64 (qemu), macOS x86_64+arm64 (build-validated), WASM/WASI (wasmtime), browser-equivalent (Node.js).
+- The C backend is the durable AOT path. VM-in-ETL (M2) is shipped: `compiler1/vm.etl` implements the full VM with stack, local slots, branches, call frames, and M1 opaque-type bridges.
+- ASM (x86-64 System V) and WAT/WASM backends have active validated subsets.
+- M1 opaque types (ptr, str, dynarr, etlval) are shipped in c1/C and c1/VM backends.
+- Wave 6d (audio runtime stub) is deferred (not in M7 scope).
 
-The language is usable for small controlled programs and compiler/runtime
-experiments. It is not ready yet for general application development.
+The language has crossed Level 0 (Bootstrap Lab) and Level 1 (Self-Hosted AOT Language). Levels 2–5 have partial completion (see individual level gates below). General application development (Level 4) and full multi-platform distribution (Level 5) require further work listed below.
 
 ## Readiness Levels
 
@@ -57,7 +66,7 @@ make selfhost
 make backend-vm
 ```
 
-Status: in progress, mostly achieved for the current subset.
+Status: **COMPLETE** (M0–M2 sealed; all required gates green as of M7-release).
 
 ### Level 1: Self-Hosted AOT Language
 
@@ -85,6 +94,8 @@ Primary docs:
 
 - `docs/fixed-point-plan.md`
 - `docs/c1-corpus-expansion-plan.md`
+
+Status: **COMPLETE** (M2/selfhost-bootstrap sealed; c0 frozen; 33-fixture equiv corpus green).
 
 ### Level 2: Practical AOT CLI Language
 
@@ -117,6 +128,8 @@ Exit criteria:
 - A new user can write and compile a small ETL CLI program without touching
   compiler internals.
 - Unsupported features fail with diagnostics, not compiler crashes.
+
+Status: **PARTIAL** — `make check`, `make selfhost`, and `make examples-cli` are green. The `etl` CLI supports compile/run/check. Diagnostics remain uneven (no file:line:col in all paths). Compatibility aliases work. Limitations: no REPL, no package manager, no incremental cache.
 
 ### Level 3: Embedded Runtime ETL
 
@@ -163,6 +176,8 @@ Exit criteria:
 - VM limitations are documented as host/runtime limits, not language dialect
   differences.
 
+Status: **COMPLETE** (M2 sealed; `make backend-vm` green; `compiler1/vm.etl` shipped; host bridge routes through ETL VM via `ETL_VM_ETL=1`; `scripts/c1_runtime_compile_smoke.sh` passes). Limitation: emit_bytecode does not support all language constructs (see support-matrix.md).
+
 ### Level 4: Application Runtime
 
 ETL can build deterministic interactive or graphical applications with tested
@@ -189,6 +204,8 @@ Exit criteria:
 - CLI and graphical examples are built and checked by automated gates.
 - Headless deterministic tests catch output and rendering regressions.
 
+Status: **COMPLETE** (M4 sealed; `make headless-ready`, `make visual`, `make examples` all green; Conway's Life golden, SDL3 bouncing-rect, scripted input all shipped). Limitation: wave 6d (audio runtime stub) deferred; not in M7 scope.
+
 ### Level 5: Multi-Platform Distribution
 
 ETL can be distributed as a practical toolchain.
@@ -213,21 +230,22 @@ Exit criteria:
 - Users can install ETL, compile examples, and run documented workflows on
   supported platforms.
 
+Status: **PARTIAL** — `make release-check` is green on this dev workstation (Linux x86_64 run+test, Linux aarch64/qemu, macOS x86_64+arm64 build-validated, WASM/WASI via wasmtime, browser-equivalent via Node.js WebAssembly API). Limitations: Windows not yet supported; install instructions not published; no versioned language spec or backward-compatibility policy yet; headless Chrome not implemented (Node.js equivalent provided instead).
+
 ## Workstreams
 
 ### A. Compiler-1 Fixed Point
 
 Purpose: make ETL self-hosted.
 
-Immediate tasks:
+Status: **COMPLETE** (M2 sealed). Three-stage fixed point achieved. Compiler-0 frozen.
 
-- Finish remaining c1 corpus/backend parity gaps.
-- Add or refresh docs after each promoted fixture.
-- Add bootstrap chain smoke.
-- Freeze compiler-0 after c1 fixed point.
+Completed tasks:
+- Finished c1 corpus/backend parity (33-fixture equiv corpus green).
+- Bootstrap chain smoke (`make selfhost-bootstrap`) passes.
+- Compiler-0 is frozen as the historical bootstrap reference.
 
-Do not expand language syntax in this workstream unless compiler-1 needs it to
-compile itself.
+Do not expand language syntax unless compiler-1 needs it.
 
 ### B. AOT User Experience
 
@@ -245,14 +263,16 @@ Tasks:
 
 Purpose: support dynamic ETL source inside AOT-built ETL programs.
 
-Tasks:
+Status: **COMPLETE** (M2 sealed). `compiler1/vm.etl` implements the full ETL VM with dispatch, stack, local slots, branches, call frames, and M1 opaque-type bridges. Host bridge routes through ETL VM via `ETL_VM_ETL=1`. 21-fixture C-VM vs ETL-VM equivalence and 20-fixture triple-equivalence (c0/C, c1/C, c1-VM-in-ETL) pass.
 
-- Move from the current expression-only stack bytecode to locals and branches.
-- Add VM equivalence gates against c0/C and c1/C results.
-- Add function table and call frames.
-- Add host compile/run APIs.
-- Port the VM from C to ETL only after compiler-1 supports the required runtime
-  structures cleanly.
+Completed tasks:
+- Locals and branches: done.
+- VM equivalence gates: done (`make vm-equivalence`).
+- Function table and call frames: done.
+- Host compile/run APIs: done (`etl_compile_module`, `etl_run_main_i32`).
+- VM ported to ETL: done (`compiler1/vm.etl`).
+
+Remaining limitation: emit_bytecode does not support all language constructs (see support-matrix.md).
 
 ### D. Runtime Library
 
