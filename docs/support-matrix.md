@@ -47,7 +47,7 @@ Column key for the grid below:
 | unary minus | ✓ | ✓ | ✗ | △ | △ | VM: emit_bytecode does not support unary-minus literal (F2.3: ret_unary_minus excluded). ASM/WAT: EXPERIMENTAL in c1 per equivalence corpus. `scripts/c1_equiv_smoke.sh`. |
 | `return` | ✓ | ✓ | ✓ | ✓ | ✓ | All 16 four-backend fixtures use `ret`. `scripts/backend_subset_smoke.sh`. |
 | keyword aliases (full-word: `integer`, `boolean`, etc.) | ✓ | ✓ | ✗ | ✓ | ✓ | VM: emit_bytecode does not support keyword-alias syntax (F2.3: full_word_aliases excluded). ASM/WAT: aliases handled at lex/parse level, emitter unaffected. |
-| **ptr (opaque heap pointer)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_equiv_smoke.sh` incl. heap_alloc_basic.etl; valgrind clean). VM: functional but BC buffer (1024 bytes) limits complex programs (`scripts/c1_vm_heap_alloc_smoke.sh`). ASM/WAT: not supported. |
+| **ptr (opaque heap pointer)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_equiv_smoke.sh` incl. heap_alloc_basic.etl; valgrind clean). VM: functional; BC buffer is 64 KB (raised from 1024 bytes in F2.0); fixture complexity is limited by test harness budget (`scripts/c1_vm_heap_alloc_smoke.sh`). ASM/WAT: not supported. |
 | **str (heap mutable string)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_string_equiv_smoke.sh`; valgrind clean). VM: str_new ignores its ptr input and creates an empty string; meaningful string content requires str_concat. BC buffer limit applies. ASM/WAT: not supported. |
 | **dynarr (growable i32 array)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_dynarr_equiv_smoke.sh`; valgrind clean). VM: functional; BC buffer limit applies. dynarr element type is i32 only; no bounds checking. ASM/WAT: not supported. |
 | **etlval (tagged union int/bool/ptr/str)** | ✗ | ✓ | △ | ✗ | ✗ | c1/C proven (`scripts/c1_tagged_union_equiv_smoke.sh`; valgrind clean). VM: str variant fixture elided; BC buffer limit applies. ASM/WAT: not supported. |
@@ -114,11 +114,8 @@ Makefile gates:
 
 - ETL remains single-file from the compiler's perspective. Compiler-1 smoke
   scripts concatenate modules into one temporary compilation unit.
-- C is the stable AOT production path. Compiler-1 fixed point is not complete;
-  compiler-0 is not frozen yet.
-- Runtime ETL must use the same frontend and semantic rules as AOT ETL, but
-  runtime-loaded ETL modules are not implemented yet. The current VM is a
-  bootstrap C helper for a small ASCII bytecode subset.
+- C is the stable AOT production path. Compiler-1 fixed point is complete (`make selfhost-bootstrap` green; sha256(c1_self.c)==sha256(c2_self.c)==sha256(c3_self.c)). Compiler-0 is frozen as the historical bootstrap reference.
+- Runtime ETL uses the same frontend and semantic rules as AOT ETL. Runtime-loaded ETL modules are supported via the VM-in-ETL path (M2 shipped): an AOT ETL host calls `etl_compile_module`/`etl_run_main_i32`, routing through `compiler1/vm.etl` when `ETL_VM_ETL=1`. The C VM (`runtime/etl_vm.c`) is retained as the oracle.
 - No broad pointer arithmetic, dereference, field access through pointers, or
   pointer comparison exists. `pointer` is an opaque FFI boundary type.
 - Strings are fixed-size `byte[N]` or `i8[N]` buffers with a null terminator in
@@ -131,9 +128,7 @@ Makefile gates:
   compiler-0 (c0) does not. ASM and WAT backends do not support `dynarr`.
 - `dynarr` element type is i32 only in M1. No bounds checking is performed by
   the C backend.
-- The VM bytecode buffer is 1024 bytes, which limits the complexity of programs
-  using M1 opaque types in the VM backend. This is tracked as tech debt;
-  expansion is needed before VM-in-ETL (M2).
+- The VM bytecode buffer is 64 KB (65536 bytes static; raised from 1024 bytes in F2.0). This cap supports the shipped VM-in-ETL (M2). Fixture complexity for combined opaque-type programs is limited by test harness budget, not buffer size.
 - The VM `str_new` extern ignores its `ptr` input and creates an empty string.
   Programs requiring meaningful string content in the VM must construct it via
   `str_concat` or equivalent operations.
