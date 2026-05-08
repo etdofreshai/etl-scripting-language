@@ -7,18 +7,16 @@ no wave may add source syntax. Runtime-facing capability reaches ETL through
 
 ## Current Selection
 
-Next wave: **6d**.
+Next wave: **7a** (Calculator).
 
-Reason: the repo already has the reusable graphics extern surface in
-`runtime/etl_graphics.h`, a pure-C deterministic framebuffer backend, an
-optional SDL3 offscreen backend, graphics smokes, and `make visual` wiring.
-There is no deterministic audio runtime stub yet, and no Life
-golden. Continue with 6d before advancing to Life unless the
-supervisor explicitly reorders Phase 6.
+Reason: Phase 6 visual runtime is complete. Wave 6d (audio stub) was skipped
+by supervisor reorder — Life golden (6e) was prioritised for earlier graphical
+payoff. 6e landed in F4.4-phase6-complete: `make visual` now runs the Conway's
+Life golden and the live SDL3 bouncing-rect smoke without any SKIP.
 
 ## Phase 6: Visual Runtime
 
-Gate: `make visual` passes with the Conway's Life golden once 6e lands.
+Gate: `make visual` passes with the Conway's Life golden once 6e lands. ✅
 
 - [x] **6a: Graphics extern surface and SDL3/software shims**
   - Deliverables:
@@ -81,17 +79,27 @@ Gate: `make visual` passes with the Conway's Life golden once 6e lands.
     - Document the audio determinism contract.
   - Gate: `make check` and the new audio smoke are green locally.
   - Constraint: no wall-clock timing or live audio device dependency.
+  - Note: skipped by supervisor reorder in F4.4; deferred to a future wave.
 
-- [ ] **6e: Conway's Life visual golden**
+- [x] **6e: Conway's Life visual golden**
   - Deliverables:
-    - Add a Conway's Life ETL example under `examples/visual/` or
-      `examples/graphics/`.
-    - Render with the deterministic graphics backend and fixed tick count.
-    - Add stdout/state and framebuffer goldens.
-    - Wire the smoke into `scripts/visual_smoke.sh` or a helper it invokes.
-    - Update `docs/ROADMAP.md` Phase 6 status.
+    - Add a Conway's Life ETL example under `examples/visual/`.
+    - Render with the deterministic software graphics backend and fixed tick
+      count (10 generations).
+    - Blinker seed (horizontal, cells 15,16,17 on row 16 of a 32x32 grid).
+    - Add a PPM framebuffer golden committed to `examples/visual/`.
+    - Add `scripts/life_golden_smoke.sh` that builds, runs, and byte-compares
+      the output against the golden.
+    - Wire life_golden_smoke.sh into `scripts/visual_smoke.sh`.
+    - Update `scripts/visual_smoke.sh` to run SDL3 live from `.deps/sdl3/`
+      instead of SKIPping via pkg-config.
   - Gate: `make check` and `make visual` are green; `make visual` verifies the
-    Life golden.
+    Life golden and runs the SDL3 bouncing-rect smoke live.
+  - Evidence in current tree:
+    - `examples/visual/life.etl`
+    - `examples/visual/life.golden.ppm`
+    - `scripts/life_golden_smoke.sh`
+    - `scripts/visual_smoke.sh` (updated: .deps/sdl3 detection, no SKIP)
 
 ## Phase 7: App Ladder
 
@@ -129,8 +137,7 @@ Gate: `make examples` passes after each wave's golden is added.
 
 ## Open Questions
 
-- Phase 6 ordering is still conservative: 6c input before 6d audio before 6e
-  Life. Life does not require input or audio, so the supervisor may choose to
-  reorder to 6e next for earlier graphical payoff.
+- Wave 6d (audio stub) is still open. It does not block Phase 7; the supervisor
+  may schedule it between 7a and 7b or defer further.
 - The final app list in Phase 7 is fixed here to match `docs/ROADMAP.md`.
   Later additions should be appended after 7f, not inserted into this ladder.

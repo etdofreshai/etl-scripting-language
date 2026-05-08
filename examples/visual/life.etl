@@ -1,0 +1,134 @@
+external function etl_gfx_create(width integer, height integer) integer
+external function etl_gfx_destroy()
+external function etl_gfx_clear(r integer, g integer, b integer) integer
+external function etl_gfx_set_pixel(x integer, y integer, r integer, g integer, b integer) integer
+external function etl_gfx_write_ppm(path byte[256]) integer
+
+function cell_index(x integer, y integer) integer
+  return y * 32 + x
+end
+
+function wrap(v integer, limit integer) integer
+  if v < 0
+    return v + limit
+  end
+  if v >= limit
+    return v - limit
+  end
+  return v
+end
+
+function get_cell(grid integer[1024], x integer, y integer) integer
+  let wx integer = wrap(x, 32)
+  let wy integer = wrap(y, 32)
+  return grid[cell_index(wx, wy)]
+end
+
+function count_neighbors(grid integer[1024], x integer, y integer) integer
+  let n integer = 0
+  n = n + get_cell(grid, x - 1, y - 1)
+  n = n + get_cell(grid, x,     y - 1)
+  n = n + get_cell(grid, x + 1, y - 1)
+  n = n + get_cell(grid, x - 1, y)
+  n = n + get_cell(grid, x + 1, y)
+  n = n + get_cell(grid, x - 1, y + 1)
+  n = n + get_cell(grid, x,     y + 1)
+  n = n + get_cell(grid, x + 1, y + 1)
+  return n
+end
+
+function step_grid(cur integer[1024], nxt integer[1024]) integer
+  let y integer = 0
+  while y < 32
+    let x integer = 0
+    while x < 32
+      let idx integer = cell_index(x, y)
+      let alive integer = cur[idx]
+      let n integer = count_neighbors(cur, x, y)
+      let next_alive integer = 0
+      if alive == 1
+        if n == 2
+          next_alive = 1
+        end
+        if n == 3
+          next_alive = 1
+        end
+      end
+      if alive == 0
+        if n == 3
+          next_alive = 1
+        end
+      end
+      nxt[idx] = next_alive
+      x = x + 1
+    end
+    y = y + 1
+  end
+  return 0
+end
+
+function copy_grid(src integer[1024], dst integer[1024]) integer
+  let i integer = 0
+  while i < 1024
+    dst[i] = src[i]
+    i = i + 1
+  end
+  return 0
+end
+
+function draw_grid(grid integer[1024]) integer
+  if etl_gfx_clear(0, 0, 0) < 0
+    return -1
+  end
+  let y integer = 0
+  while y < 32
+    let x integer = 0
+    while x < 32
+      let idx integer = cell_index(x, y)
+      if grid[idx] == 1
+        if etl_gfx_set_pixel(x, y, 255, 255, 255) < 0
+          return -2
+        end
+      end
+      x = x + 1
+    end
+    y = y + 1
+  end
+  return 0
+end
+
+function main() integer
+  let out_path byte[256] = "build/graphics/life.ppm"
+
+  let cur integer[1024]
+  let nxt integer[1024]
+
+  cur[cell_index(15, 16)] = 1
+  cur[cell_index(16, 16)] = 1
+  cur[cell_index(17, 16)] = 1
+
+  if etl_gfx_create(32, 32) < 0
+    return 1
+  end
+
+  let gen integer = 0
+  let rc integer = 0
+  while gen < 10
+    rc = step_grid(cur, nxt)
+    rc = copy_grid(nxt, cur)
+    gen = gen + 1
+  end
+
+  if draw_grid(cur) < 0
+    etl_gfx_destroy()
+    return 2
+  end
+
+  if etl_gfx_write_ppm(out_path) < 0
+    etl_gfx_destroy()
+    return 3
+  end
+
+  etl_gfx_destroy()
+  return rc
+end
