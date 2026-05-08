@@ -16,6 +16,40 @@ stage harnesses and prove a small source-to-C path.
 | `backend_defs.etl` | Shared backend error codes (EMIT_OK, EMIT_ERR_*). Not linked into build. |
 | `emit_asm.etl` | ASM backend emitter (x86-64 System V active smoke subset). Not linked into default build. |
 | `emit_wasm.etl` | WASM backend emitter (WAT text active subset). Not linked into default build. |
+| `emit_bytecode.etl` | Bytecode backend emitter for the runtime ETL VM (`runtime/etl_vm.{c,h}`). See [Bytecode format](#bytecode-format) below. Not linked into default build. |
+
+## Bytecode format
+
+`compiler1/emit_bytecode.etl` produces a readable ASCII bytecode for the
+embedded ETL VM. The format is intentionally text-friendly so the
+compiler-1 subset can build it from `i8` buffers without needing arbitrary
+binary byte assignment, and so a human can hand-inspect the stream.
+
+Header (always the first six bytes):
+
+```
+ETLB1;
+```
+
+Instructions (each instruction ends with a `;` separator):
+
+| Form        | Name           | Behavior |
+|-------------|----------------|----------|
+| `I<int>;`   | `push_i32`     | Push the decimal i32 immediate onto the stack. Negative immediates are not supported by the emitter. |
+| `+;`        | `add`          | Pop right, pop left, push `left + right`. |
+| `-;`        | `sub`          | Pop right, pop left, push `left - right`. |
+| `*;`        | `mul`          | Pop right, pop left, push `left * right`. |
+| `/;`        | `div`          | Pop right, pop left, push `left / right` (errors if `right == 0`). |
+| `%;`        | `mod`          | Pop right, pop left, push `left % right` (errors if `right == 0`). |
+| `L<idx>;`   | `load_local`   | Push the value of local slot `<idx>` onto the stack. |
+| `L<idx>=;`  | `store_local`  | Pop top of stack and store it into local slot `<idx>`. |
+| `R;`        | `return_i32`   | Pop top of stack and use it as the i32 return value of `main`. |
+
+The `store_local` form reuses the `L` opcode plus an `=` marker so that a
+single decoder lookahead disambiguates load vs. store after reading the
+slot digits. Slots are numbered from 0 in declaration order within a
+function body and are bounded by the VM (see
+`runtime/etl_vm.h`, `ETL_VM_MAX_LOCALS`).
 
 ## Build command
 

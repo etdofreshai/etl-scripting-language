@@ -1,0 +1,29 @@
+extern fn etl_input_load_file(path i8[128]) i32
+extern fn etl_input_next() i32
+extern fn etl_input_tick() i32
+extern fn etl_input_code() i32
+extern fn etl_input_down() i32
+extern fn etl_input_remaining() i32
+extern fn etl_print_i32(value i32)
+
+fn main() i32
+  let path i8[128] = "examples/visual/scripted_input.events"
+  let loaded i32 = etl_input_load_file(path)
+  if loaded != 4
+    ret 1
+  end
+
+  let checksum i32 = 0
+  while etl_input_next() == 1
+    checksum = checksum + etl_input_tick() * 1000
+    checksum = checksum + etl_input_code() * 10
+    checksum = checksum + etl_input_down()
+  end
+
+  if etl_input_remaining() != 0
+    ret 2
+  end
+
+  etl_print_i32(checksum)
+  ret 0
+end

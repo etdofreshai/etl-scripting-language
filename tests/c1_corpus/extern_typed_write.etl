@@ -1,0 +1,11 @@
+extern fn etl_write_file(path i8[64], buf i8[1024], len i32) i32
+
+fn main() i32
+  let path i8[64] = "/tmp/etl_c1_extern_typed_write.txt"
+  let buf i8[1024] = "ok"
+  let rc i32 = etl_write_file(path, buf, 2)
+  if rc < 0
+    ret 1
+  end
+  ret 0
+end
