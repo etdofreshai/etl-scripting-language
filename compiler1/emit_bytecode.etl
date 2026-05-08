@@ -286,6 +286,96 @@ fn emit_bytecode_token_is_etl_free(source i8[131072], tokens Token[32768], tok i
   ret true
 end
 
+
+fn emit_bytecode_token_is_str_new(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_new"
+  if tokens[tok].len != 7
+    ret false
+  end
+  let i i32 = 0
+  while i < 7
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_len(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_len"
+  if tokens[tok].len != 7
+    ret false
+  end
+  let i i32 = 0
+  while i < 7
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_concat(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_concat"
+  if tokens[tok].len != 10
+    ret false
+  end
+  let i i32 = 0
+  while i < 10
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_at(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_at"
+  if tokens[tok].len != 6
+    ret false
+  end
+  let i i32 = 0
+  while i < 6
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_eq(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_eq"
+  if tokens[tok].len != 6
+    ret false
+  end
+  let i i32 = 0
+  while i < 6
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
+
+fn emit_bytecode_token_is_str_free(source i8[131072], tokens Token[32768], tok i32) bool
+  let name i8[16] = "str_free"
+  if tokens[tok].len != 8
+    ret false
+  end
+  let i i32 = 0
+  while i < 8
+    if source[tokens[tok].start + i] != name[i]
+      ret false
+    end
+    i = i + 1
+  end
+  ret true
+end
 fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[32768], node i32, out i8[1024], pos i32, out_cap i32, scope i32[64]) i32
   if node < 0
     ret EMIT_ERR_BAD_AST()
@@ -322,6 +412,30 @@ fn emit_bytecode_emit_expr(source i8[131072], tokens Token[32768], ast AstNode[3
     if emit_bytecode_token_is_etl_free(source, tokens, ast[node].a)
       let hf_op i8[64] = "HF;"
       ret emit_bytecode_append_text(out, pcall, out_cap, hf_op, 3)
+    end
+    if emit_bytecode_token_is_str_new(source, tokens, ast[node].a)
+      let hsn_op i8[64] = "HSN;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsn_op, 4)
+    end
+    if emit_bytecode_token_is_str_len(source, tokens, ast[node].a)
+      let hsl_op i8[64] = "HSL;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsl_op, 4)
+    end
+    if emit_bytecode_token_is_str_concat(source, tokens, ast[node].a)
+      let hsc_op i8[64] = "HSC;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsc_op, 4)
+    end
+    if emit_bytecode_token_is_str_at(source, tokens, ast[node].a)
+      let hsa_op i8[64] = "HSA;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsa_op, 4)
+    end
+    if emit_bytecode_token_is_str_eq(source, tokens, ast[node].a)
+      let hse_op i8[64] = "HSE;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hse_op, 4)
+    end
+    if emit_bytecode_token_is_str_free(source, tokens, ast[node].a)
+      let hsf_op i8[64] = "HSF;"
+      ret emit_bytecode_append_text(out, pcall, out_cap, hsf_op, 4)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall, out_cap, ast[node].a)
   end
@@ -613,6 +727,10 @@ fn emit_bytecode_emit_stmt(source i8[131072], tokens Token[32768], ast AstNode[3
     if emit_bytecode_token_is_etl_free(source, tokens, ast[inner].a)
       let hf_op2 i8[64] = "HF;"
       ret emit_bytecode_append_text(out, pcall2, out_cap, hf_op2, 3)
+    end
+    if emit_bytecode_token_is_str_free(source, tokens, ast[inner].a)
+      let hsf_op2 i8[64] = "HSF;"
+      ret emit_bytecode_append_text(out, pcall2, out_cap, hsf_op2, 4)
     end
     ret emit_bytecode_emit_call_op(source, tokens, out, pcall2, out_cap, ast[inner].a)
   end

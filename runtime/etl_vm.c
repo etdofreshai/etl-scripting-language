@@ -1,4 +1,5 @@
 #include "etl_vm.h"
+#include "etl_string.h"
 #include <stdlib.h>
 
 /*
@@ -251,6 +252,10 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
     void *etl_alloc_table[ETL_VM_ALLOC_MAX];
     int32_t etl_alloc_count = 0;
     for (int32_t ai = 0; ai < ETL_VM_ALLOC_MAX; ai = ai + 1) { etl_alloc_table[ai] = 0; }
+    /* String table for HS* opcodes */
+    EtlString *str_table[ETL_VM_ALLOC_MAX];
+    int32_t str_count = 0;
+    for (int32_t si = 0; si < ETL_VM_ALLOC_MAX; si = si + 1) { str_table[si] = 0; }
     int32_t i = 6;
     int32_t func_count = 0;
     int32_t parsed_funcs = etl_vm_parse_functions(bytecode, len, &i, funcs, &func_count);
@@ -478,6 +483,9 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
                 for (int32_t ci = 0; ci < etl_alloc_count; ci = ci + 1) {
                     if (etl_alloc_table[ci] != 0) { free(etl_alloc_table[ci]); etl_alloc_table[ci] = 0; }
                 }
+                for (int32_t si = 0; si < str_count; si = si + 1) {
+                    if (str_table[si] != 0) { str_free(str_table[si]); str_table[si] = 0; }
+                }
                 *result = value;
                 return 0;
             }
@@ -485,32 +493,123 @@ int32_t etl_vm_run_main_i32(const int8_t *bytecode, int32_t len, int32_t *result
             if (i >= len) { return -5; }
             int8_t sub = bytecode[i];
             i = i + 1;
-            if (i >= len || bytecode[i] != ';') { return -5; }
-            i = i + 1;
-            if (sub == 'A') {
-                int32_t sz = 0;
-                int32_t popped = etl_vm_pop_i32(stack, &sp, &sz);
-                if (popped < 0) { return popped; }
-                int32_t handle = 0;
-                if (sz > 0) {
-                    if (etl_alloc_count >= ETL_VM_ALLOC_MAX) { return -37; }
-                    void *ptr = calloc((size_t)sz, 1);
-                    etl_alloc_table[etl_alloc_count] = ptr;
-                    handle = etl_alloc_count + 1;
-                    etl_alloc_count = etl_alloc_count + 1;
-                }
-                int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
-                if (pushed < 0) { return pushed; }
-            } else if (sub == 'F') {
-                int32_t handle = 0;
-                int32_t popped = etl_vm_pop_i32(stack, &sp, &handle);
-                if (popped < 0) { return popped; }
-                if (handle > 0 && handle <= etl_alloc_count) {
-                    free(etl_alloc_table[handle - 1]);
-                    etl_alloc_table[handle - 1] = 0;
+            if (sub == 'S') {
+                /* HS* string opcodes: next char is sub-op, then ';' */
+                if (i >= len) { return -5; }
+                int8_t sub2 = bytecode[i];
+                i = i + 1;
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub2 == 'N') {
+                    /* str_new: pop ptr handle (ignored in VM) → create empty string */
+                    int32_t _ptr_h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &_ptr_h);
+                    if (popped < 0) { return popped; }
+                    if (str_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlString *ns = str_new((void *)"");
+                    if (!ns) { return -38; }
+                    str_table[str_count] = ns;
+                    int32_t handle = str_count + 1;
+                    str_count = str_count + 1;
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'L') {
+                    /* str_len: pop handle, push len */
+                    int32_t h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    int32_t slen = 0;
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        slen = str_len(str_table[h-1]);
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, slen);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'C') {
+                    /* str_concat: pop b handle then a handle, push new handle */
+                    int32_t hb = 0, ha = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &hb);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &ha);
+                    if (popped < 0) { return popped; }
+                    if (str_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                    EtlString *sa = (ha > 0 && ha <= str_count) ? str_table[ha-1] : 0;
+                    EtlString *sb = (hb > 0 && hb <= str_count) ? str_table[hb-1] : 0;
+                    EtlString *sc = 0;
+                    if (sa && sb) { sc = str_concat(sa, sb); }
+                    else { sc = str_new((void *)""); }
+                    if (!sc) { return -38; }
+                    str_table[str_count] = sc;
+                    int32_t handle = str_count + 1;
+                    str_count = str_count + 1;
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'A') {
+                    /* str_at: pop i then handle, push byte */
+                    int32_t idx = 0, h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &idx);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    int32_t byte_val = 0;
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        byte_val = (int32_t)str_at(str_table[h-1], idx);
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, byte_val);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'E') {
+                    /* str_eq: pop b handle then a handle, push bool */
+                    int32_t hb2 = 0, ha2 = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &hb2);
+                    if (popped < 0) { return popped; }
+                    popped = etl_vm_pop_i32(stack, &sp, &ha2);
+                    if (popped < 0) { return popped; }
+                    int32_t eq_result = 0;
+                    EtlString *sa2 = (ha2 > 0 && ha2 <= str_count) ? str_table[ha2-1] : 0;
+                    EtlString *sb2 = (hb2 > 0 && hb2 <= str_count) ? str_table[hb2-1] : 0;
+                    if (sa2 && sb2) { eq_result = str_eq(sa2, sb2); }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, eq_result);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub2 == 'F') {
+                    /* str_free: pop handle, free string */
+                    int32_t h = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &h);
+                    if (popped < 0) { return popped; }
+                    if (h > 0 && h <= str_count && str_table[h-1] != 0) {
+                        str_free(str_table[h-1]);
+                        str_table[h-1] = 0;
+                    }
+                } else {
+                    return -5;
                 }
             } else {
-                return -5;
+                /* HA; and HF; */
+                if (i >= len || bytecode[i] != ';') { return -5; }
+                i = i + 1;
+                if (sub == 'A') {
+                    int32_t sz = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &sz);
+                    if (popped < 0) { return popped; }
+                    int32_t handle = 0;
+                    if (sz > 0) {
+                        if (etl_alloc_count >= ETL_VM_ALLOC_MAX) { return -37; }
+                        void *ptr = calloc((size_t)sz, 1);
+                        etl_alloc_table[etl_alloc_count] = ptr;
+                        handle = etl_alloc_count + 1;
+                        etl_alloc_count = etl_alloc_count + 1;
+                    }
+                    int32_t pushed = etl_vm_push_i32(stack, &sp, handle);
+                    if (pushed < 0) { return pushed; }
+                } else if (sub == 'F') {
+                    int32_t handle = 0;
+                    int32_t popped = etl_vm_pop_i32(stack, &sp, &handle);
+                    if (popped < 0) { return popped; }
+                    if (handle > 0 && handle <= etl_alloc_count) {
+                        free(etl_alloc_table[handle - 1]);
+                        etl_alloc_table[handle - 1] = 0;
+                    }
+                } else {
+                    return -5;
+                }
             }
         } else {
             return -5;
