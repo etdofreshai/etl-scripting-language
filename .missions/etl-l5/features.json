@@ -1,50 +1,83 @@
 {
   "mission": "etl-l5",
-  "features": [
-    {
-      "id": "F4.1",
-      "title": "Fetch SDL3",
-      "milestone": "M4",
-      "status": "done",
-      "valIds": ["VAL-SDL3-001"],
-      "description": "Add scripts/setup.sh fetch_sdl3() to download, build, and verify SDL3 release-3.4.8 into .deps/sdl3/. Idempotent; .deps/ gitignored.",
-      "verificationSteps": ["make check", "scripts/c1_equiv_smoke.sh", "make selfhost"]
-    },
-    {
-      "id": "F4.2",
-      "title": "Tick demo deterministic",
-      "milestone": "M4",
-      "status": "done",
-      "valIds": ["VAL-SDL3-002"],
-      "description": "examples/visual/tick_demo.etl: deterministic tick loop via software graphics backend; make visual target green.",
-      "verificationSteps": ["make check", "make visual"]
-    },
-    {
-      "id": "F4.3",
-      "title": "SDL3 visual sample with bouncing-rect golden frame",
-      "milestone": "M4",
-      "status": "done",
-      "valIds": ["VAL-SDL3-003"],
-      "description": "examples/visual/bouncing_rect.etl renders one frame via SDL3 offscreen backend; PPM golden committed; visual_smoke.sh detects SDL3 via .deps/sdl3/.",
-      "verificationSteps": ["make check", "make visual"]
-    },
-    {
-      "id": "F4.4",
-      "title": "Phase 6 complete — waves 6c (scripted input) + 6e (Life golden)",
-      "milestone": "M4",
-      "status": "done",
-      "valIds": ["VAL-SDL3-004"],
-      "description": "Completes Phase 6 visual runtime by landing wave 6e (Conway's Life golden PPM, blinker seed, 10 generations) and confirming wave 6c (deterministic scripted input runtime) is in tree. Wave 6d (deterministic audio runtime stub) is intentionally deferred — out of mission scope per non-goals (no broad runtime/ABI work beyond next narrow milestone). make check and make visual are both green.",
-      "verificationSteps": ["make check", "scripts/c1_equiv_smoke.sh", "scripts/life_golden_smoke.sh", "scripts/visual_smoke.sh", "make visual", "make examples", "make selfhost"]
-    },
-    {
-      "id": "F4.1.1",
-      "title": "Fix VAL-SDL3-004 wave numbering: 6c scripted input, 6d audio deferred",
-      "milestone": "M4.1",
-      "status": "done",
-      "valIds": ["VAL-SDL3-004"],
-      "description": "Docs-only correction. The original contract draft and F4.4 feature description incorrectly referenced '6d (scripted input)' — scripted input is wave 6c (completed in F0.1). Wave 6d is 'Deterministic audio runtime stub', intentionally deferred. Corrects validation-contract.md VAL-SDL3-004 and features.json F4.4 description.",
-      "verificationSteps": ["make check"]
-    }
+  "baseBranch": "main",
+  "providers": {"workers": "glm", "validators": "codex"},
+  "milestones": [
+    {"id": "M0", "name": "Foundation", "status": "sealed",
+     "features": [
+      {"id": "F0.1", "valIds": ["VAL-FND-004"], "status": "done", "description": "Resolve in-flight scripted-input/sema work."},
+      {"id": "F0.2", "valIds": ["VAL-FND-001","VAL-FND-002","VAL-FND-003"], "status": "done", "description": "Merge afk to main; pre-mission gates green."},
+      {"id": "F0.3", "valIds": [], "status": "done", "description": "Mission branch + ./.deps/ scaffold via setup.sh."}
+     ]},
+    {"id": "M0.1", "name": "M0 cleanup", "status": "sealed",
+     "features": [
+      {"id": "F0.1.1", "valIds": [], "status": "done", "description": "Branch model fix; vendor deps moved bin/ to .deps/; make clean-mission."}
+     ]},
+    {"id": "M1", "name": "Language surface", "status": "sealed",
+     "features": [
+      {"id": "F1.1", "valIds": ["VAL-LANG-001"], "status": "done", "description": "Heap allocator builtins (alloc/free, ptr type)."},
+      {"id": "F1.2", "valIds": ["VAL-LANG-002"], "status": "done", "description": "Heap-backed mutable strings (str type)."},
+      {"id": "F1.3", "valIds": ["VAL-LANG-003"], "status": "done", "description": "Dynamic arrays (dynarr type)."},
+      {"id": "F1.4", "valIds": ["VAL-LANG-004"], "status": "done", "description": "Tagged unions (etlval type)."},
+      {"id": "F1.5", "valIds": ["VAL-LANG-005"], "status": "done", "description": "Surface docs (SPEC/DESIGN/support-matrix)."}
+     ]},
+    {"id": "M1.1", "name": "M1 cleanup", "status": "sealed",
+     "features": [
+      {"id": "F1.1.1", "valIds": [], "status": "done", "description": "Close validator findings; merge M1 to main."},
+      {"id": "F1.1.2", "valIds": [], "status": "done", "description": "Fix selfhost-selfcompile/-bootstrap include path regression for M1 runtime headers."}
+     ]},
+    {"id": "M2", "name": "VM in ETL", "status": "sealed",
+     "features": [
+      {"id": "F2.0", "valIds": [], "status": "done", "description": "BC buffer 1024 to 65536 (prereq for VM-in-ETL)."},
+      {"id": "F2.1", "valIds": ["VAL-VMETL-001"], "status": "done", "description": "VM core in ETL (compiler1/vm.etl, integer/locals/branches/calls)."},
+      {"id": "F2.1.1", "valIds": [], "status": "done", "description": "Wire HS*/HD*/HV* opaque-type bridges in ETL VM."},
+      {"id": "F2.2", "valIds": ["VAL-VMETL-002"], "status": "done", "description": "make vm-equivalence (21 fixtures C VM vs ETL VM)."},
+      {"id": "F2.3", "valIds": ["VAL-VMETL-003"], "status": "done", "description": "Triple equivalence smoke (20 fixtures c0/C, c1/C, c1-VM-in-ETL)."},
+      {"id": "F2.4", "valIds": ["VAL-VMETL-004"], "status": "done", "description": "Host bridge routes through ETL VM via ETL_VM_ETL env var."}
+     ]},
+    {"id": "M2.1", "name": "M2 cleanup", "status": "sealed",
+     "features": [
+      {"id": "F2.1.0", "valIds": [], "status": "done", "description": "Validator follow-ups: smoke falsifiability, etl_compile_module doc, F2.1 handoff recovery."}
+     ]},
+    {"id": "M3", "name": "CLI samples", "status": "sealed",
+     "features": [
+      {"id": "F3.1", "valIds": ["VAL-CLI-001"], "status": "done", "description": "Calculator REPL (stdin loop, +/-/*//(), error handling)."},
+      {"id": "F3.2", "valIds": ["VAL-CLI-002"], "status": "done", "description": "File transform CLI (uppercase, missing-file handled)."},
+      {"id": "F3.3", "valIds": ["VAL-CLI-003"], "status": "done", "description": "Rule engine via runtime VM (loads rule script at runtime)."},
+      {"id": "F3.4", "valIds": ["VAL-CLI-004"], "status": "done", "description": "make examples-cli covers all three samples + cleanup."}
+     ]},
+    {"id": "M4", "name": "SDL3 live", "status": "sealed",
+     "features": [
+      {"id": "F4.1", "valIds": ["VAL-SDL3-001"], "status": "done", "description": "Fetch SDL3 release-3.4.8 into .deps/sdl3/."},
+      {"id": "F4.2", "valIds": ["VAL-SDL3-002"], "status": "done", "description": "Tick demo deterministic 3-run check."},
+      {"id": "F4.3", "valIds": ["VAL-SDL3-003"], "status": "done", "description": "Bouncing-rect SDL3 visual sample with PPM golden."},
+      {"id": "F4.4", "valIds": ["VAL-SDL3-004"], "status": "done", "description": "Phase 6 waves 6c (done) + 6e (Life golden); visual_smoke uses .deps/sdl3 detection."}
+     ]},
+    {"id": "M4.1", "name": "M4 cleanup", "status": "sealed",
+     "features": [
+      {"id": "F4.1.1", "valIds": [], "status": "done", "description": "Fix VAL-SDL3-004 wave numbering (6c scripted input, 6d audio deferred). Restore truncated mission artifacts."}
+     ]},
+    {"id": "M5", "name": "Backend validation", "status": "pending",
+     "features": [
+      {"id": "F5.1", "valIds": ["VAL-BE-001"], "status": "pending", "description": "backend-subset green across C/VM/ASM/WAT (≥10 fixtures)."},
+      {"id": "F5.2", "valIds": ["VAL-BE-002"], "status": "pending", "description": "make backend-asm assembles + executes natively."},
+      {"id": "F5.3", "valIds": ["VAL-BE-003"], "status": "pending", "description": "Fetch wasmtime + wat2wasm; make backend-wasm via wasmtime WASI."},
+      {"id": "F5.4", "valIds": ["VAL-BE-004"], "status": "pending", "description": "support-matrix.md refresh against actual fixture set."}
+     ]},
+    {"id": "M6", "name": "Multi-platform", "status": "pending",
+     "features": [
+      {"id": "F6.1", "valIds": ["VAL-DIST-001"], "status": "pending", "description": "Linux x86_64 release tarball + smoke."},
+      {"id": "F6.2", "valIds": ["VAL-DIST-002"], "status": "pending", "description": "Linux aarch64 cross-compile + qemu run."},
+      {"id": "F6.3", "valIds": ["VAL-DIST-003"], "status": "pending", "description": "macOS x86_64+arm64 cross-compile build-validate."},
+      {"id": "F6.4", "valIds": ["VAL-DIST-004"], "status": "pending", "description": "WASM/WASI calculator via wasmtime + headless Chrome browser harness."},
+      {"id": "F6.5", "valIds": ["VAL-DIST-005"], "status": "pending", "description": "make release-check orchestrates all platforms."}
+     ]},
+    {"id": "M7", "name": "Release", "status": "pending",
+     "features": [
+      {"id": "F7.1", "valIds": ["VAL-REL-001"], "status": "pending", "description": "All gates green sequence."},
+      {"id": "F7.2", "valIds": ["VAL-REL-002"], "status": "pending", "description": "Final docs sweep."},
+      {"id": "F7.3", "valIds": ["VAL-REL-003"], "status": "pending", "description": "Clean-checkout reproducible end-to-end."},
+      {"id": "F7.4", "valIds": ["VAL-REL-004"], "status": "pending", "description": "v0.1.0-rc1 tag + CHANGELOG.md."}
+     ]}
   ]
 }
