@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deterministic visual example smoke test.
-# SDL3 is optional; default success path uses only the CLI and c0/C backend.
+# SDL3 is optional; if present in .deps/sdl3/ the live SDL3 branch runs;
+# otherwise that section is skipped gracefully.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -65,11 +66,16 @@ run_case tick_demo
 check_tick_demo_deterministic
 run_case software_pixel
 "$repo_root/scripts/scripted_input_smoke.sh"
+"$repo_root/scripts/life_golden_smoke.sh"
 
-if pkg-config --exists sdl3 2>/dev/null || [ -f /usr/include/SDL3/SDL.h ]; then
-  echo "visual_smoke: SDL3 installed (optional SDL3 branch covered by graphics-headless)"
+sdl3_inc="$repo_root/.deps/sdl3/include/SDL3/SDL.h"
+sdl3_lib="$repo_root/.deps/sdl3/lib/libSDL3.so"
+
+if [ -f "$sdl3_inc" ] && [ -f "$sdl3_lib" ]; then
+  echo "visual_smoke: SDL3 found in .deps/sdl3/, running live SDL3 smoke ..."
+  "$repo_root/scripts/sdl3_visual_smoke.sh"
 else
-  echo "visual_smoke: SKIP sdl3 (SDL3 not installed)"
+  echo "visual_smoke: SKIP sdl3 (.deps/sdl3 not present)"
 fi
 
 echo "visual_smoke: ok"
