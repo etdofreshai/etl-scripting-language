@@ -26,6 +26,12 @@
  * Returns negative error codes on failure; see comments in etl_host.c
  * for the meaning of each code.
  */
+
+/*
+ * LIMITATION: etl_compile_module cannot be called more than once per process.
+ * The subprocess bytecode driver reads /dev/stdin which becomes unreadable
+ * after the first call.  Tracked for future fix.
+ */
 int32_t etl_compile_module(const int8_t *source,
                            int32_t source_len,
                            int8_t *bytecode_out,
