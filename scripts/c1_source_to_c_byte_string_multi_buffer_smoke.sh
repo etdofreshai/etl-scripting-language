@@ -20,7 +20,7 @@ if [ ! -s "$emitted" ]; then
   exit 1
 fi
 
-cc -Wall -Werror "$emitted" -o "$td/c1_emitted_byte_string_multi_buffer"
+cc -Wall -Werror -I runtime "$emitted" -o "$td/c1_emitted_byte_string_multi_buffer"
 set +e
 "$td/c1_emitted_byte_string_multi_buffer"
 status=$?

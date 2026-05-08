@@ -27,7 +27,7 @@ run_case() {
     exit 1
   fi
 
-  cc -Wall -Werror "$emitted" -o "$exe"
+  cc -Wall -Werror -I runtime "$emitted" -o "$exe"
   set +e
   "$exe"
   status=$?

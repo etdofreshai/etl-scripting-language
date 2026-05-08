@@ -20,7 +20,7 @@ if [ ! -s "$emitted" ]; then
   exit 1
 fi
 
-cc -Wall -Werror "$emitted" -o "$td/c1_emitted_array_var_index"
+cc -Wall -Werror -I runtime "$emitted" -o "$td/c1_emitted_array_var_index"
 set +e
 "$td/c1_emitted_array_var_index"
 status=$?

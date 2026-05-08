@@ -64,7 +64,7 @@ EOF_HARNESS
     echo "c1_emit_control_flow_smoke: FAIL $name - no emitted C" >&2
     exit 1
   fi
-  cc -Wall -Werror "$emitted" -o "$emitted_bin"
+  cc -Wall -Werror -I runtime "$emitted" -o "$emitted_bin"
   set +e
   "$emitted_bin" >/dev/null
   local status=$?

@@ -36,7 +36,7 @@ scripts/build_etl.sh "$bcd_src" "$bcd_bin"
 # ---------------------------------------------------------------------------
 host_bin="$td/etl_host"
 cc -std=c11 -Wall -Wextra -Werror \
-   runtime/test_host.c runtime/etl_host.c runtime/etl_vm.c runtime/etl_runtime.c \
+   runtime/test_host.c runtime/etl_host.c runtime/etl_vm.c runtime/etl_string.c runtime/etl_runtime.c \
    -I runtime -o "$host_bin"
 
 # ---------------------------------------------------------------------------

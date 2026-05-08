@@ -53,7 +53,7 @@ if [ "$(tr -d '\n' < "$bytecode_path")" != "ETLB1;T1;Dmain,0;Cmain;R;@main;I1;I2
   exit 1
 fi
 
-cc -std=c11 -Wall -Wextra -Werror runtime/test_vm.c runtime/etl_vm.c -I runtime -o "$td/test_vm"
+cc -std=c11 -Wall -Wextra -Werror runtime/test_vm.c runtime/etl_vm.c runtime/etl_string.c -I runtime -o "$td/test_vm"
 "$td/test_vm"
 
 echo "c1_vm_return_smoke: ok (compiler-1 stack bytecode executes via minimal ETL VM)"

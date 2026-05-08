@@ -75,7 +75,7 @@ run_c_case() {
   local bin="$td/${name}_c"
 
   build_emit_driver c "$name" "$source" "$emitted"
-  cc -Wall -Werror "$emitted" -o "$bin"
+  cc -Wall -Werror -I runtime "$emitted" -o "$bin"
   set +e
   "$bin" >/dev/null
   local status=$?
